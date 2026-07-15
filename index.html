@@ -454,6 +454,8 @@ async function loadTipoA(kam, cliente, sucursal) {
     );
   });
 }
+
+async function loadSegmentacion() {
   const el = document.getElementById('view-segmentacion');
   el.innerHTML = '<div class="loading">Cargando segmentación...</div>';
   const r = await rpc('dash_segmentacion', { p_token: TOKEN });
