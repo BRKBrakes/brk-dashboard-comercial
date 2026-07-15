@@ -16,7 +16,7 @@
   /* Login */
   #login{min-height:100vh;display:flex;align-items:center;justify-content:center;}
   #login form{background:var(--card);padding:2.5rem;border-radius:12px;width:320px;border:1px solid var(--dust);}
-  #login h1{color:var(--neon);font-size:20px;letter-spacing:2px;margin:0 0 4px;text-align:center;}
+  #login .logo{display:block;height:44px;margin:0 auto 14px;}
   #login p{color:var(--text-dim);font-size:12px;text-align:center;margin:0 0 24px;}
   input{width:100%;padding:10px;margin-bottom:12px;border-radius:6px;border:1px solid var(--dust);background:#2c3126;color:var(--text);font-family:inherit;}
   button{width:100%;padding:10px;border-radius:6px;border:none;background:var(--neon);color:var(--ash);font-weight:700;cursor:pointer;font-family:inherit;}
@@ -24,9 +24,12 @@
   .err{color:#ff6b6b;font-size:12px;margin-top:8px;text-align:center;min-height:16px;}
 
   /* App shell */
-  header{background:var(--ash);padding:14px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--neon);}
-  header .brand{color:var(--neon);font-weight:700;letter-spacing:2px;font-size:18px;}
-  header .brand span{color:var(--silver);font-weight:400;font-size:12px;margin-left:8px;}
+  header{background:var(--ash);padding:14px 24px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;border-bottom:2px solid var(--neon);gap:16px;}
+  header .brand{display:flex;align-items:center;gap:10px;}
+  header .brand img{height:28px;}
+  header .title{color:var(--neon);font-weight:700;letter-spacing:2px;font-size:15px;text-align:center;white-space:nowrap;}
+  header .right{display:flex;align-items:center;justify-content:flex-end;gap:14px;}
+  header .right img{height:26px;}
   header button{width:auto;padding:8px 16px;background:transparent;color:var(--silver);border:1px solid var(--dust);}
 
   main{padding:24px;max-width:1200px;margin:0 auto;}
@@ -63,7 +66,7 @@
 
 <div id="login">
   <form id="loginForm">
-    <h1>BRK</h1>
+    <img src="BRK_logo_11.png" alt="BRK Beyond Roads Known" class="logo">
     <p>Dashboard Comercial · Acceso restringido</p>
     <input type="email" id="email" placeholder="correo" required>
     <input type="password" id="password" placeholder="contraseña" required>
@@ -74,8 +77,12 @@
 
 <div id="app" class="hidden">
   <header>
-    <div class="brand">BRK <span>DASHBOARD COMERCIAL 2026</span></div>
-    <button id="logoutBtn">Salir</button>
+    <div class="brand"><img src="BRK_logo_11.png" alt="BRK"></div>
+    <div class="title">DASHBOARD COMERCIAL 2026</div>
+    <div class="right">
+      <img src="BRK_logo_31.png" alt="Roadrunner BRK">
+      <button id="logoutBtn">Salir</button>
+    </div>
   </header>
   <main>
     <div class="tabs">
