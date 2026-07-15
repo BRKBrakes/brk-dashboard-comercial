@@ -419,11 +419,19 @@ function optMeses(mesSel) {
   return out;
 }
 
+let TICKET_FAMILIA_SEL = null;
+
 async function loadTicket(kam, cliente, sucursal, mes) {
   const el = document.getElementById('view-ticket');
   if (!TICKET_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando ticket promedio...</div>';
-  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mes ? parseInt(mes) : null });
+  const mesInt = mes ? parseInt(mes) : null;
+  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  let prod = null;
+  if (TICKET_FAMILIA_SEL) {
+    prod = await rpc('dash_ticket_productos', { p_token: TOKEN, p_familia: TICKET_FAMILIA_SEL, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt });
+  }
 
   if (!TICKET_FILTROS_HTML) {
     const f = r.filtros || {};
@@ -443,11 +451,23 @@ async function loadTicket(kam, cliente, sucursal, mes) {
     <div class="kpi"><div class="label">Ticket Promedio</div><div class="value">${money(g.ticket_promedio)}</div></div>
     <div class="kpi"><div class="label">Unidades Vendidas</div><div class="value">${Math.round(g.unidades||0).toLocaleString('es-CO')}</div></div>
   </div>`;
-  html += '<div class="card"><h2>Top 12 productos por descripción</h2><table><tr><th>Descripción</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>';
-  (r.por_producto || []).forEach(f => {
-    html += `<tr><td>${f.descripcion||''}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
+
+  html += '<div class="card"><h2>Top 12 por familia (clic para ver descripciones)</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>';
+  (r.por_familia || []).forEach(f => {
+    const activo = TICKET_FAMILIA_SEL === f.familia;
+    html += `<tr class="fam-row-ticket" data-familia="${f.familia}" style="cursor:pointer;${activo?'background:#2a2e24;':''}"><td>${f.familia}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
   });
   html += '</table></div>';
+
+  if (TICKET_FAMILIA_SEL && prod && prod.ok) {
+    html += `<div class="card"><h2>Descripciones — ${TICKET_FAMILIA_SEL} <span id="tkLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todas las familias)</span></h2>
+      <table><tr><th>Descripción</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>`;
+    (prod.data || []).forEach(p => {
+      html += `<tr><td>${p.descripcion||''}</td><td class="num money">${money(p.venta)}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(p.ticket_promedio)}</td></tr>`;
+    });
+    html += '</table></div>';
+  }
+
   el.innerHTML = html;
   autoFitKpis();
 
@@ -458,6 +478,14 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   document.getElementById('tkFiltrar').addEventListener('click', () => {
     loadTicket(document.getElementById('tkKam').value, document.getElementById('tkCliente').value, document.getElementById('tkSucursal').value, document.getElementById('tkMes').value);
   });
+  el.querySelectorAll('.fam-row-ticket').forEach(row => {
+    row.addEventListener('click', () => {
+      TICKET_FAMILIA_SEL = (TICKET_FAMILIA_SEL === row.dataset.familia) ? null : row.dataset.familia;
+      loadTicket(kam, cliente, sucursal, mes);
+    });
+  });
+  const limpiarFam = document.getElementById('tkLimpiarFam');
+  if (limpiarFam) limpiarFam.addEventListener('click', (e) => { e.stopPropagation(); TICKET_FAMILIA_SEL = null; loadTicket(kam, cliente, sucursal, mes); });
 }
 
 const COLORES_FAMILIA = ['#F1FE34','#596B63','#9A979F','#414930','#ff9f43','#4ade80','#ff6b6b','#8b5cf6','#06b6d4'];
@@ -468,10 +496,10 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   const el = document.getElementById('view-portafolio');
   if (!PORTAFOLIO_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando portafolio...</div>';
   const mesInt = mes ? parseInt(mes) : null;
-  const [r, prod] = await Promise.all([
-    rpc('dash_portafolio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt }),
-    rpc('dash_portafolio_productos', { p_token: TOKEN, p_familia: PORTAFOLIO_FAMILIA_SEL, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt })
-  ]);
+  const r = await rpc('dash_portafolio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt });
+  const prod = PORTAFOLIO_FAMILIA_SEL
+    ? await rpc('dash_portafolio_productos', { p_token: TOKEN, p_familia: PORTAFOLIO_FAMILIA_SEL, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt })
+    : null;
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   if (!PORTAFOLIO_FILTROS_HTML) {
@@ -517,25 +545,20 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   });
   html += '</div></div></div>';
 
-  const productos = prod.ok ? (prod.data || []) : [];
-  const conFamilia = !!PORTAFOLIO_FAMILIA_SEL;
-  const tituloProd = conFamilia ? `Top 25 referencias — ${PORTAFOLIO_FAMILIA_SEL}` : 'Top 12 por descripción (todos los productos)';
-  const porUnidades = productos.slice().sort((a,b) => b.unidades - a.unidades);
-  const porVenta = productos.slice().sort((a,b) => b.venta - a.venta);
-
-  const colRef = conFamilia ? '<th>Ref</th>' : '';
-  const filaVenta = (p) => `<tr>${conFamilia ? `<td>${p.referencia}</td>` : ''}<td>${p.descripcion||''}</td><td class="num money">${money(p.venta)}</td></tr>`;
-  const filaUnid = (p) => `<tr>${conFamilia ? `<td>${p.referencia}</td>` : ''}<td>${p.descripcion||''}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td></tr>`;
-
-  html += `<div class="card"><h2>${tituloProd} ${conFamilia ? '<span id="pfLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todos)</span>' : ''}</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr>${colRef}<th>Descripción</th><th class="num">Venta</th></tr>
-        ${porVenta.map(filaVenta).join('')}
-      </table></div>
-      <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr>${colRef}<th>Descripción</th><th class="num">Unidades</th></tr>
-        ${porUnidades.map(filaUnid).join('')}
-      </table></div>
-    </div></div>`;
+  if (PORTAFOLIO_FAMILIA_SEL && prod && prod.ok) {
+    const productos = prod.data || [];
+    const porUnidades = productos.slice().sort((a,b) => b.unidades - a.unidades);
+    const porVenta = productos.slice().sort((a,b) => b.venta - a.venta);
+    html += `<div class="card"><h2>Top 25 referencias — ${PORTAFOLIO_FAMILIA_SEL} <span id="pfLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todos)</span></h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Venta</th></tr>
+          ${porVenta.map(p => `<tr><td>${p.referencia}</td><td>${p.descripcion||''}</td><td class="num money">${money(p.venta)}</td></tr>`).join('')}
+        </table></div>
+        <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Unidades</th></tr>
+          ${porUnidades.map(p => `<tr><td>${p.referencia}</td><td>${p.descripcion||''}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
+        </table></div>
+      </div></div>`;
+  }
 
   el.innerHTML = html;
 
