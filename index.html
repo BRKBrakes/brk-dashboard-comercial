@@ -95,7 +95,17 @@
       <div class="tab" data-tab="planes">Planes de acción</div>
     </div>
 
-    <div id="view-ejecutivo"></div>
+    <div id="view-ejecutivo">
+      <div id="top-acciones"></div>
+      <div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
+        <select id="mesDesde" class="estado"></select>
+        <span style="color:var(--text-dim);font-size:12px;">a</span>
+        <select id="mesHasta" class="estado"></select>
+        <button id="btnFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Aplicar</button>
+      </div>
+      <div id="ejecutivo-contenido"></div>
+    </div>
     <div id="view-gapdiscos" class="hidden"></div>
     <div id="view-gapliquidos" class="hidden"></div>
     <div id="view-segmentacion" class="hidden"></div>
@@ -185,13 +195,57 @@ async function loadTab(tab) {
   if (tab === 'planes') return loadPlanes();
 }
 
+function poblarSelectMeses() {
+  const mesActual = 7; // dato disponible hasta julio 2026
+  const dSel = document.getElementById('mesDesde');
+  const hSel = document.getElementById('mesHasta');
+  if (dSel.options.length) return; // ya poblado
+  MESES.slice(0, mesActual).forEach((m, i) => {
+    dSel.innerHTML += `<option value="${i+1}" ${i===0?'selected':''}>${m}</option>`;
+    hSel.innerHTML += `<option value="${i+1}" ${i+1===mesActual?'selected':''}>${m}</option>`;
+  });
+}
+
+const ICONOS_TIPO = {
+  kam_riesgo: { color: '#ff6b6b', label: 'KAM en riesgo' },
+  gap_discos: { color: '#ff9f43', label: 'Oportunidad discos' },
+  gap_liquidos: { color: '#ff9f43', label: 'Oportunidad líquidos' },
+  riesgo_caida: { color: '#f1fe34', label: 'Cliente enfriándose' }
+};
+
+async function loadTopAcciones() {
+  const el = document.getElementById('top-acciones');
+  el.innerHTML = '<div class="loading">Calculando prioridades...</div>';
+  const r = await rpc('dash_top_acciones', { p_token: TOKEN });
+  if (!r.ok || !r.data || !r.data.length) { el.innerHTML = ''; return; }
+  let html = '<div class="card" style="border:1px solid var(--neon);"><h2 style="color:var(--neon);">Top 5 acciones esta semana</h2>';
+  r.data.forEach((a, i) => {
+    const tag = ICONOS_TIPO[a.tipo] || { color: '#9A979F', label: a.tipo };
+    html += `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #333630;">
+      <div style="width:22px;height:22px;border-radius:50%;background:${tag.color};color:#111;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">${i+1}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;">${titleCase(a.nombre)} <span style="font-size:10px;color:${tag.color};font-weight:400;text-transform:uppercase;margin-left:6px;">${tag.label}</span></div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">${a.motivo}${a.ciudad ? ' · ' + a.ciudad : ''}</div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 async function loadEjecutivo() {
-  const el = document.getElementById('view-ejecutivo');
+  poblarSelectMeses();
+  loadTopAcciones();
+  const el = document.getElementById('ejecutivo-contenido');
   el.innerHTML = '<div class="loading">Cargando KPI...</div>';
-  const [kpi, kams, resumen] = await Promise.all([
+
+  const mesDesde = parseInt(document.getElementById('mesDesde').value) || 1;
+  const mesHasta = parseInt(document.getElementById('mesHasta').value) || 7;
+
+  const [kpi, resumen, cumplPeriodo] = await Promise.all([
     rpc('dash_kpi_ejecutivo', { p_token: TOKEN }),
-    rpc('dash_cumplimiento_kam', { p_token: TOKEN }),
-    rpc('dash_resumen_cartera', { p_token: TOKEN })
+    rpc('dash_resumen_cartera', { p_token: TOKEN }),
+    rpc('dash_cumplimiento_periodo', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta })
   ]);
   if (!kpi.ok) { el.innerHTML = '<div class="loading">Sesión expirada, vuelve a entrar.</div>'; return; }
 
@@ -208,6 +262,18 @@ async function loadEjecutivo() {
     <div class="kpi"><div class="label">Clientes activos 90d</div><div class="value">${resumen.clientes_activos_90d||0} / ${resumen.clientes_totales_2026||0}</div></div>
   </div>`;
 
+  // Cuadro de cumplimiento por KAM en el periodo seleccionado, semaforizado
+  html += `<div class="card"><h2>Cumplimiento por KAM · ${MESES[mesDesde-1]} a ${MESES[mesHasta-1]} 2026</h2>
+    <table><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Debería llevar</th><th class="num">% Cumplimiento</th></tr>`;
+  (cumplPeriodo.data || []).forEach(k => {
+    const pct = k.presupuesto_periodo ? Math.round((k.venta_real / k.presupuesto_periodo) * 100) : 0;
+    let color = '#ff6b6b'; // rojo <80%
+    if (pct >= 100) color = '#4ade80'; // verde
+    else if (pct >= 80) color = '#ff9f43'; // naranja
+    html += `<tr><td>${titleCase(k.vendedor)}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
+  });
+  html += '</table></div>';
+
   html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table><tr><th>Mes</th><th class="num">Real</th><th class="num">Presupuesto</th><th class="num">%</th></tr>';
   (kpi.por_mes || []).forEach(m => {
     const pct = m.presupuesto ? Math.round((m.venta_real/m.presupuesto)*100) : 0;
@@ -215,16 +281,11 @@ async function loadEjecutivo() {
   });
   html += '</table></div>';
 
-  html += '<div class="card"><h2>Cumplimiento por KAM</h2>';
-  (kams.data || []).forEach(k => {
-    const pct = k.presupuesto_anual ? Math.min(100, Math.round((k.venta_real/k.presupuesto_anual)*100)) : 0;
-    html += `<div class="bar-row"><div class="bar-label">${titleCase(k.vendedor)}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><div class="bar-pct">${pct}%</div></div>`;
-  });
-  html += '</div>';
-
   el.innerHTML = html;
   autoFitKpis();
 }
+
+document.getElementById('btnFiltrar').addEventListener('click', loadEjecutivo);
 
 async function loadGapDiscos() {
   const el = document.getElementById('view-gapdiscos');
