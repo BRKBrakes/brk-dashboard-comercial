@@ -94,7 +94,7 @@
       <div class="tab" data-tab="perdidos">Recuperación</div>
       <div class="tab" data-tab="planes">Planes de acción</div>
     </div>
-    <div id="sub-oportunidades" class="tabs hidden" style="margin-top:-8px;">
+    <div id="sub-oportunidades" class="subtabs hidden" style="margin-top:-8px;display:flex;gap:8px;margin-bottom:20px;">
       <div class="tab active" data-subtab="gapdiscos" style="font-size:12px;">Gap Discos</div>
       <div class="tab" data-subtab="gapliquidos" style="font-size:12px;">Gap Líquidos</div>
       <div class="tab" data-subtab="gapcilindros" style="font-size:12px;">Gap Cilindros</div>
@@ -419,39 +419,37 @@ async function loadGapCilindros() {
 }
 
 let TIPOA_FILTROS_HTML = '';
-async function loadTipoA(kam, cliente, sucursal) {
+async function loadTipoA(kams, clientes, sucursales) {
   const el = document.getElementById('view-tipoa');
   if (!TIPOA_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando aliados tipo A...</div>';
-  const r = await rpc('dash_top_tipo_a', { p_token: TOKEN, p_kam: kam || null, p_cliente: cliente || null, p_sucursal: sucursal || null });
+  const r = await rpc('dash_top_tipo_a', { p_token: TOKEN, p_kams: kams && kams.length ? kams : null, p_clientes: clientes && clientes.length ? clientes : null, p_sucursales: sucursales && sucursales.length ? sucursales : null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   if (!TIPOA_FILTROS_HTML) {
     const f = r.filtros || {};
     const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
     TIPOA_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
-      <select id="taKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
-      <select id="taCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
-      <select id="taSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
-      <button id="taFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
+      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">KAM (Ctrl/Cmd+clic para varios)</div><select id="taKam" class="estado" multiple size="4" style="min-width:180px;">${opt(f.kams)}</select></div>
+      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Cliente</div><select id="taCliente" class="estado" multiple size="4" style="min-width:220px;">${opt(f.clientes)}</select></div>
+      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Sucursal</div><select id="taSucursal" class="estado" multiple size="4" style="min-width:220px;">${opt(f.sucursales)}</select></div>
+      <button id="taFiltrar" style="width:auto;padding:6px 14px;font-size:12px;align-self:flex-end;">Filtrar</button>
     </div>`;
   }
 
-  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (categoría Diamante)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th></tr>';
+  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (categoría Diamante) — ' + (r.data||[]).length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td class="num money">${money(c.total)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
 
-  document.getElementById('taKam').value = kam || '';
-  document.getElementById('taCliente').value = cliente || '';
-  document.getElementById('taSucursal').value = sucursal || '';
+  const getSel = (id) => Array.from(document.getElementById(id).selectedOptions).map(o => o.value);
+  (kams||[]).forEach(v => { const o = document.querySelector(`#taKam option[value="${CSS.escape(v)}"]`); if (o) o.selected = true; });
+  (clientes||[]).forEach(v => { const o = document.querySelector(`#taCliente option[value="${CSS.escape(v)}"]`); if (o) o.selected = true; });
+  (sucursales||[]).forEach(v => { const o = document.querySelector(`#taSucursal option[value="${CSS.escape(v)}"]`); if (o) o.selected = true; });
+
   document.getElementById('taFiltrar').addEventListener('click', () => {
-    loadTipoA(
-      document.getElementById('taKam').value,
-      document.getElementById('taCliente').value,
-      document.getElementById('taSucursal').value
-    );
+    loadTipoA(getSel('taKam'), getSel('taCliente'), getSel('taSucursal'));
   });
 }
 
