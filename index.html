@@ -88,12 +88,16 @@
     <div class="tabs">
       <div class="tab active" data-tab="ejecutivo">Ejecutivo</div>
       <div class="tab" data-tab="gapdiscos">Gap Discos</div>
+      <div class="tab" data-tab="gapliquidos">Gap Líquidos</div>
+      <div class="tab" data-tab="segmentacion">Segmentación</div>
       <div class="tab" data-tab="perdidos">Recuperación</div>
       <div class="tab" data-tab="planes">Planes de acción</div>
     </div>
 
     <div id="view-ejecutivo"></div>
     <div id="view-gapdiscos" class="hidden"></div>
+    <div id="view-gapliquidos" class="hidden"></div>
+    <div id="view-segmentacion" class="hidden"></div>
     <div id="view-perdidos" class="hidden"></div>
     <div id="view-planes" class="hidden"></div>
   </main>
@@ -167,6 +171,8 @@ const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov'
 async function loadTab(tab) {
   if (tab === 'ejecutivo') return loadEjecutivo();
   if (tab === 'gapdiscos') return loadGapDiscos();
+  if (tab === 'gapliquidos') return loadGapLiquidos();
+  if (tab === 'segmentacion') return loadSegmentacion();
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
 }
@@ -174,9 +180,10 @@ async function loadTab(tab) {
 async function loadEjecutivo() {
   const el = document.getElementById('view-ejecutivo');
   el.innerHTML = '<div class="loading">Cargando KPI...</div>';
-  const [kpi, kams] = await Promise.all([
+  const [kpi, kams, resumen] = await Promise.all([
     rpc('dash_kpi_ejecutivo', { p_token: TOKEN }),
-    rpc('dash_cumplimiento_kam', { p_token: TOKEN })
+    rpc('dash_cumplimiento_kam', { p_token: TOKEN }),
+    rpc('dash_resumen_cartera', { p_token: TOKEN })
   ]);
   if (!kpi.ok) { el.innerHTML = '<div class="loading">Sesión expirada, vuelve a entrar.</div>'; return; }
 
@@ -188,6 +195,9 @@ async function loadEjecutivo() {
     <div class="kpi"><div class="label">Venta acumulada 2026</div><div class="value">${money(totalReal)}</div></div>
     <div class="kpi"><div class="label">Presupuesto anual AFL</div><div class="value">${money(totalPpto)}</div></div>
     <div class="kpi"><div class="label">Cumplimiento</div><div class="value">${cumplPct}%</div></div>
+    <div class="kpi"><div class="label">Ratio discos/pastas</div><div class="value">${Math.round((resumen.ratio_discos_pastas_global||0)*100)}%</div></div>
+    <div class="kpi"><div class="label">Concentración top 10</div><div class="value">${resumen.concentracion_top10_pct||0}%</div></div>
+    <div class="kpi"><div class="label">Clientes activos 90d</div><div class="value">${resumen.clientes_activos_90d||0} / ${resumen.clientes_totales_2026||0}</div></div>
   </div>`;
 
   html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table><tr><th>Mes</th><th class="num">Real</th><th class="num">Presupuesto</th><th class="num">%</th></tr>';
@@ -215,6 +225,44 @@ async function loadGapDiscos() {
   let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días)</h2><table><tr><th>Cliente</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Discos</th><th class="num">Ratio</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${c.cliente}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.discos)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+}
+
+async function loadGapLiquidos() {
+  const el = document.getElementById('view-gapliquidos');
+  el.innerHTML = '<div class="loading">Cargando gap de líquidos...</div>';
+  const r = await rpc('dash_gap_liquidos', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días)</h2><table><tr><th>Cliente</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Líquidos</th><th class="num">Potencial/mes</th></tr>';
+  (r.data || []).forEach(c => {
+    html += `<tr><td>${c.cliente}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.liquidos)}</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+}
+
+async function loadSegmentacion() {
+  const el = document.getElementById('view-segmentacion');
+  el.innerHTML = '<div class="loading">Cargando segmentación...</div>';
+  const r = await rpc('dash_segmentacion', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  const data = r.data || [];
+  const resumen = {};
+  data.forEach(c => {
+    resumen[c.segmento] = resumen[c.segmento] || { n: 0, total: 0 };
+    resumen[c.segmento].n++;
+    resumen[c.segmento].total += c.total;
+  });
+  let html = '<div class="kpis">';
+  Object.keys(resumen).sort().forEach(seg => {
+    html += `<div class="kpi"><div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${money(resumen[seg].total)}</div></div>`;
+  });
+  html += '</div>';
+  html += '<div class="card"><h2>Detalle por cliente</h2><table><tr><th>Cliente</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>';
+  data.forEach(c => {
+    html += `<tr><td>${c.cliente}</td><td>${c.segmento}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
