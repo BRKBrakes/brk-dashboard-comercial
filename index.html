@@ -88,11 +88,16 @@
   <main>
     <div class="tabs">
       <div class="tab active" data-tab="ejecutivo">Directivo</div>
-      <div class="tab" data-tab="gapdiscos">Gap Discos</div>
-      <div class="tab" data-tab="gapliquidos">Gap Líquidos</div>
+      <div class="tab" data-tab="oportunidades">Oportunidades</div>
+      <div class="tab" data-tab="tipoa">Aliados Tipo A</div>
       <div class="tab" data-tab="segmentacion">Segmentación</div>
       <div class="tab" data-tab="perdidos">Recuperación</div>
       <div class="tab" data-tab="planes">Planes de acción</div>
+    </div>
+    <div id="sub-oportunidades" class="tabs hidden" style="margin-top:-8px;">
+      <div class="tab active" data-subtab="gapdiscos" style="font-size:12px;">Gap Discos</div>
+      <div class="tab" data-subtab="gapliquidos" style="font-size:12px;">Gap Líquidos</div>
+      <div class="tab" data-subtab="gapcilindros" style="font-size:12px;">Gap Cilindros</div>
     </div>
 
     <div id="view-ejecutivo">
@@ -109,8 +114,12 @@
       </div>
       <div id="ejecutivo-contenido"></div>
     </div>
-    <div id="view-gapdiscos" class="hidden"></div>
-    <div id="view-gapliquidos" class="hidden"></div>
+    <div id="view-oportunidades" class="hidden">
+      <div id="view-gapdiscos"></div>
+      <div id="view-gapliquidos" class="hidden"></div>
+      <div id="view-gapcilindros" class="hidden"></div>
+    </div>
+    <div id="view-tipoa" class="hidden"></div>
     <div id="view-segmentacion" class="hidden"></div>
     <div id="view-perdidos" class="hidden"></div>
     <div id="view-planes" class="hidden"></div>
@@ -170,14 +179,26 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 });
 
 // ---- TABS ----
-document.querySelectorAll('.tab').forEach(tab => {
+document.querySelectorAll('#app > main > .tabs > .tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#app > main > .tabs > .tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     document.querySelectorAll('main > div[id^="view-"]').forEach(v => v.classList.add('hidden'));
     const view = document.getElementById('view-' + tab.dataset.tab);
     view.classList.remove('hidden');
+    document.getElementById('sub-oportunidades').classList.toggle('hidden', tab.dataset.tab !== 'oportunidades');
     loadTab(tab.dataset.tab);
+  });
+});
+
+document.querySelectorAll('#sub-oportunidades .tab').forEach(sub => {
+  sub.addEventListener('click', () => {
+    document.querySelectorAll('#sub-oportunidades .tab').forEach(t => t.classList.remove('active'));
+    sub.classList.add('active');
+    ['gapdiscos','gapliquidos','gapcilindros'].forEach(s => {
+      document.getElementById('view-' + s).classList.toggle('hidden', s !== sub.dataset.subtab);
+    });
+    loadTab(sub.dataset.subtab);
   });
 });
 
@@ -191,8 +212,10 @@ const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov'
 
 async function loadTab(tab) {
   if (tab === 'ejecutivo') return loadEjecutivo();
-  if (tab === 'gapdiscos') return loadGapDiscos();
+  if (tab === 'oportunidades' || tab === 'gapdiscos') return loadGapDiscos();
   if (tab === 'gapliquidos') return loadGapLiquidos();
+  if (tab === 'gapcilindros') return loadGapCilindros();
+  if (tab === 'tipoa') return loadTipoA();
   if (tab === 'segmentacion') return loadSegmentacion();
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
@@ -295,6 +318,13 @@ async function loadEjecutivo() {
     else if (pct >= 80) color = '#ff9f43'; // naranja
     html += `<tr><td>${titleCase(k.vendedor)}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
   });
+  {
+    const totReal = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.venta_real||0),0);
+    const totPpto = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.presupuesto_periodo||0),0);
+    const totPct = totPpto ? Math.round((totReal/totPpto)*100) : 0;
+    let color = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num" style="color:${color};">${totPct}%</td></tr>`;
+  }
   html += '</table></div>';
 
   html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table><tr><th>Mes</th><th class="num">Real</th><th class="num">Presupuesto</th><th class="num">%</th></tr>';
@@ -302,6 +332,12 @@ async function loadEjecutivo() {
     const pct = m.presupuesto ? Math.round((m.venta_real/m.presupuesto)*100) : 0;
     html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money">${money(m.venta_real)}</td><td class="num money">${money(m.presupuesto)}</td><td class="num">${pct}%</td></tr>`;
   });
+  {
+    const totReal = (kpi.por_mes||[]).reduce((s,m)=>s+(m.venta_real||0),0);
+    const totPpto = (kpi.por_mes||[]).reduce((s,m)=>s+(m.presupuesto||0),0);
+    const totPct = totPpto ? Math.round((totReal/totPpto)*100) : 0;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num">${totPct}%</td></tr>`;
+  }
   html += '</table></div>';
 
   // Crecimiento año contra año
@@ -326,6 +362,14 @@ async function loadEjecutivo() {
       const color = k.crecimiento_pct >= 0 ? '#4ade80' : '#ff6b6b';
       html += `<tr><td>${titleCase(k.kam_norm)}</td><td class="num money">${money(k.v2025)}</td><td class="num money">${money(k.v2026)}</td><td class="num money" style="color:${color};">${k.crecimiento_pesos>=0?'+':''}${money(k.crecimiento_pesos)}</td><td class="num" style="color:${color};font-weight:700;">${k.crecimiento_pct>=0?'+':''}${k.crecimiento_pct}%</td></tr>`;
     });
+    {
+      const totV25 = (crec.por_kam||[]).reduce((s,k)=>s+(k.v2025||0),0);
+      const totV26 = (crec.por_kam||[]).reduce((s,k)=>s+(k.v2026||0),0);
+      const totPesos = totV26 - totV25;
+      const totPct = totV25 ? Math.round((totPesos/totV25)*1000)/10 : 0;
+      const color = totPct>=0?'#4ade80':'#ff6b6b';
+      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totV25)}</td><td class="num money">${money(totV26)}</td><td class="num money" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
+    }
     html += '</table></div>';
   }
 
@@ -361,7 +405,55 @@ async function loadGapLiquidos() {
   el.innerHTML = html;
 }
 
-async function loadSegmentacion() {
+async function loadGapCilindros() {
+  const el = document.getElementById('view-gapcilindros');
+  el.innerHTML = '<div class="loading">Cargando gap de cilindros...</div>';
+  const r = await rpc('dash_gap_cilindros', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  let html = '<div class="card"><h2>Clientes sin compra de cilindros (últimos 180 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Cilindros</th><th class="num">Potencial/mes</th></tr>';
+  (r.data || []).forEach(c => {
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.cilindros)}</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+}
+
+let TIPOA_FILTROS_HTML = '';
+async function loadTipoA(kam, cliente, sucursal) {
+  const el = document.getElementById('view-tipoa');
+  if (!TIPOA_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando aliados tipo A...</div>';
+  const r = await rpc('dash_top_tipo_a', { p_token: TOKEN, p_kam: kam || null, p_cliente: cliente || null, p_sucursal: sucursal || null });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  if (!TIPOA_FILTROS_HTML) {
+    const f = r.filtros || {};
+    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
+    TIPOA_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
+      <select id="taKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
+      <select id="taCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
+      <select id="taSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
+      <button id="taFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
+    </div>`;
+  }
+
+  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (categoría Diamante)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th></tr>';
+  (r.data || []).forEach(c => {
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td class="num money">${money(c.total)}</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+
+  document.getElementById('taKam').value = kam || '';
+  document.getElementById('taCliente').value = cliente || '';
+  document.getElementById('taSucursal').value = sucursal || '';
+  document.getElementById('taFiltrar').addEventListener('click', () => {
+    loadTipoA(
+      document.getElementById('taKam').value,
+      document.getElementById('taCliente').value,
+      document.getElementById('taSucursal').value
+    );
+  });
+}
   const el = document.getElementById('view-segmentacion');
   el.innerHTML = '<div class="loading">Cargando segmentación...</div>';
   const r = await rpc('dash_segmentacion', { p_token: TOKEN });
