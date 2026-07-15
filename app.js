@@ -58,6 +58,7 @@ document.querySelectorAll('#app > main > .tabs > .tab').forEach(tab => {
     const view = document.getElementById('view-' + tab.dataset.tab);
     view.classList.remove('hidden');
     document.getElementById('sub-oportunidades').classList.toggle('hidden', tab.dataset.tab !== 'oportunidades');
+    document.getElementById('oportunidades-filtro').classList.toggle('hidden', tab.dataset.tab !== 'oportunidades');
     loadTab(tab.dataset.tab);
   });
 });
@@ -252,10 +253,27 @@ async function loadEjecutivo() {
 
 document.getElementById('btnFiltrar').addEventListener('click', loadEjecutivo);
 
+let OP_KAM = '';
+let OP_FILTRO_INICIALIZADO = false;
+
+async function poblarFiltroOportunidades() {
+  if (OP_FILTRO_INICIALIZADO) return;
+  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN }); // reutiliza lista de KAM
+  const kams = (r.filtros && r.filtros.kams || []).sort();
+  const sel = document.getElementById('opKam');
+  sel.innerHTML = '<option value="">Todos los KAM</option>' + kams.map(k => `<option value="${k}">${titleCase(k)}</option>`).join('');
+  document.getElementById('opFiltrar').addEventListener('click', () => {
+    OP_KAM = document.getElementById('opKam').value;
+    loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab);
+  });
+  OP_FILTRO_INICIALIZADO = true;
+}
+
 async function loadGapDiscos() {
+  await poblarFiltroOportunidades();
   const el = document.getElementById('view-gapdiscos');
   el.innerHTML = '<div class="loading">Cargando gap de discos...</div>';
-  const r = await rpc('dash_gap_discos', { p_token: TOKEN });
+  const r = await rpc('dash_gap_discos', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Discos</th><th class="num">Ratio</th></tr>';
   (r.data || []).forEach(c => {
@@ -266,9 +284,10 @@ async function loadGapDiscos() {
 }
 
 async function loadGapLiquidos() {
+  await poblarFiltroOportunidades();
   const el = document.getElementById('view-gapliquidos');
   el.innerHTML = '<div class="loading">Cargando gap de líquidos...</div>';
-  const r = await rpc('dash_gap_liquidos', { p_token: TOKEN });
+  const r = await rpc('dash_gap_liquidos', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Líquidos</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
@@ -279,9 +298,10 @@ async function loadGapLiquidos() {
 }
 
 async function loadGapCilindros() {
+  await poblarFiltroOportunidades();
   const el = document.getElementById('view-gapcilindros');
   el.innerHTML = '<div class="loading">Cargando gap de cilindros...</div>';
-  const r = await rpc('dash_gap_cilindros', { p_token: TOKEN });
+  const r = await rpc('dash_gap_cilindros', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   let html = '<div class="card"><h2>Clientes sin compra de cilindros (últimos 180 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Cilindros</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
@@ -292,37 +312,38 @@ async function loadGapCilindros() {
 }
 
 let TIPOA_FILTROS_HTML = '';
-async function loadTipoA(kams, clientes, sucursales) {
+async function loadTipoA(kam, cliente, sucursal) {
   const el = document.getElementById('view-tipoa');
   if (!TIPOA_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando aliados tipo A...</div>';
-  const r = await rpc('dash_top_tipo_a', { p_token: TOKEN, p_kams: kams && kams.length ? kams : null, p_clientes: clientes && clientes.length ? clientes : null, p_sucursales: sucursales && sucursales.length ? sucursales : null });
+  const r = await rpc('dash_top_tipo_a', { p_token: TOKEN, p_kam: kam || null, p_cliente: cliente || null, p_sucursal: sucursal || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   if (!TIPOA_FILTROS_HTML) {
     const f = r.filtros || {};
     const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
     TIPOA_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
-      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">KAM (Ctrl/Cmd+clic para varios)</div><select id="taKam" class="estado" multiple size="4" style="min-width:180px;">${opt(f.kams)}</select></div>
-      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Cliente</div><select id="taCliente" class="estado" multiple size="4" style="min-width:220px;">${opt(f.clientes)}</select></div>
-      <div><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Sucursal</div><select id="taSucursal" class="estado" multiple size="4" style="min-width:220px;">${opt(f.sucursales)}</select></div>
-      <button id="taFiltrar" style="width:auto;padding:6px 14px;font-size:12px;align-self:flex-end;">Filtrar</button>
+      <select id="taKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
+      <select id="taCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
+      <select id="taSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
+      <button id="taFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
     </div>`;
   }
 
-  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (categoría Diamante) — ' + (r.data||[]).length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th></tr>';
-  (r.data || []).forEach(c => {
+  const data = r.data || [];
+  const total = data.reduce((s,c) => s + (c.total||0), 0);
+  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th></tr>';
+  data.forEach(c => {
     html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td class="num money">${money(c.total)}</td></tr>`;
   });
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td></tr>`;
   html += '</table></div>';
   el.innerHTML = html;
 
-  const getSel = (id) => Array.from(document.getElementById(id).selectedOptions).map(o => o.value);
-  (kams||[]).forEach(v => { const o = document.querySelector(`#taKam option[value="${CSS.escape(v)}"]`); if (o) o.selected = true; });
-  (clientes||[]).forEach(v => { const o = document.querySelector(`#taCliente option[value="${CSS.escape(v)}"]`); if (o) o.selected = true; });
-  (sucursales||[]).forEach(v => { const o = document.querySelector(`#taSucursal option[value="${CSS.escape(v)}"]`); if (o) o.selected = true; });
-
+  document.getElementById('taKam').value = kam || '';
+  document.getElementById('taCliente').value = cliente || '';
+  document.getElementById('taSucursal').value = sucursal || '';
   document.getElementById('taFiltrar').addEventListener('click', () => {
-    loadTipoA(getSel('taKam'), getSel('taCliente'), getSel('taSucursal'));
+    loadTipoA(document.getElementById('taKam').value, document.getElementById('taCliente').value, document.getElementById('taSucursal').value);
   });
 }
 
@@ -388,36 +409,71 @@ async function loadSegmentacion() {
   renderSegmentacionTabla();
 }
 
-async function loadTicket() {
+let TICKET_FILTROS_HTML = '';
+async function loadTicket(kam, cliente, sucursal) {
   const el = document.getElementById('view-ticket');
-  el.innerHTML = '<div class="loading">Cargando ticket promedio...</div>';
-  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN });
+  if (!TICKET_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando ticket promedio...</div>';
+  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  if (!TICKET_FILTROS_HTML) {
+    const f = r.filtros || {};
+    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
+    TICKET_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
+      <select id="tkKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
+      <select id="tkCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
+      <select id="tkSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
+      <button id="tkFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
+    </div>`;
+  }
+
   const g = r.general || {};
-  let html = `<div class="kpis">
+  let html = TICKET_FILTROS_HTML + `<div class="kpis">
     <div class="kpi"><div class="label">Venta Total</div><div class="value">${money(g.venta_total)}</div></div>
     <div class="kpi"><div class="label">Ticket Promedio</div><div class="value">${money(g.ticket_promedio)}</div></div>
     <div class="kpi"><div class="label">Unidades Vendidas</div><div class="value">${Math.round(g.unidades||0).toLocaleString('es-CO')}</div></div>
   </div>`;
-  html += '<div class="card"><h2>Ticket promedio por familia de producto</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>';
-  (r.por_familia || []).forEach(f => {
-    html += `<tr><td>${f.familia}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
+  html += '<div class="card"><h2>Top 12 productos por ticket promedio</h2><table><tr><th>Referencia</th><th>Descripción</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>';
+  (r.por_producto || []).forEach(f => {
+    html += `<tr><td>${f.referencia}</td><td>${f.descripcion||''}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
   autoFitKpis();
+
+  document.getElementById('tkKam').value = kam||'';
+  document.getElementById('tkCliente').value = cliente||'';
+  document.getElementById('tkSucursal').value = sucursal||'';
+  document.getElementById('tkFiltrar').addEventListener('click', () => {
+    loadTicket(document.getElementById('tkKam').value, document.getElementById('tkCliente').value, document.getElementById('tkSucursal').value);
+  });
 }
 
 const COLORES_FAMILIA = ['#F1FE34','#596B63','#9A979F','#414930','#ff9f43','#4ade80','#ff6b6b','#8b5cf6','#06b6d4'];
+let PORTAFOLIO_FILTROS_HTML = '';
+let PORTAFOLIO_FAMILIA_SEL = null;
 
-async function loadPortafolio() {
+async function loadPortafolio(kam, cliente, sucursal) {
   const el = document.getElementById('view-portafolio');
-  el.innerHTML = '<div class="loading">Cargando portafolio...</div>';
-  const r = await rpc('dash_portafolio', { p_token: TOKEN });
+  if (!PORTAFOLIO_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando portafolio...</div>';
+  const [r, prod] = await Promise.all([
+    rpc('dash_portafolio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null }),
+    rpc('dash_portafolio_productos', { p_token: TOKEN, p_familia: PORTAFOLIO_FAMILIA_SEL, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null })
+  ]);
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  const data = r.data || [];
 
-  // Construir dona SVG simple
+  if (!PORTAFOLIO_FILTROS_HTML) {
+    const f = r.filtros || {};
+    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
+    PORTAFOLIO_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
+      <select id="pfKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
+      <select id="pfCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
+      <select id="pfSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
+      <button id="pfFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
+    </div>`;
+  }
+
+  const data = r.data || [];
   const total = data.reduce((s,d) => s + d.venta, 0);
   let acumulado = 0;
   const radio = 80, cx = 100, cy = 100, grosor = 34;
@@ -431,15 +487,16 @@ async function loadPortafolio() {
     const x2 = cx + radio * Math.cos(endAngle), y2 = cy + radio * Math.sin(endAngle);
     const largeArc = frac > 0.5 ? 1 : 0;
     const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
-    paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}"/>`;
+    paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}" class="fam-slice" data-familia="${d.familia}" style="cursor:pointer;"/>`;
   });
 
-  let html = '<div class="card"><h2>Participación de portafolio por familia</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
+  let html = PORTAFOLIO_FILTROS_HTML + '<div class="card"><h2>Participación de portafolio por familia (clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
   html += `<svg width="200" height="200" viewBox="0 0 200 200">${paths}</svg>`;
   html += '<div style="flex:1;min-width:220px;">';
   data.forEach((d, i) => {
     const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
-    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">
+    const activo = PORTAFOLIO_FAMILIA_SEL === d.familia;
+    html += `<div class="fam-leyenda" data-familia="${d.familia}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;${activo?'font-weight:700;':''}">
       <span style="width:12px;height:12px;background:${color};border-radius:2px;flex-shrink:0;"></span>
       <span style="flex:1;">${d.familia}</span>
       <span style="color:var(--text-dim);">${d.pct}%</span>
@@ -447,24 +504,61 @@ async function loadPortafolio() {
   });
   html += '</div></div></div>';
 
-  html += '<div class="card"><h2>Detalle por familia</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">% del total</th></tr>';
-  data.forEach(d => {
-    html += `<tr><td>${d.familia}</td><td class="num money">${money(d.venta)}</td><td class="num">${d.pct}%</td></tr>`;
-  });
-  html += '</table></div>';
+  const productos = prod.ok ? (prod.data || []) : [];
+  const tituloProd = PORTAFOLIO_FAMILIA_SEL ? `Top 25 referencias — ${PORTAFOLIO_FAMILIA_SEL}` : 'Top 12 referencias (todos los productos)';
+  const porUnidades = productos.slice().sort((a,b) => b.unidades - a.unidades);
+  const porVenta = productos.slice().sort((a,b) => b.venta - a.venta);
+
+  html += `<div class="card"><h2>${tituloProd} ${PORTAFOLIO_FAMILIA_SEL ? '<span id="pfLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todos)</span>' : ''}</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Venta</th></tr>
+        ${porVenta.map(p => `<tr><td>${p.referencia}</td><td>${p.descripcion||''}</td><td class="num money">${money(p.venta)}</td></tr>`).join('')}
+      </table></div>
+      <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Unidades</th></tr>
+        ${porUnidades.map(p => `<tr><td>${p.referencia}</td><td>${p.descripcion||''}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
+      </table></div>
+    </div></div>`;
+
   el.innerHTML = html;
+
+  document.getElementById('pfKam').value = kam||'';
+  document.getElementById('pfCliente').value = cliente||'';
+  document.getElementById('pfSucursal').value = sucursal||'';
+  document.getElementById('pfFiltrar').addEventListener('click', () => {
+    loadPortafolio(document.getElementById('pfKam').value, document.getElementById('pfCliente').value, document.getElementById('pfSucursal').value);
+  });
+
+  const seleccionarFamilia = (fam) => {
+    PORTAFOLIO_FAMILIA_SEL = (PORTAFOLIO_FAMILIA_SEL === fam) ? null : fam;
+    loadPortafolio(kam, cliente, sucursal);
+  };
+  el.querySelectorAll('.fam-slice, .fam-leyenda').forEach(node => {
+    node.addEventListener('click', () => seleccionarFamilia(node.dataset.familia));
+  });
+  const limpiarFam = document.getElementById('pfLimpiarFam');
+  if (limpiarFam) limpiarFam.addEventListener('click', () => seleccionarFamilia(PORTAFOLIO_FAMILIA_SEL));
 }
 
-async function loadPerdidos() {
+let RECUP_KAM_HTML = '';
+async function loadPerdidos(kam) {
   const el = document.getElementById('view-perdidos');
-  el.innerHTML = '<div class="loading">Analizando caídas y clientes inactivos...</div>';
-  const r = await rpc('dash_recuperacion', { p_token: TOKEN });
+  if (!RECUP_KAM_HTML) el.innerHTML = '<div class="loading">Analizando caídas y clientes inactivos...</div>';
+  const r = await rpc('dash_recuperacion', { p_token: TOKEN, p_kam: kam || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  if (!RECUP_KAM_HTML) {
+    const kams = [...new Set([...(r.cayendo||[]), ...(r.sin_compra_60d||[])].map(c => c.vendedor))].filter(Boolean).sort();
+    RECUP_KAM_HTML = `<div class="card" style="padding:10px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:12px;color:var(--text-dim);">KAM:</span>
+      <select id="recKam" class="estado"><option value="">Todos</option>${kams.map(k=>`<option value="${k}">${titleCase(k)}</option>`).join('')}</select>
+    </div>`;
+  }
 
   const cayendo = (r.cayendo || []).slice().sort((a,b) => b.total_ant - a.total_ant);
   const sinCompra = r.sin_compra_60d || [];
 
-  let html = `<div class="card"><h2>Cayendo vs. mes anterior (mismo tramo de días) — ${cayendo.length} sucursales</h2>
+  let html = RECUP_KAM_HTML;
+  html += `<div class="card"><h2>Cayendo vs. mes anterior (mismo tramo de días) — ${cayendo.length} sucursales</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Mes anterior</th><th class="num">Mes actual</th><th class="num">Caída</th><th>Detalle por categoría</th></tr>`;
   cayendo.forEach(c => {
     const detalles = [];
@@ -486,6 +580,8 @@ async function loadPerdidos() {
   html += '</table></div>';
 
   el.innerHTML = html;
+  document.getElementById('recKam').value = kam || '';
+  document.getElementById('recKam').addEventListener('change', (e) => loadPerdidos(e.target.value));
 }
 
 async function loadPlanes() {
