@@ -96,7 +96,10 @@
     </div>
 
     <div id="view-ejecutivo">
-      <div id="top-acciones"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start;">
+        <div id="top-kam"></div>
+        <div id="top-aliados"></div>
+      </div>
       <div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
         <select id="mesDesde" class="estado"></select>
@@ -213,21 +216,40 @@ const ICONOS_TIPO = {
   riesgo_caida: { color: '#f1fe34', label: 'Cliente enfriándose' }
 };
 
-async function loadTopAcciones() {
-  const el = document.getElementById('top-acciones');
-  el.innerHTML = '<div class="loading">Calculando prioridades...</div>';
-  const r = await rpc('dash_top_acciones', { p_token: TOKEN });
+function itemAccion(i, nombre, tagLabel, tagColor, motivo, extra) {
+  return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #333630;">
+    <div style="width:22px;height:22px;border-radius:50%;background:${tagColor};color:#111;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">${i+1}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:700;">${titleCase(nombre)} <span style="font-size:10px;color:${tagColor};font-weight:400;text-transform:uppercase;margin-left:6px;">${tagLabel}</span></div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">${motivo}${extra ? ' · ' + extra : ''}</div>
+    </div>
+  </div>`;
+}
+
+async function loadTopKam() {
+  const el = document.getElementById('top-kam');
+  el.innerHTML = '<div class="loading">Calculando...</div>';
+  const r = await rpc('dash_top5_kam', { p_token: TOKEN });
   if (!r.ok || !r.data || !r.data.length) { el.innerHTML = ''; return; }
-  let html = '<div class="card" style="border:1px solid var(--neon);"><h2 style="color:var(--neon);">Top 5 acciones esta semana</h2>';
+  let html = '<div class="card" style="border:1px solid var(--neon);height:100%;"><h2 style="color:var(--neon);">Top 5 · KAM que necesitan apoyo</h2>';
+  r.data.forEach((k, i) => {
+    let color = '#ff6b6b';
+    if (k.pct >= 100) color = '#4ade80'; else if (k.pct >= 80) color = '#ff9f43';
+    html += itemAccion(i, k.nombre, k.pct + '% cumpl.', color, `Facturado ${money(k.venta_real)} de ${money(k.presupuesto_periodo)}`);
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function loadTopAliados() {
+  const el = document.getElementById('top-aliados');
+  el.innerHTML = '<div class="loading">Calculando...</div>';
+  const r = await rpc('dash_top5_aliados', { p_token: TOKEN });
+  if (!r.ok || !r.data || !r.data.length) { el.innerHTML = ''; return; }
+  let html = '<div class="card" style="border:1px solid var(--neon);height:100%;"><h2 style="color:var(--neon);">Top 5 · Aliados con oportunidad</h2>';
   r.data.forEach((a, i) => {
     const tag = ICONOS_TIPO[a.tipo] || { color: '#9A979F', label: a.tipo };
-    html += `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #333630;">
-      <div style="width:22px;height:22px;border-radius:50%;background:${tag.color};color:#111;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">${i+1}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;">${titleCase(a.nombre)} <span style="font-size:10px;color:${tag.color};font-weight:400;text-transform:uppercase;margin-left:6px;">${tag.label}</span></div>
-        <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">${a.motivo}${a.ciudad ? ' · ' + a.ciudad : ''}</div>
-      </div>
-    </div>`;
+    html += itemAccion(i, a.cliente + ' — ' + titleCase(a.sucursal_despacho), tag.label, tag.color, a.motivo, a.ciudad);
   });
   html += '</div>';
   el.innerHTML = html;
@@ -235,7 +257,8 @@ async function loadTopAcciones() {
 
 async function loadEjecutivo() {
   poblarSelectMeses();
-  loadTopAcciones();
+  loadTopKam();
+  loadTopAliados();
   const el = document.getElementById('ejecutivo-contenido');
   el.innerHTML = '<div class="loading">Cargando KPI...</div>';
 
@@ -292,9 +315,9 @@ async function loadGapDiscos() {
   el.innerHTML = '<div class="loading">Cargando gap de discos...</div>';
   const r = await rpc('dash_gap_discos', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días)</h2><table><tr><th>Cliente</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Discos</th><th class="num">Ratio</th></tr>';
+  let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Discos</th><th class="num">Ratio</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.discos)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td></tr>`;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.discos)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -305,9 +328,9 @@ async function loadGapLiquidos() {
   el.innerHTML = '<div class="loading">Cargando gap de líquidos...</div>';
   const r = await rpc('dash_gap_liquidos', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días)</h2><table><tr><th>Cliente</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Líquidos</th><th class="num">Potencial/mes</th></tr>';
+  let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Líquidos</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.liquidos)}</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.liquidos)}</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -330,9 +353,9 @@ async function loadSegmentacion() {
     html += `<div class="kpi"><div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div class="value-sub">${money(resumen[seg].total)}</div></div>`;
   });
   html += '</div>';
-  html += '<div class="card"><h2>Detalle por cliente</h2><table><tr><th>Cliente</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>';
+  html += '<div class="card"><h2>Detalle por sucursal</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>';
   data.forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.segmento}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${c.segmento}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -344,9 +367,9 @@ async function loadPerdidos() {
   el.innerHTML = '<div class="loading">Cargando clientes por recuperar...</div>';
   const r = await rpc('dash_clientes_perdidos', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con venta 2025 sin compras en 2026</h2><table><tr><th>Cliente</th><th>Vendedor</th><th class="num">Venta 2025</th><th>Última compra</th></tr>';
+  let html = '<div class="card"><h2>Sucursales con venta 2025 sin compras en 2026</h2><table><tr><th>Sucursal (histórico)</th><th>Vendedor</th><th class="num">Venta 2025</th><th>Última compra</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${titleCase(c.vendedor||'')}</td><td class="num money">${money(c.venta_2025)}</td><td>${c.ultima_compra||''}</td></tr>`;
+    html += `<tr><td>${c.sucursal_historica}</td><td>${titleCase(c.vendedor||'')}</td><td class="num money">${money(c.venta_2025)}</td><td>${c.ultima_compra||''}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
