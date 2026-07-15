@@ -40,7 +40,8 @@
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
   .kpi{background:var(--card);border-radius:10px;padding:16px;border:1px solid var(--dust);min-width:0;overflow:hidden;}
   .kpi .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
-  .kpi .value{font-size:22px;color:var(--neon);font-weight:700;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .kpi .value{font-size:22px;color:var(--neon);font-weight:700;margin-top:6px;white-space:nowrap;}
+  .kpi .value-sub{font-size:11px;color:var(--text-dim);margin-top:4px;white-space:nowrap;}
 
   .card{background:var(--card);border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid var(--dust);}
   .card h2{margin:0 0 16px;font-size:14px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;}
@@ -199,8 +200,8 @@ async function loadEjecutivo() {
   const cumplPct = totalPpto ? Math.round((totalReal/totalPpto)*100) : 0;
 
   let html = `<div class="kpis">
-    <div class="kpi" title="${money(totalReal)}"><div class="label">Venta acumulada 2026</div><div class="value">${moneyShort(totalReal)}</div></div>
-    <div class="kpi" title="${money(totalPpto)}"><div class="label">Presupuesto anual AFL</div><div class="value">${moneyShort(totalPpto)}</div></div>
+    <div class="kpi"><div class="label">Venta acumulada 2026</div><div class="value">${money(totalReal)}</div></div>
+    <div class="kpi"><div class="label">Presupuesto anual AFL</div><div class="value">${money(totalPpto)}</div></div>
     <div class="kpi"><div class="label">Cumplimiento</div><div class="value">${cumplPct}%</div></div>
     <div class="kpi"><div class="label">Ratio discos/pastas</div><div class="value">${Math.round((resumen.ratio_discos_pastas_global||0)*100)}%</div></div>
     <div class="kpi"><div class="label">Concentración top 10</div><div class="value">${resumen.concentracion_top10_pct||0}%</div></div>
@@ -222,6 +223,7 @@ async function loadEjecutivo() {
   html += '</div>';
 
   el.innerHTML = html;
+  autoFitKpis();
 }
 
 async function loadGapDiscos() {
@@ -264,7 +266,7 @@ async function loadSegmentacion() {
   });
   let html = '<div class="kpis">';
   Object.keys(resumen).sort().forEach(seg => {
-    html += `<div class="kpi" title="${money(resumen[seg].total)}"><div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${moneyShort(resumen[seg].total)}</div></div>`;
+    html += `<div class="kpi"><div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div class="value-sub">${money(resumen[seg].total)}</div></div>`;
   });
   html += '</div>';
   html += '<div class="card"><h2>Detalle por cliente</h2><table><tr><th>Cliente</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>';
@@ -273,6 +275,7 @@ async function loadSegmentacion() {
   });
   html += '</table></div>';
   el.innerHTML = html;
+  autoFitKpis();
 }
 
 async function loadPerdidos() {
@@ -317,6 +320,25 @@ async function loadPlanes() {
     sel.addEventListener('change', async () => {
       await rpc('dash_planes_actualizar_estado', { p_token: TOKEN, p_id: parseInt(sel.dataset.id), p_estado: sel.value });
     });
+  });
+}
+
+function autoFitKpis() {
+  document.querySelectorAll('.kpi .value').forEach(el => {
+    let size = 22;
+    el.style.fontSize = size + 'px';
+    while (el.scrollWidth > el.parentElement.clientWidth - 32 && size > 12) {
+      size -= 1;
+      el.style.fontSize = size + 'px';
+    }
+  });
+  document.querySelectorAll('.kpi .value-sub').forEach(el => {
+    let size = 11;
+    el.style.fontSize = size + 'px';
+    while (el.scrollWidth > el.parentElement.clientWidth - 32 && size > 8) {
+      size -= 1;
+      el.style.fontSize = size + 'px';
+    }
   });
 }
 
