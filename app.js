@@ -88,6 +88,8 @@ async function loadTab(tab) {
   if (tab === 'gapcilindros') return loadGapCilindros();
   if (tab === 'tipoa') return loadTipoA();
   if (tab === 'segmentacion') return loadSegmentacion();
+  if (tab === 'ticket') return loadTicket();
+  if (tab === 'portafolio') return loadPortafolio();
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
 }
@@ -326,16 +328,25 @@ async function loadTipoA(kams, clientes, sucursales) {
 
 let SEGMENTACION_DATA = [];
 let SEGMENTACION_FILTRO = null;
+let SEGMENTACION_KAM = '';
 
 function renderSegmentacionTabla() {
   const el = document.getElementById('view-segmentacion');
+  const baseData = SEGMENTACION_KAM ? SEGMENTACION_DATA.filter(c => c.vendedor === SEGMENTACION_KAM) : SEGMENTACION_DATA;
   const resumen = {};
-  SEGMENTACION_DATA.forEach(c => {
+  baseData.forEach(c => {
     resumen[c.segmento] = resumen[c.segmento] || { n: 0, total: 0 };
     resumen[c.segmento].n++;
     resumen[c.segmento].total += c.total;
   });
-  let html = '<div class="kpis">';
+
+  const kams = [...new Set(SEGMENTACION_DATA.map(c => c.vendedor))].sort();
+  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:12px;color:var(--text-dim);">KAM:</span>
+    <select id="segKam" class="estado"><option value="">Todos</option>${kams.map(k => `<option value="${k}" ${k===SEGMENTACION_KAM?'selected':''}>${titleCase(k)}</option>`).join('')}</select>
+  </div>`;
+
+  html += '<div class="kpis">';
   Object.keys(resumen).sort().forEach(seg => {
     const activo = SEGMENTACION_FILTRO === seg;
     html += `<div class="kpi seg-card" data-seg="${seg}" style="cursor:pointer;${activo ? 'border-color:var(--neon);border-width:2px;' : ''}">
@@ -344,7 +355,7 @@ function renderSegmentacionTabla() {
   });
   html += '</div>';
 
-  const filtrados = SEGMENTACION_FILTRO ? SEGMENTACION_DATA.filter(c => c.segmento === SEGMENTACION_FILTRO) : SEGMENTACION_DATA;
+  const filtrados = SEGMENTACION_FILTRO ? baseData.filter(c => c.segmento === SEGMENTACION_FILTRO) : baseData;
   html += `<div class="card"><h2>Detalle por sucursal ${SEGMENTACION_FILTRO ? '— filtrado: ' + SEGMENTACION_FILTRO + ' <span id="segLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : ''}</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>`;
   filtrados.forEach(c => {
@@ -354,6 +365,10 @@ function renderSegmentacionTabla() {
   el.innerHTML = html;
   autoFitKpis();
 
+  document.getElementById('segKam').addEventListener('change', (e) => {
+    SEGMENTACION_KAM = e.target.value;
+    renderSegmentacionTabla();
+  });
   el.querySelectorAll('.seg-card').forEach(card => {
     card.addEventListener('click', () => {
       SEGMENTACION_FILTRO = (SEGMENTACION_FILTRO === card.dataset.seg) ? null : card.dataset.seg;
@@ -373,13 +388,80 @@ async function loadSegmentacion() {
   renderSegmentacionTabla();
 }
 
+async function loadTicket() {
+  const el = document.getElementById('view-ticket');
+  el.innerHTML = '<div class="loading">Cargando ticket promedio...</div>';
+  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  const g = r.general || {};
+  let html = `<div class="kpis">
+    <div class="kpi"><div class="label">Venta Total</div><div class="value">${money(g.venta_total)}</div></div>
+    <div class="kpi"><div class="label">Ticket Promedio</div><div class="value">${money(g.ticket_promedio)}</div></div>
+    <div class="kpi"><div class="label">Unidades Vendidas</div><div class="value">${Math.round(g.unidades||0).toLocaleString('es-CO')}</div></div>
+  </div>`;
+  html += '<div class="card"><h2>Ticket promedio por familia de producto</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>';
+  (r.por_familia || []).forEach(f => {
+    html += `<tr><td>${f.familia}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+  autoFitKpis();
+}
+
+const COLORES_FAMILIA = ['#F1FE34','#596B63','#9A979F','#414930','#ff9f43','#4ade80','#ff6b6b','#8b5cf6','#06b6d4'];
+
+async function loadPortafolio() {
+  const el = document.getElementById('view-portafolio');
+  el.innerHTML = '<div class="loading">Cargando portafolio...</div>';
+  const r = await rpc('dash_portafolio', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  const data = r.data || [];
+
+  // Construir dona SVG simple
+  const total = data.reduce((s,d) => s + d.venta, 0);
+  let acumulado = 0;
+  const radio = 80, cx = 100, cy = 100, grosor = 34;
+  let paths = '';
+  data.forEach((d, i) => {
+    const frac = d.venta / total;
+    const startAngle = acumulado * 2 * Math.PI - Math.PI/2;
+    acumulado += frac;
+    const endAngle = acumulado * 2 * Math.PI - Math.PI/2;
+    const x1 = cx + radio * Math.cos(startAngle), y1 = cy + radio * Math.sin(startAngle);
+    const x2 = cx + radio * Math.cos(endAngle), y2 = cy + radio * Math.sin(endAngle);
+    const largeArc = frac > 0.5 ? 1 : 0;
+    const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
+    paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}"/>`;
+  });
+
+  let html = '<div class="card"><h2>Participación de portafolio por familia</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
+  html += `<svg width="200" height="200" viewBox="0 0 200 200">${paths}</svg>`;
+  html += '<div style="flex:1;min-width:220px;">';
+  data.forEach((d, i) => {
+    const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">
+      <span style="width:12px;height:12px;background:${color};border-radius:2px;flex-shrink:0;"></span>
+      <span style="flex:1;">${d.familia}</span>
+      <span style="color:var(--text-dim);">${d.pct}%</span>
+    </div>`;
+  });
+  html += '</div></div></div>';
+
+  html += '<div class="card"><h2>Detalle por familia</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">% del total</th></tr>';
+  data.forEach(d => {
+    html += `<tr><td>${d.familia}</td><td class="num money">${money(d.venta)}</td><td class="num">${d.pct}%</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+}
+
 async function loadPerdidos() {
   const el = document.getElementById('view-perdidos');
   el.innerHTML = '<div class="loading">Analizando caídas y clientes inactivos...</div>';
   const r = await rpc('dash_recuperacion', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
-  const cayendo = r.cayendo || [];
+  const cayendo = (r.cayendo || []).slice().sort((a,b) => b.total_ant - a.total_ant);
   const sinCompra = r.sin_compra_60d || [];
 
   let html = `<div class="card"><h2>Cayendo vs. mes anterior (mismo tramo de días) — ${cayendo.length} sucursales</h2>
