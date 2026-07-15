@@ -87,7 +87,7 @@
   </header>
   <main>
     <div class="tabs">
-      <div class="tab active" data-tab="ejecutivo">Ejecutivo</div>
+      <div class="tab active" data-tab="ejecutivo">Directivo</div>
       <div class="tab" data-tab="gapdiscos">Gap Discos</div>
       <div class="tab" data-tab="gapliquidos">Gap Líquidos</div>
       <div class="tab" data-tab="segmentacion">Segmentación</div>
@@ -304,6 +304,31 @@ async function loadEjecutivo() {
   });
   html += '</table></div>';
 
+  // Crecimiento año contra año
+  const crec = await rpc('dash_crecimiento_anual', { p_token: TOKEN });
+  if (crec.ok) {
+    const anios = crec.por_anio || [];
+    const maxVenta = Math.max(...anios.map(a => a.venta || 0), 1);
+    html += `<div class="card"><h2>Venta acumulada Ene-${MESES[crec.mes_corte-1]} por año</h2>`;
+    anios.forEach((a, i) => {
+      const w = Math.round((a.venta / maxVenta) * 100);
+      const prev = anios[i-1];
+      const creceVsAnterior = prev ? Math.round(((a.venta - prev.venta) / prev.venta) * 100) : null;
+      const colorBar = creceVsAnterior === null ? 'var(--silver)' : (creceVsAnterior >= 0 ? '#4ade80' : '#ff6b6b');
+      html += `<div class="bar-row"><div class="bar-label">${a.anio}${creceVsAnterior !== null ? ' (' + (creceVsAnterior>=0?'+':'') + creceVsAnterior + '%)' : ''}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${colorBar};"></div></div>
+        <div class="bar-pct" style="width:110px;color:${colorBar};">${money(a.venta)}</div></div>`;
+    });
+    html += '</div>';
+
+    html += '<div class="card"><h2>Crecimiento por KAM (Ene-' + MESES[crec.mes_corte-1] + ' 2025 vs 2026)</h2><table><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ $</th><th class="num">Δ %</th></tr>';
+    (crec.por_kam || []).sort((a,b) => b.crecimiento_pesos - a.crecimiento_pesos).forEach(k => {
+      const color = k.crecimiento_pct >= 0 ? '#4ade80' : '#ff6b6b';
+      html += `<tr><td>${titleCase(k.kam_norm)}</td><td class="num money">${money(k.v2025)}</td><td class="num money">${money(k.v2026)}</td><td class="num money" style="color:${color};">${k.crecimiento_pesos>=0?'+':''}${money(k.crecimiento_pesos)}</td><td class="num" style="color:${color};font-weight:700;">${k.crecimiento_pct>=0?'+':''}${k.crecimiento_pct}%</td></tr>`;
+    });
+    html += '</table></div>';
+  }
+
   el.innerHTML = html;
   autoFitKpis();
 }
@@ -380,13 +405,13 @@ async function loadPlanes() {
   el.innerHTML = '<div class="loading">Cargando planes de acción...</div>';
   const r = await rpc('dash_planes_listar', { p_token: TOKEN, p_tipo_plan: null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Planes de acción</h2>';
+  let html = '<div class="card"><h2>Planes de acción</h2><p style="font-size:12px;color:var(--text-dim);margin:-8px 0 16px;">"Potencial/mes" = venta mensual estimada que se ganaría si el cliente llega al comportamiento esperado (ratio de cross-sell o recompra de su categoría). Es una proyección, no una venta garantizada.</p>';
   if (!r.data || r.data.length === 0) {
     html += '<p style="color:var(--text-dim);font-size:13px;">Aún no hay planes cargados. Se poblarán con las listas de Gap Discos y Recuperación priorizadas.</p>';
   } else {
-    html += '<table><tr><th>Cliente</th><th>Tipo</th><th>Vendedor</th><th class="num">Potencial/mes</th><th>Estado</th></tr>';
+    html += '<table><tr><th>Cliente</th><th>Sucursal</th><th>Tipo</th><th>Vendedor</th><th class="num">Potencial/mes</th><th>Estado</th></tr>';
     r.data.forEach(p => {
-      html += `<tr><td>${p.cliente}</td><td>${p.tipo_plan}</td><td>${titleCase(p.vendedor||'')}</td><td class="num money">${money(p.potencial_mes)}</td><td>
+      html += `<tr><td>${p.cliente}</td><td>${p.sucursal||''}</td><td>${p.tipo_plan}</td><td>${titleCase(p.vendedor||'')}</td><td class="num money">${money(p.potencial_mes)}</td><td>
         <select class="estado" data-id="${p.id}">
           <option value="pendiente" ${p.estado==='pendiente'?'selected':''}>Pendiente</option>
           <option value="gestionado" ${p.estado==='gestionado'?'selected':''}>Gestionado</option>
