@@ -324,42 +324,85 @@ async function loadTipoA(kams, clientes, sucursales) {
   });
 }
 
-async function loadSegmentacion() {
+let SEGMENTACION_DATA = [];
+let SEGMENTACION_FILTRO = null;
+
+function renderSegmentacionTabla() {
   const el = document.getElementById('view-segmentacion');
-  el.innerHTML = '<div class="loading">Cargando segmentación...</div>';
-  const r = await rpc('dash_segmentacion', { p_token: TOKEN });
-  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  const data = r.data || [];
   const resumen = {};
-  data.forEach(c => {
+  SEGMENTACION_DATA.forEach(c => {
     resumen[c.segmento] = resumen[c.segmento] || { n: 0, total: 0 };
     resumen[c.segmento].n++;
     resumen[c.segmento].total += c.total;
   });
   let html = '<div class="kpis">';
   Object.keys(resumen).sort().forEach(seg => {
-    html += `<div class="kpi"><div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div class="value-sub">${money(resumen[seg].total)}</div></div>`;
+    const activo = SEGMENTACION_FILTRO === seg;
+    html += `<div class="kpi seg-card" data-seg="${seg}" style="cursor:pointer;${activo ? 'border-color:var(--neon);border-width:2px;' : ''}">
+      <div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div class="value-sub">${money(resumen[seg].total)}</div>
+    </div>`;
   });
   html += '</div>';
-  html += '<div class="card"><h2>Detalle por sucursal</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>';
-  data.forEach(c => {
+
+  const filtrados = SEGMENTACION_FILTRO ? SEGMENTACION_DATA.filter(c => c.segmento === SEGMENTACION_FILTRO) : SEGMENTACION_DATA;
+  html += `<div class="card"><h2>Detalle por sucursal ${SEGMENTACION_FILTRO ? '— filtrado: ' + SEGMENTACION_FILTRO + ' <span id="segLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : ''}</h2>
+    <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>`;
+  filtrados.forEach(c => {
     html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${c.segmento}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
   autoFitKpis();
+
+  el.querySelectorAll('.seg-card').forEach(card => {
+    card.addEventListener('click', () => {
+      SEGMENTACION_FILTRO = (SEGMENTACION_FILTRO === card.dataset.seg) ? null : card.dataset.seg;
+      renderSegmentacionTabla();
+    });
+  });
+  const limpiar = document.getElementById('segLimpiar');
+  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); SEGMENTACION_FILTRO = null; renderSegmentacionTabla(); });
+}
+
+async function loadSegmentacion() {
+  const el = document.getElementById('view-segmentacion');
+  el.innerHTML = '<div class="loading">Cargando segmentación...</div>';
+  const r = await rpc('dash_segmentacion', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  SEGMENTACION_DATA = r.data || [];
+  renderSegmentacionTabla();
 }
 
 async function loadPerdidos() {
   const el = document.getElementById('view-perdidos');
-  el.innerHTML = '<div class="loading">Cargando clientes por recuperar...</div>';
-  const r = await rpc('dash_clientes_perdidos', { p_token: TOKEN });
+  el.innerHTML = '<div class="loading">Analizando caídas y clientes inactivos...</div>';
+  const r = await rpc('dash_recuperacion', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Sucursales con venta 2025 sin compras en 2026</h2><table><tr><th>Sucursal (histórico)</th><th>Vendedor</th><th class="num">Venta 2025</th><th>Última compra</th></tr>';
-  (r.data || []).forEach(c => {
-    html += `<tr><td>${c.sucursal_historica}</td><td>${titleCase(c.vendedor||'')}</td><td class="num money">${money(c.venta_2025)}</td><td>${c.ultima_compra||''}</td></tr>`;
+
+  const cayendo = r.cayendo || [];
+  const sinCompra = r.sin_compra_60d || [];
+
+  let html = `<div class="card"><h2>Cayendo vs. mes anterior (mismo tramo de días) — ${cayendo.length} sucursales</h2>
+    <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Mes anterior</th><th class="num">Mes actual</th><th class="num">Caída</th><th>Detalle por categoría</th></tr>`;
+  cayendo.forEach(c => {
+    const detalles = [];
+    if (c.delta_pastas < 0) detalles.push(`Pastas ${money(c.delta_pastas)}`);
+    if (c.delta_discos < 0) detalles.push(`Discos ${money(c.delta_discos)}`);
+    if (c.delta_liquidos < 0) detalles.push(`Líquidos ${money(c.delta_liquidos)}`);
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor||'')}</td>
+      <td class="num money">${money(c.total_ant)}</td><td class="num money">${money(c.total_act)}</td>
+      <td class="num" style="color:#ff6b6b;font-weight:700;">${money(c.caida_total)} (${c.caida_pct}%)</td>
+      <td style="font-size:11px;color:var(--text-dim);">${detalles.join(' · ') || '—'}</td></tr>`;
   });
   html += '</table></div>';
+
+  html += `<div class="card"><h2>Sin compras hace 60+ días — ${sinCompra.length} sucursales</h2>
+    <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Venta 2026</th><th class="num">Días sin comprar</th></tr>`;
+  sinCompra.forEach(c => {
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor||'')}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total_2026)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+  });
+  html += '</table></div>';
+
   el.innerHTML = html;
 }
 
