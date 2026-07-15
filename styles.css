@@ -20,7 +20,7 @@
   header{background:var(--ash);padding:14px 24px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;border-bottom:2px solid var(--neon);gap:16px;position:sticky;top:0;z-index:100;}
   header .brand{display:flex;align-items:center;gap:10px;}
   header .brand img{height:28px;}
-  header .title{color:var(--neon);font-weight:700;letter-spacing:2px;font-size:15px;text-align:center;white-space:nowrap;}
+  header .title{color:var(--neon);font-weight:700;letter-spacing:3px;font-size:22px;text-align:center;white-space:nowrap;}
   header .right{display:flex;align-items:center;justify-content:flex-end;gap:14px;}
   header .right img{height:26px;}
   header button{width:auto;padding:8px 16px;background:transparent;color:var(--silver);border:1px solid var(--dust);}

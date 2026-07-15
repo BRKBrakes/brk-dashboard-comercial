@@ -128,14 +128,30 @@ async function loadTopKam() {
   el.innerHTML = '<div class="loading">Calculando...</div>';
   const r = await rpc('dash_top5_kam', { p_token: TOKEN });
   if (!r.ok || !r.data || !r.data.length) { el.innerHTML = ''; return; }
-  let html = '<div class="card" style="border:1px solid var(--neon);height:100%;"><h2 style="color:var(--neon);">Top 5 · KAM que necesitan apoyo</h2>';
+
+  // Para cada KAM, traer sus sucursales más afectadas (cayendo o sin compra)
+  const detalles = await Promise.all(r.data.map(k => rpc('dash_recuperacion', { p_token: TOKEN, p_kam: k.nombre })));
+
+  let html = '<div class="card" style="border:1px solid var(--neon);height:100%;"><h2 style="color:var(--neon);">Top 5 · KAM con más oportunidad por cumplimiento</h2>';
   r.data.forEach((k, i) => {
     let color = '#ff6b6b';
     if (k.pct >= 100) color = '#4ade80'; else if (k.pct >= 80) color = '#ff9f43';
     html += itemAccion(i, k.nombre, k.pct + '% cumpl.', color, `Facturado ${money(k.venta_real)} de ${money(k.presupuesto_periodo)}`);
+
+    const det = detalles[i];
+    let afectados = [];
+    if (det.ok) {
+      const cayendo = (det.cayendo || []).slice().sort((a,b) => b.caida_total - a.caida_total).slice(0,5);
+      afectados = cayendo.length ? cayendo.map(c => c.sucursal_despacho || c.cliente)
+        : (det.sin_compra_60d || []).slice(0,5).map(c => c.sucursal_despacho || c.cliente);
+    }
+    if (afectados.length) {
+      html += `<div style="padding:6px 0 12px 34px;font-size:11px;color:var(--text-dim);">Clientes a trabajar: ${afectados.join(' / ')}</div>`;
+    }
   });
   html += '</div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 }
 
 async function loadTopAliados() {
@@ -150,6 +166,7 @@ async function loadTopAliados() {
   });
   html += '</div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 }
 
 async function loadEjecutivo() {
@@ -248,6 +265,7 @@ async function loadEjecutivo() {
   }
 
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
   autoFitKpis();
 }
 
@@ -281,6 +299,7 @@ async function loadGapDiscos() {
   });
   html += '</table></div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 }
 
 async function loadGapLiquidos() {
@@ -295,6 +314,7 @@ async function loadGapLiquidos() {
   });
   html += '</table></div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 }
 
 async function loadGapCilindros() {
@@ -309,6 +329,7 @@ async function loadGapCilindros() {
   });
   html += '</table></div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 }
 
 let TIPOA_FILTROS_HTML = '';
@@ -339,6 +360,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td></tr>`;
   html += '</table></div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 
   document.getElementById('taMes').value = mes || '';
   document.getElementById('taKam').value = kam || '';
@@ -386,6 +408,7 @@ function renderSegmentacionTabla() {
   });
   html += '</table></div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
   autoFitKpis();
 
   document.getElementById('segKam').addEventListener('change', (e) => {
@@ -469,6 +492,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   }
 
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
   autoFitKpis();
 
   document.getElementById('tkMes').value = mes||'';
@@ -545,6 +569,20 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   });
   html += '</div></div></div>';
 
+  if (!PORTAFOLIO_FAMILIA_SEL) {
+    const porVentaFam = data.slice().sort((a,b) => b.venta - a.venta);
+    const porUnidFam = data.slice().sort((a,b) => b.unidades - a.unidades);
+    html += `<div class="card"><h2>Top 12 por familia</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Familia</th><th class="num">Venta</th></tr>
+          ${porVentaFam.map(d => `<tr><td>${d.familia}</td><td class="num money">${money(d.venta)}</td></tr>`).join('')}
+        </table></div>
+        <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr><th>Familia</th><th class="num">Unidades</th></tr>
+          ${porUnidFam.map(d => `<tr><td>${d.familia}</td><td class="num">${Math.round(d.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
+        </table></div>
+      </div></div>`;
+  }
+
   if (PORTAFOLIO_FAMILIA_SEL && prod && prod.ok) {
     const productos = prod.data || [];
     const porUnidades = productos.slice().sort((a,b) => b.unidades - a.unidades);
@@ -561,6 +599,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   }
 
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 
   document.getElementById('pfMes').value = mes||'';
   document.getElementById('pfKam').value = kam||'';
@@ -622,6 +661,7 @@ async function loadPerdidos(kam) {
   html += '</table></div>';
 
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
   document.getElementById('recKam').value = kam || '';
   document.getElementById('recKam').addEventListener('change', (e) => loadPerdidos(e.target.value));
 }
@@ -650,6 +690,7 @@ async function loadPlanes() {
   }
   html += '</div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 
   el.querySelectorAll('.estado').forEach(sel => {
     sel.addEventListener('change', async () => {
@@ -674,6 +715,63 @@ function autoFitKpis() {
       size -= 1;
       el.style.fontSize = size + 'px';
     }
+  });
+}
+
+// ---- Tablas ordenables con persistencia (localStorage) ----
+function parseCeldaValor(txt) {
+  txt = (txt || '').trim();
+  if (txt === '' || txt === '—') return -Infinity;
+  const limpio = txt.replace(/\$/g, '').replace(/%/g, '').trim();
+  const numTest = limpio.replace(/\./g, '').replace(/,/g, '.');
+  if (/^-?\d+(\.\d+)?$/.test(numTest)) return parseFloat(numTest);
+  return txt.toLowerCase();
+}
+
+function ordenarTabla(table, colIdx, dir) {
+  const filas = Array.from(table.querySelectorAll('tbody tr, tr')).filter(r => r.parentElement.tagName !== 'THEAD');
+  const headerRow = filas[0];
+  const dataRows = filas.slice(1);
+  const totales = dataRows.filter(r => /TOTAL|EQUIPO BRK/i.test(r.textContent));
+  const normales = dataRows.filter(r => !totales.includes(r));
+  normales.sort((a, b) => {
+    const va = parseCeldaValor(a.children[colIdx]?.textContent);
+    const vb = parseCeldaValor(b.children[colIdx]?.textContent);
+    if (typeof va === 'string' || typeof vb === 'string') {
+      return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+    }
+    return dir === 'asc' ? va - vb : vb - va;
+  });
+  const tbody = headerRow.parentElement;
+  normales.forEach(r => tbody.appendChild(r));
+  totales.forEach(r => tbody.appendChild(r));
+}
+
+function idTabla(table, indice) {
+  const view = table.closest('[id^="view-"]');
+  const heading = table.closest('.card')?.querySelector('h2')?.textContent?.trim().slice(0, 40) || '';
+  return (view ? view.id : 'root') + '::' + heading + '::' + indice;
+}
+
+function habilitarOrdenTablas(root) {
+  const tablas = (root || document).querySelectorAll('table');
+  tablas.forEach((table, indice) => {
+    const headerRow = table.querySelector('tr');
+    if (!headerRow) return;
+    const ths = headerRow.querySelectorAll('th');
+    const tid = idTabla(table, indice);
+    ths.forEach((th, colIdx) => {
+      th.style.cursor = 'pointer';
+      th.title = 'Clic para ordenar';
+      th.addEventListener('click', () => {
+        const guardado = JSON.parse(localStorage.getItem('brk_sort_' + tid) || 'null');
+        const dir = (guardado && guardado.col === colIdx && guardado.dir === 'desc') ? 'asc' : 'desc';
+        ordenarTabla(table, colIdx, dir);
+        localStorage.setItem('brk_sort_' + tid, JSON.stringify({ col: colIdx, dir }));
+      });
+    });
+    const guardado = JSON.parse(localStorage.getItem('brk_sort_' + tid) || 'null');
+    if (guardado) ordenarTabla(table, guardado.col, guardado.dir);
   });
 }
 
