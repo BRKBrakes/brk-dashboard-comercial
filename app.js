@@ -333,52 +333,78 @@ async function loadGapCilindros() {
 }
 
 let TIPOA_FILTROS_HTML = '';
-function barrasVerticales(items, labelKey, valueKey, colorHex) {
-  const w = 380, h = 260, padBottom = 90, padTop = 10;
+function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick) {
   const maxV = Math.max(...items.map(i => i[valueKey]), 1);
-  const barW = Math.max(8, (w - 20) / items.length - 6);
-  let bars = '';
+  const filaAltura = 26;
+  const alturaTotal = items.length * filaAltura + 10;
+  let filas = '';
   items.forEach((it, i) => {
-    const bh = Math.max(2, ((it[valueKey] / maxV) * (h - padBottom - padTop)));
-    const x = 10 + i * ((w - 20) / items.length);
-    const y = h - padBottom - bh;
-    bars += `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${colorHex}"/>`;
-    bars += `<text x="${x + barW/2}" y="${h - padBottom + 12}" font-size="8" fill="var(--text-dim)" transform="rotate(45 ${x + barW/2} ${h - padBottom + 12})" text-anchor="start">${(it[labelKey]||'').slice(0,18)}</text>`;
+    const y = i * filaAltura;
+    const anchoBarra = Math.max(2, (it[valueKey] / maxV) * 62); // % del ancho disponible para barra (dejamos espacio a label y valor)
+    filas += `<div class="${claseClick}" data-key="${(it[labelKey]||'').replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;cursor:pointer;">
+      <div style="width:130px;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${it[labelKey]||''}">${it[labelKey]||''}</div>
+      <div style="flex:1;background:#333630;border-radius:3px;height:14px;position:relative;">
+        <div style="width:${anchoBarra}%;height:100%;background:${colorHex};border-radius:3px;"></div>
+      </div>
+      <div style="width:90px;font-size:11px;color:var(--text-dim);text-align:right;flex-shrink:0;">${money(it[valueKey])}</div>
+    </div>`;
   });
-  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" style="background:transparent;">${bars}</svg>`;
+  return `<div>${filas}</div>`;
 }
+
+let TIPOA_CLIENTE_SEL = null;
 
 async function cargarTipoAExtra(data, kam, cliente, sucursal) {
   const el = document.getElementById('tipoa-graficas');
   el.innerHTML = '<div class="loading">Cargando gráficas...</div>';
+  TIPOA_CLIENTE_SEL = null;
 
-  // Gráfica 1: por razón social (agrupando la data ya cargada)
+  renderTipoAGraficas(data);
+
+  const r = await rpc('dash_top_tipo_a_comparativo', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null });
+  const tablaCard = document.getElementById('tipoa-tabla-comparativa');
+  if (r.ok && tablaCard) {
+    const rows = r.data || [];
+    let html = `<h2>Comparativo Ene-${MESES[r.mes_corte-1]} 2025 vs 2026 por sucursal</h2><table><tr><th>Sucursal</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
+    rows.forEach(c => {
+      const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
+      const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
+      html += `<tr><td>${c.sucursal_despacho}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+    });
+    html += '</table>';
+    tablaCard.innerHTML = html;
+    habilitarOrdenTablas(tablaCard);
+  } else if (tablaCard) {
+    tablaCard.innerHTML = '<h2>Comparativo 2025 vs 2026</h2><p style="color:var(--text-dim);font-size:12px;">No se pudo cargar la comparación.</p>';
+  }
+}
+
+function renderTipoAGraficas(data) {
+  const el = document.getElementById('tipoa-graficas');
+
   const porCliente = {};
   data.forEach(c => { porCliente[c.cliente] = (porCliente[c.cliente]||0) + (c.total||0); });
   const clientesOrdenados = Object.keys(porCliente).map(k => ({ cliente: k, total: porCliente[k] })).sort((a,b) => b.total - a.total);
 
-  // Gráfica 2: por sucursal (ya viene por fila)
-  const sucursalesOrdenadas = data.slice().sort((a,b) => (b.total||0) - (a.total||0));
+  const dataSucursales = TIPOA_CLIENTE_SEL ? data.filter(c => c.cliente === TIPOA_CLIENTE_SEL) : data;
+  const sucursalesOrdenadas = dataSucursales.slice().sort((a,b) => (b.total||0) - (a.total||0));
 
-  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;">
-    <div class="card"><h2>Razón Social vs Total 2026</h2>${barrasVerticales(clientesOrdenados, 'cliente', 'total', '#F1FE34')}</div>
-    <div class="card"><h2>Sucursal vs Total 2026</h2>${barrasVerticales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43')}</div>
-  </div>`;
-
-  const r = await rpc('dash_top_tipo_a_comparativo', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null });
-  if (r.ok) {
-    const rows = r.data || [];
-    html += `<div class="card"><h2>Comparativo Ene-${MESES[r.mes_corte-1]} 2025 vs 2026 por sucursal</h2><table><tr><th>Sucursal</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>` +
-      rows.map(c => {
-        const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
-        const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
-        return `<tr><td>${c.sucursal_despacho}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
-      }).join('') +
-    '</table></div>';
-  }
+  const html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">
+    <div class="card"><h2>Razón Social vs Total 2026 (clic para filtrar)</h2>${barrasHorizontales(clientesOrdenados, 'cliente', 'total', '#F1FE34', 'ta-bar-cliente')}</div>
+    <div class="card"><h2>Sucursal vs Total 2026 ${TIPOA_CLIENTE_SEL ? '— ' + TIPOA_CLIENTE_SEL + ' <span id="taLimpiarCliente" style="cursor:pointer;color:var(--neon);font-size:11px;">(ver todos)</span>' : ''}</h2>${barrasHorizontales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43', '')}</div>
+  </div>
+  <div class="card" id="tipoa-tabla-comparativa"><div class="loading">Cargando comparativo...</div></div>`;
 
   el.innerHTML = html;
-  habilitarOrdenTablas(el);
+
+  el.querySelectorAll('.ta-bar-cliente').forEach(row => {
+    row.addEventListener('click', () => {
+      TIPOA_CLIENTE_SEL = (TIPOA_CLIENTE_SEL === row.dataset.key) ? null : row.dataset.key;
+      renderTipoAGraficas(data);
+    });
+  });
+  const limpiar = document.getElementById('taLimpiarCliente');
+  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); TIPOA_CLIENTE_SEL = null; renderTipoAGraficas(data); });
 }
 
 async function loadTipoA(kam, cliente, sucursal, mes) {
@@ -441,20 +467,24 @@ function renderSegmentacionTabla() {
     <select id="segKam" class="estado"><option value="">Todos</option>${kams.map(k => `<option value="${k}" ${k===SEGMENTACION_KAM?'selected':''}>${titleCase(k)}</option>`).join('')}</select>
   </div>`;
 
+  const totalGeneral = baseData.reduce((s,c) => s + (c.total||0), 0);
+
   html += '<div class="kpis">';
   Object.keys(resumen).sort().forEach(seg => {
     const activo = SEGMENTACION_FILTRO === seg;
+    const pctSeg = totalGeneral ? Math.round((resumen[seg].total/totalGeneral)*1000)/10 : 0;
     html += `<div class="kpi seg-card" data-seg="${seg}" style="cursor:pointer;${activo ? 'border-color:var(--neon);border-width:2px;' : ''}">
-      <div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div class="value-sub">${money(resumen[seg].total)}</div>
+      <div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div class="value-sub">${money(resumen[seg].total)}</div><div class="value-sub" style="color:var(--neon);">${pctSeg}% del total</div>
     </div>`;
   });
   html += '</div>';
 
   const filtrados = SEGMENTACION_FILTRO ? baseData.filter(c => c.segmento === SEGMENTACION_FILTRO) : baseData;
   html += `<div class="card"><h2>Detalle por sucursal ${SEGMENTACION_FILTRO ? '— filtrado: ' + SEGMENTACION_FILTRO + ' <span id="segLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : ''}</h2>
-    <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">Días sin comprar</th></tr>`;
+    <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">% del total</th><th class="num">Días sin comprar</th></tr>`;
   filtrados.forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${c.segmento}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+    const pctFila = totalGeneral ? Math.round(((c.total||0)/totalGeneral)*1000)/10 : 0;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${c.segmento}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
