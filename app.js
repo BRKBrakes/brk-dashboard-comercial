@@ -93,6 +93,7 @@ async function loadTab(tab) {
   if (tab === 'portafolio') return loadPortafolio();
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
+  if (tab === 'cargar') return loadCargarVentas();
 }
 
 function poblarSelectMeses() {
@@ -884,6 +885,151 @@ function habilitarOrdenTablas(root) {
     const guardado = JSON.parse(localStorage.getItem('brk_sort_' + tid) || 'null');
     if (guardado) ordenarTabla(table, guardado.col, guardado.dir);
   });
+}
+
+const MAPEO_COLUMNAS_SIESA = {
+  'Fecha': 'fecha',
+  'Nombre vendedor': 'vendedor',
+  'Razon social cliente factura': 'cliente',
+  'Desc. sucursal despacho': 'sucursal_despacho',
+  'Desc. ciudad': 'ciudad',
+  'Referencia': 'referencia',
+  'FAMILIA': 'familia',
+  'Desc. item': 'descripcion_item',
+  'Valor subtotal local': 'valor_subtotal',
+  'Valor descuentos local': 'valor_descuento',
+  'Cantidad inv.': 'cantidad',
+  'Precio unit.': 'precio_unit',
+  'CATEGORIA CLIENTE POR UEN': 'categoria_uen',
+  'Nro documento': 'nro_documento',
+  'Orden de compra': 'orden_compra',
+  'C.O.': 'co',
+  'Cliente factura': 'cliente_nit',
+  'Costo MP': 'costo_mp',
+  'Margen MP': 'margen_mp'
+};
+
+function formatearFechaExcel(valor) {
+  if (valor instanceof Date) {
+    const y = valor.getFullYear(), m = String(valor.getMonth()+1).padStart(2,'0'), d = String(valor.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof valor === 'string' && valor.includes('-')) return valor.slice(0,10);
+  return null;
+}
+
+function loadCargarVentas() {
+  const el = document.getElementById('view-cargar');
+  el.innerHTML = `
+    <div class="card">
+      <h2>Cargar ventas desde el Excel de Siesa</h2>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">
+        Sube aquí el mismo archivo (.xls o .xlsx) que descargas de Siesa para el Power BI, <b>sin editarlo ni borrar columnas</b>.
+        Esta carga <b>reemplaza por completo</b> los datos de ventas 2026 en el dashboard con lo que traiga el archivo.
+      </p>
+      <div id="dropZoneVentas" style="border:2px dashed var(--dust);border-radius:10px;padding:40px;text-align:center;cursor:pointer;">
+        <p style="margin:0;color:var(--text-dim);">Arrastra el archivo aquí, o haz clic para elegirlo</p>
+        <input type="file" id="fileVentas" accept=".xls,.xlsx,.csv" style="display:none;">
+      </div>
+      <div id="cargaEstado" style="margin-top:16px;font-size:13px;color:var(--text-dim);"></div>
+      <div id="cargaProgreso" style="margin-top:8px;height:8px;background:#333630;border-radius:4px;overflow:hidden;display:none;">
+        <div id="cargaBarra" style="height:100%;width:0%;background:var(--neon);transition:width 0.2s;"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Última carga</h2>
+      <div id="ultimaCargaInfo" style="font-size:13px;color:var(--text-dim);">Cargando información...</div>
+    </div>`;
+
+  const dropZone = document.getElementById('dropZoneVentas');
+  const fileInput = document.getElementById('fileVentas');
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--neon)'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--dust)'; });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--dust)';
+    if (e.dataTransfer.files.length) procesarArchivoVentas(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) procesarArchivoVentas(e.target.files[0]);
+  });
+
+  mostrarUltimaCarga();
+}
+
+async function mostrarUltimaCarga() {
+  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN });
+  const info = document.getElementById('ultimaCargaInfo');
+  if (r.ok && r.general) {
+    info.innerHTML = `Venta total acumulada en el dashboard: <b style="color:var(--neon);">${money(r.general.venta_total)}</b>. Si este número no coincide con lo que ves en Siesa/Power BI, vuelve a cargar el archivo actualizado.`;
+  } else {
+    info.textContent = 'No se pudo consultar el estado actual.';
+  }
+}
+
+async function procesarArchivoVentas(file) {
+  const estado = document.getElementById('cargaEstado');
+  const progreso = document.getElementById('cargaProgreso');
+  const barra = document.getElementById('cargaBarra');
+  estado.textContent = 'Leyendo archivo...';
+  progreso.style.display = 'block';
+  barra.style.width = '5%';
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const hoja = wb.Sheets[wb.SheetNames[0]];
+    const filas = XLSX.utils.sheet_to_json(hoja, { defval: null });
+
+    if (!filas.length) { estado.textContent = 'El archivo no tiene datos.'; return; }
+
+    // Validar que las columnas esperadas existan
+    const columnasArchivo = Object.keys(filas[0]);
+    const columnasEsperadas = Object.keys(MAPEO_COLUMNAS_SIESA);
+    const faltantes = columnasEsperadas.filter(c => !columnasArchivo.includes(c));
+    if (faltantes.length > 3) {
+      estado.innerHTML = `<span style="color:#ff6b6b;">El archivo no tiene el formato esperado de Siesa. Faltan columnas: ${faltantes.join(', ')}</span>`;
+      progreso.style.display = 'none';
+      return;
+    }
+
+    // Mapear filas al esquema de la base de datos
+    const filasMapeadas = filas.map(f => {
+      const out = {};
+      for (const [colExcel, colDB] of Object.entries(MAPEO_COLUMNAS_SIESA)) {
+        let val = f[colExcel];
+        if (colDB === 'fecha') val = formatearFechaExcel(val);
+        out[colDB] = val === undefined ? null : val;
+      }
+      return out;
+    }).filter(f => f.fecha && f.valor_subtotal !== null);
+
+    estado.textContent = `Archivo leído: ${filasMapeadas.length} filas válidas de ${filas.length} totales. Subiendo...`;
+
+    const TAM_LOTE = 1000;
+    let subidos = 0;
+    for (let i = 0; i < filasMapeadas.length; i += TAM_LOTE) {
+      const lote = filasMapeadas.slice(i, i + TAM_LOTE);
+      const esPrimero = i === 0;
+      const r = await rpc('dash_ventas_cargar_lote', { p_token: TOKEN, p_lote: lote, p_primer_lote: esPrimero });
+      if (!r.ok) {
+        estado.innerHTML = `<span style="color:#ff6b6b;">Error subiendo el lote ${i / TAM_LOTE + 1}: ${r.error || 'desconocido'}</span>`;
+        return;
+      }
+      subidos += r.insertados || 0;
+      const pct = Math.round(((i + lote.length) / filasMapeadas.length) * 100);
+      barra.style.width = pct + '%';
+      estado.textContent = `Subiendo... ${subidos} de ${filasMapeadas.length} filas cargadas.`;
+    }
+
+    barra.style.width = '100%';
+    estado.innerHTML = `<span style="color:#4ade80;">✓ Carga completa: ${subidos} filas de ventas 2026 actualizadas. Ya puedes revisar los demás tableros.</span>`;
+    mostrarUltimaCarga();
+  } catch (err) {
+    estado.innerHTML = `<span style="color:#ff6b6b;">Error procesando el archivo: ${err.message}</span>`;
+    progreso.style.display = 'none';
+  }
 }
 
 function titleCase(s) {
