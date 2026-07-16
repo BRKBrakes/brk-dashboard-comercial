@@ -896,26 +896,87 @@ function habilitarOrdenTablas(root) {
   });
 }
 
+// ---- Acceso a carpeta local (File System Access API) ----
+// Guardamos el "handle" de la carpeta en IndexedDB para no pedir permiso cada vez.
+function abrirDBHandles() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('brk_handles', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('handles');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function guardarHandleCarpeta(handle) {
+  const db = await abrirDBHandles();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').put(handle, 'carpeta_data_brk');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function obtenerHandleCarpeta() {
+  const db = await abrirDBHandles();
+  return new Promise((resolve) => {
+    const tx = db.transaction('handles', 'readonly');
+    const req = tx.objectStore('handles').get('carpeta_data_brk');
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+async function obtenerCarpetaData(forzarSeleccion) {
+  if (!window.showDirectoryPicker) {
+    throw new Error('Tu navegador no soporta esta función. Usa Chrome o Edge.');
+  }
+  let handle = forzarSeleccion ? null : await obtenerHandleCarpeta();
+  if (handle) {
+    const permiso = await handle.queryPermission({ mode: 'read' });
+    if (permiso !== 'granted') {
+      const pedido = await handle.requestPermission({ mode: 'read' });
+      if (pedido !== 'granted') handle = null;
+    }
+  }
+  if (!handle) {
+    handle = await window.showDirectoryPicker({ id: 'brk-data-tableros', mode: 'read' });
+    await guardarHandleCarpeta(handle);
+  }
+  return handle;
+}
+
+async function buscarArchivoEnCarpeta(handleCarpeta, prefijo) {
+  for await (const [nombre, entrada] of handleCarpeta.entries()) {
+    if (entrada.kind === 'file' && nombre.toLowerCase().startsWith(prefijo.toLowerCase()) &&
+        (nombre.toLowerCase().endsWith('.xls') || nombre.toLowerCase().endsWith('.xlsx'))) {
+      return entrada.getFile();
+    }
+  }
+  return null;
+}
+
+// ---- Mapeos de columnas por tipo de archivo ----
 const MAPEO_COLUMNAS_SIESA = {
-  'Fecha': 'fecha',
-  'Nombre vendedor': 'vendedor',
-  'Razon social cliente factura': 'cliente',
-  'Desc. sucursal despacho': 'sucursal_despacho',
-  'Desc. ciudad': 'ciudad',
-  'Referencia': 'referencia',
-  'FAMILIA': 'familia',
-  'Desc. item': 'descripcion_item',
-  'Valor subtotal local': 'valor_subtotal',
-  'Valor descuentos local': 'valor_descuento',
-  'Cantidad inv.': 'cantidad',
-  'Precio unit.': 'precio_unit',
-  'CATEGORIA CLIENTE POR UEN': 'categoria_uen',
-  'Nro documento': 'nro_documento',
-  'Orden de compra': 'orden_compra',
-  'C.O.': 'co',
-  'Cliente factura': 'cliente_nit',
-  'Costo MP': 'costo_mp',
-  'Margen MP': 'margen_mp'
+  'Fecha': 'fecha', 'Nombre vendedor': 'vendedor', 'Razon social cliente factura': 'cliente',
+  'Desc. sucursal despacho': 'sucursal_despacho', 'Desc. ciudad': 'ciudad', 'Referencia': 'referencia',
+  'FAMILIA': 'familia', 'Desc. item': 'descripcion_item', 'Valor subtotal local': 'valor_subtotal',
+  'Valor descuentos local': 'valor_descuento', 'Cantidad inv.': 'cantidad', 'Precio unit.': 'precio_unit',
+  'CATEGORIA CLIENTE POR UEN': 'categoria_uen', 'Nro documento': 'nro_documento', 'Orden de compra': 'orden_compra',
+  'C.O.': 'co', 'Cliente factura': 'cliente_nit', 'Costo MP': 'costo_mp', 'Margen MP': 'margen_mp'
+};
+
+const MAPEO_REMISIONES = {
+  'Nro documento': 'nro_documento', 'C.O.': 'co', 'Fecha': 'fecha', 'Estado': 'estado',
+  'Nombre vendedor': 'vendedor', 'Razón social cliente factura': 'cliente',
+  'Desc. sucursal factura': 'sucursal_factura', 'Desc. ciudad': 'ciudad',
+  'Valor subtotal local': 'valor_subtotal', 'Usuario anulación': 'usuario_anulacion'
+};
+
+const MAPEO_CARTERA = {
+  'C.O.': 'co', 'Cliente': 'cliente_nit', 'Razón social vend. cliente': 'vendedor',
+  'Razón social sucursal': 'sucursal', 'Número O.C. comercial': 'orden_compra',
+  'Nro. docto. cruce': 'nro_documento_cruce', 'Cond. pago cliente': 'cond_pago_cliente',
+  'Fecha docto cruce': 'fecha_docto_cruce', 'Fecha vcto.': 'fecha_vcto_siesa',
+  'Dias vencidos': 'dias_vencidos_siesa', 'Notas': 'notas', 'Total COP': 'total_cop'
 };
 
 function formatearFechaExcel(valor) {
@@ -927,18 +988,49 @@ function formatearFechaExcel(valor) {
   return null;
 }
 
+function mapearFilas(filas, mapeo, camposFecha) {
+  return filas.map(f => {
+    const out = {};
+    for (const [colExcel, colDB] of Object.entries(mapeo)) {
+      let val = f[colExcel];
+      if (camposFecha.includes(colDB)) val = formatearFechaExcel(val);
+      out[colDB] = (val === undefined) ? null : val;
+    }
+    return out;
+  });
+}
+
+// ---- Configuración de las 3 fuentes ----
+const FUENTES_DATA = {
+  facturacion: {
+    titulo: 'Facturación', prefijoArchivo: '1 facturacion', mapeo: MAPEO_COLUMNAS_SIESA,
+    camposFecha: ['fecha'], rpc: 'dash_ventas_cargar_lote', filtro: f => f.fecha && f.valor_subtotal !== null
+  },
+  remisiones: {
+    titulo: 'Remisiones', prefijoArchivo: '2 remisiones', mapeo: MAPEO_REMISIONES,
+    camposFecha: ['fecha'], rpc: 'dash_remisiones_cargar_lote', filtro: f => f.nro_documento
+  },
+  cartera: {
+    titulo: 'Cartera', prefijoArchivo: '3 cartera', mapeo: MAPEO_CARTERA,
+    camposFecha: ['fecha_docto_cruce', 'fecha_vcto_siesa'], rpc: 'dash_cartera_cargar_lote',
+    filtro: f => f.total_cop !== null
+  }
+};
+
 function loadCargarVentas() {
   const el = document.getElementById('view-cargar');
   el.innerHTML = `
     <div class="card">
-      <h2>Cargar ventas desde el Excel de Siesa</h2>
+      <h2>DATA · Cargar información desde Siesa</h2>
       <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">
-        Sube aquí el mismo archivo (.xls o .xlsx) que descargas de Siesa para el Power BI, <b>sin editarlo ni borrar columnas</b>.
-        Esta carga <b>reemplaza por completo</b> los datos de ventas 2026 en el dashboard con lo que traiga el archivo.
+        La primera vez, cada botón te pedirá seleccionar la carpeta <b>Data Tableros BRK</b> (una sola vez, el navegador la recuerda).
+        Después, con un clic busca el archivo correspondiente en esa carpeta y lo sube — sin que tengas que buscarlo tú.
       </p>
-      <div id="dropZoneVentas" style="border:2px dashed var(--dust);border-radius:10px;padding:40px;text-align:center;cursor:pointer;">
-        <p style="margin:0;color:var(--text-dim);">Arrastra el archivo aquí, o haz clic para elegirlo</p>
-        <input type="file" id="fileVentas" accept=".xls,.xlsx,.csv" style="display:none;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <button class="btn-fuente" data-fuente="facturacion" style="width:auto;padding:14px 24px;">📄 Facturación</button>
+        <button class="btn-fuente" data-fuente="remisiones" style="width:auto;padding:14px 24px;">🚚 Remisiones</button>
+        <button class="btn-fuente" data-fuente="cartera" style="width:auto;padding:14px 24px;">💰 Cartera</button>
+        <button id="btnCambiarCarpeta" style="width:auto;padding:14px 24px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">📁 Cambiar carpeta</button>
       </div>
       <div id="cargaEstado" style="margin-top:16px;font-size:13px;color:var(--text-dim);"></div>
       <div id="cargaProgreso" style="margin-top:8px;height:8px;background:#333630;border-radius:4px;overflow:hidden;display:none;">
@@ -946,22 +1038,16 @@ function loadCargarVentas() {
       </div>
     </div>
     <div class="card">
-      <h2>Última carga</h2>
+      <h2>Estado actual</h2>
       <div id="ultimaCargaInfo" style="font-size:13px;color:var(--text-dim);">Cargando información...</div>
     </div>`;
 
-  const dropZone = document.getElementById('dropZoneVentas');
-  const fileInput = document.getElementById('fileVentas');
-  dropZone.addEventListener('click', () => fileInput.click());
-  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--neon)'; });
-  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--dust)'; });
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.style.borderColor = 'var(--dust)';
-    if (e.dataTransfer.files.length) procesarArchivoVentas(e.dataTransfer.files[0]);
+  document.querySelectorAll('.btn-fuente').forEach(btn => {
+    btn.addEventListener('click', () => cargarDesdeCarpeta(btn.dataset.fuente, false));
   });
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length) procesarArchivoVentas(e.target.files[0]);
+  document.getElementById('btnCambiarCarpeta').addEventListener('click', async () => {
+    try { await obtenerCarpetaData(true); document.getElementById('cargaEstado').textContent = 'Carpeta actualizada. Ya puedes usar los botones.'; }
+    catch (e) { document.getElementById('cargaEstado').innerHTML = `<span style="color:#ff6b6b;">${e.message}</span>`; }
   });
 
   mostrarUltimaCarga();
@@ -971,72 +1057,81 @@ async function mostrarUltimaCarga() {
   const r = await rpc('dash_ticket_promedio', { p_token: TOKEN });
   const info = document.getElementById('ultimaCargaInfo');
   if (r.ok && r.general) {
-    info.innerHTML = `Venta total acumulada en el dashboard: <b style="color:var(--neon);">${money(r.general.venta_total)}</b>. Si este número no coincide con lo que ves en Siesa/Power BI, vuelve a cargar el archivo actualizado.`;
+    info.innerHTML = `Venta total acumulada (Facturación) en el dashboard: <b style="color:var(--neon);">${money(r.general.venta_total)}</b>. Compara contra tu Power BI para confirmar que la última carga quedó al día.`;
   } else {
     info.textContent = 'No se pudo consultar el estado actual.';
   }
 }
 
-async function procesarArchivoVentas(file) {
+async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
+  const fuente = FUENTES_DATA[claveFuente];
   const estado = document.getElementById('cargaEstado');
   const progreso = document.getElementById('cargaProgreso');
   const barra = document.getElementById('cargaBarra');
-  estado.textContent = 'Leyendo archivo...';
   progreso.style.display = 'block';
   barra.style.width = '5%';
 
   try {
-    const buffer = await file.arrayBuffer();
-    const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-    const hoja = wb.Sheets[wb.SheetNames[0]];
-    const filas = XLSX.utils.sheet_to_json(hoja, { defval: null });
-
-    if (!filas.length) { estado.textContent = 'El archivo no tiene datos.'; return; }
-
-    // Validar que las columnas esperadas existan
-    const columnasArchivo = Object.keys(filas[0]);
-    const columnasEsperadas = Object.keys(MAPEO_COLUMNAS_SIESA);
-    const faltantes = columnasEsperadas.filter(c => !columnasArchivo.includes(c));
-    if (faltantes.length > 3) {
-      estado.innerHTML = `<span style="color:#ff6b6b;">El archivo no tiene el formato esperado de Siesa. Faltan columnas: ${faltantes.join(', ')}</span>`;
+    estado.textContent = `Buscando el archivo de ${fuente.titulo} en tu carpeta...`;
+    const carpeta = await obtenerCarpetaData(forzarSeleccion);
+    const archivo = await buscarArchivoEnCarpeta(carpeta, fuente.prefijoArchivo);
+    if (!archivo) {
+      estado.innerHTML = `<span style="color:#ff6b6b;">No encontré un archivo que empiece con "${fuente.prefijoArchivo}" en esa carpeta. Verifica el nombre o usa "Cambiar carpeta".</span>`;
       progreso.style.display = 'none';
       return;
     }
 
-    // Mapear filas al esquema de la base de datos
-    const filasMapeadas = filas.map(f => {
-      const out = {};
-      for (const [colExcel, colDB] of Object.entries(MAPEO_COLUMNAS_SIESA)) {
-        let val = f[colExcel];
-        if (colDB === 'fecha') val = formatearFechaExcel(val);
-        out[colDB] = val === undefined ? null : val;
-      }
-      return out;
-    }).filter(f => f.fecha && f.valor_subtotal !== null);
+    estado.textContent = `Leyendo ${archivo.name}...`;
+    const buffer = await archivo.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const hoja = wb.Sheets[wb.SheetNames[0]];
+    const filas = XLSX.utils.sheet_to_json(hoja, { defval: null });
 
-    estado.textContent = `Archivo leído: ${filasMapeadas.length} filas válidas de ${filas.length} totales. Subiendo...`;
+    if (!filas.length) { estado.textContent = 'El archivo no tiene datos.'; progreso.style.display = 'none'; return; }
 
-    const TAM_LOTE = 1000;
+    const columnasArchivo = Object.keys(filas[0]);
+    const columnasEsperadas = Object.keys(fuente.mapeo);
+    const faltantes = columnasEsperadas.filter(c => !columnasArchivo.includes(c));
+    if (faltantes.length > 3) {
+      estado.innerHTML = `<span style="color:#ff6b6b;">El archivo no tiene el formato esperado de ${fuente.titulo}. Faltan columnas: ${faltantes.join(', ')}</span>`;
+      progreso.style.display = 'none';
+      return;
+    }
+
+    const filasMapeadas = mapearFilas(filas, fuente.mapeo, fuente.camposFecha).filter(fuente.filtro);
+    estado.textContent = `${filasMapeadas.length} filas válidas de ${fuente.titulo}. Subiendo...`;
+
+    const TAM_LOTE = 500;
     let subidos = 0;
     for (let i = 0; i < filasMapeadas.length; i += TAM_LOTE) {
       const lote = filasMapeadas.slice(i, i + TAM_LOTE);
       const esPrimero = i === 0;
-      const r = await rpc('dash_ventas_cargar_lote', { p_token: TOKEN, p_lote: lote, p_primer_lote: esPrimero });
+      const r = await rpc(fuente.rpc, { p_token: TOKEN, p_lote: lote, p_primer_lote: esPrimero });
       if (!r.ok) {
-        estado.innerHTML = `<span style="color:#ff6b6b;">Error subiendo el lote ${i / TAM_LOTE + 1}: ${r.error || 'desconocido'}</span>`;
+        estado.innerHTML = `<span style="color:#ff6b6b;">Error subiendo el lote: ${r.error || 'desconocido'}</span>`;
+        progreso.style.display = 'none';
         return;
       }
       subidos += r.insertados || 0;
       const pct = Math.round(((i + lote.length) / filasMapeadas.length) * 100);
       barra.style.width = pct + '%';
-      estado.textContent = `Subiendo... ${subidos} de ${filasMapeadas.length} filas cargadas.`;
+      estado.textContent = `Subiendo ${fuente.titulo}... ${subidos} de ${filasMapeadas.length} filas.`;
+    }
+
+    // Si el archivo llegó vacío de filas válidas, igual truncamos para reflejar la realidad (remisiones/cartera fluctuantes)
+    if (filasMapeadas.length === 0) {
+      await rpc(fuente.rpc, { p_token: TOKEN, p_lote: [], p_primer_lote: true });
     }
 
     barra.style.width = '100%';
-    estado.innerHTML = `<span style="color:#4ade80;">✓ Carga completa: ${subidos} filas de ventas 2026 actualizadas. Ya puedes revisar los demás tableros.</span>`;
+    estado.innerHTML = `<span style="color:#4ade80;">✓ ${fuente.titulo} actualizado: ${subidos} filas.</span>`;
     mostrarUltimaCarga();
   } catch (err) {
-    estado.innerHTML = `<span style="color:#ff6b6b;">Error procesando el archivo: ${err.message}</span>`;
+    if (err.name === 'AbortError') {
+      estado.textContent = 'Cancelado.';
+    } else {
+      estado.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
+    }
     progreso.style.display = 'none';
   }
 }
