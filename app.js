@@ -1041,6 +1041,17 @@ async function loadRemisiones() {
     <div class="kpi"><div class="label"># Remisiones</div><div class="value">${r.num_remisiones||0}</div></div>
   </div>`;
 
+  // Tarjeta de totales por KAM (lectura rápida)
+  const totalesPorKam = {};
+  filas.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor]||0) + f.valor; });
+  const kamOrdenados = Object.keys(totalesPorKam).sort((a,b) => totalesPorKam[b]-totalesPorKam[a]);
+  html += '<div class="card"><h2>Totales por KAM</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>';
+  kamOrdenados.forEach(k => {
+    html += `<tr><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
+  });
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td></tr>`;
+  html += '</table></div>';
+
   html += `<div class="card"><h2>Remisiones por vendedor y sucursal (excluye Grupo GE)</h2><table><tr><th>Vendedor</th><th>Sucursal</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   Object.keys(grupos).sort().forEach(vend => {
     const sucursales = grupos[vend];
@@ -1094,16 +1105,38 @@ async function loadCartera() {
   });
   html += '</table></div>';
 
-  html += '<div class="card"><h2>Detalle por sucursal</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
+  html += '<div class="card"><h2>Detalle por sucursal (clic en una fila para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
   (r.detalle || []).sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorKpi = colorKpiCartera(d.kpi_pct);
     const colorDias = colorDiasVencido(d.dias_max);
-    html += `<tr><td>${titleCase(d.vendedor||'')}</td><td>${d.sucursal||''}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;"><td>${titleCase(d.vendedor||'')}</td><td>${d.sucursal||''}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
+  html += '<div id="cartera-facturas"></div>';
   el.innerHTML = html;
   autoFitKpis();
   habilitarOrdenTablas(el);
+
+  el.querySelectorAll('.fila-cartera').forEach(fila => {
+    fila.addEventListener('click', () => mostrarFacturasCartera(fila.dataset.vendedor, fila.dataset.sucursal));
+  });
+}
+
+async function mostrarFacturasCartera(vendedor, sucursal) {
+  const el = document.getElementById('cartera-facturas');
+  el.innerHTML = '<div class="loading">Cargando facturas...</div>';
+  const r = await rpc('dash_cartera_facturas', { p_token: TOKEN, p_vendedor: vendedor, p_sucursal: sucursal });
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const facturas = r.data || [];
+  let html = `<div class="card"><h2>Facturas — ${sucursal} (${titleCase(vendedor)})</h2><table><tr><th>Nro. documento</th><th>Fecha factura</th><th>Fecha real vencimiento</th><th class="num">Valor</th><th class="num">Días vencido</th></tr>`;
+  facturas.forEach(f => {
+    const color = colorDiasVencido(f.dias_real_vencido);
+    html += `<tr><td>${f.nro_documento_cruce||''}</td><td>${f.fecha_docto_cruce||''}</td><td>${f.fecha_real_vencimiento||''}</td><td class="num money">${money(f.total_cop)}</td><td class="num" style="color:${color};font-weight:700;">${f.dias_real_vencido}</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+  habilitarOrdenTablas(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function loadCargarVentas() {
