@@ -1,0 +1,17 @@
+{
+  "name": "Dashboard BRK",
+  "short_name": "BRK Dashboard",
+  "description": "Dashboard comercial BRK — seguimiento de ventas, oportunidades y recuperación de clientes.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1c1f1b",
+  "theme_color": "#363636",
+  "orientation": "any",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

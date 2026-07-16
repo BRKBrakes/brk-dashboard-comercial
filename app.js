@@ -361,7 +361,11 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal) {
 
   renderTipoAGraficas(data);
 
-  const r = await rpc('dash_top_tipo_a_comparativo', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null });
+  const [r, rCliente] = await Promise.all([
+    rpc('dash_top_tipo_a_comparativo', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null }),
+    rpc('dash_top_tipo_a_comparativo_cliente', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null })
+  ]);
+
   const tablaCard = document.getElementById('tipoa-tabla-comparativa');
   if (r.ok && tablaCard) {
     const rows = r.data || [];
@@ -377,7 +381,25 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal) {
     tablaCard.innerHTML = html;
     habilitarOrdenTablas(tablaCard);
   } else if (tablaCard) {
-    tablaCard.innerHTML = '<h2>Comparativo 2025 vs 2026</h2><p style="color:var(--text-dim);font-size:12px;">No se pudo cargar la comparación.</p>';
+    tablaCard.innerHTML = '<h2>Comparativo 2025 vs 2026 por sucursal</h2><p style="color:var(--text-dim);font-size:12px;">No se pudo cargar la comparación.</p>';
+  }
+
+  const tablaClienteCard = document.getElementById('tipoa-tabla-comparativa-cliente');
+  if (rCliente.ok && tablaClienteCard) {
+    const rows = rCliente.data || [];
+    const totalGrupo2026 = rows.reduce((s,c) => s + (c.venta2026||0), 0);
+    let html = `<h2>Comparativo Ene-${MESES[rCliente.mes_corte-1]} 2025 vs 2026 por razón social</h2><table><tr><th>Cliente</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">% del total 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
+    rows.forEach(c => {
+      const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
+      const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
+      const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
+      html += `<tr><td>${c.cliente}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+    });
+    html += '</table>';
+    tablaClienteCard.innerHTML = html;
+    habilitarOrdenTablas(tablaClienteCard);
+  } else if (tablaClienteCard) {
+    tablaClienteCard.innerHTML = '<h2>Comparativo 2025 vs 2026 por razón social</h2><p style="color:var(--text-dim);font-size:12px;">No se pudo cargar la comparación.</p>';
   }
 }
 
@@ -395,7 +417,8 @@ function renderTipoAGraficas(data) {
     <div class="card"><h2>Razón Social vs Total 2026 (clic para filtrar)</h2>${barrasHorizontales(clientesOrdenados, 'cliente', 'total', '#F1FE34', 'ta-bar-cliente')}</div>
     <div class="card"><h2>Sucursal vs Total 2026 ${TIPOA_CLIENTE_SEL ? '— ' + TIPOA_CLIENTE_SEL + ' <span id="taLimpiarCliente" style="cursor:pointer;color:var(--neon);font-size:11px;">(ver todos)</span>' : ''}</h2>${barrasHorizontales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43', '')}</div>
   </div>
-  <div class="card" id="tipoa-tabla-comparativa"><div class="loading">Cargando comparativo...</div></div>`;
+  <div class="card" id="tipoa-tabla-comparativa"><div class="loading">Cargando comparativo...</div></div>
+  <div class="card" id="tipoa-tabla-comparativa-cliente"><div class="loading">Cargando comparativo...</div></div>`;
 
   el.innerHTML = html;
 
@@ -869,3 +892,10 @@ function titleCase(s) {
 
 // Auto-login si hay token guardado
 if (TOKEN) { showApp(); }
+
+// Registro de Service Worker para instalación como PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  });
+}
