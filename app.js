@@ -1308,7 +1308,9 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
 }
 
 function titleCase(s) {
-  return (s||'').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return (s||'').toLowerCase().split(' ').map(palabra =>
+    palabra ? palabra.charAt(0).toUpperCase() + palabra.slice(1) : palabra
+  ).join(' ');
 }
 
 // Auto-login si hay token guardado
