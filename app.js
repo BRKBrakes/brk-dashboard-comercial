@@ -333,6 +333,54 @@ async function loadGapCilindros() {
 }
 
 let TIPOA_FILTROS_HTML = '';
+function barrasVerticales(items, labelKey, valueKey, colorHex) {
+  const w = 380, h = 260, padBottom = 90, padTop = 10;
+  const maxV = Math.max(...items.map(i => i[valueKey]), 1);
+  const barW = Math.max(8, (w - 20) / items.length - 6);
+  let bars = '';
+  items.forEach((it, i) => {
+    const bh = Math.max(2, ((it[valueKey] / maxV) * (h - padBottom - padTop)));
+    const x = 10 + i * ((w - 20) / items.length);
+    const y = h - padBottom - bh;
+    bars += `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${colorHex}"/>`;
+    bars += `<text x="${x + barW/2}" y="${h - padBottom + 12}" font-size="8" fill="var(--text-dim)" transform="rotate(45 ${x + barW/2} ${h - padBottom + 12})" text-anchor="start">${(it[labelKey]||'').slice(0,18)}</text>`;
+  });
+  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" style="background:transparent;">${bars}</svg>`;
+}
+
+async function cargarTipoAExtra(data, kam, cliente, sucursal) {
+  const el = document.getElementById('tipoa-graficas');
+  el.innerHTML = '<div class="loading">Cargando gráficas...</div>';
+
+  // Gráfica 1: por razón social (agrupando la data ya cargada)
+  const porCliente = {};
+  data.forEach(c => { porCliente[c.cliente] = (porCliente[c.cliente]||0) + (c.total||0); });
+  const clientesOrdenados = Object.keys(porCliente).map(k => ({ cliente: k, total: porCliente[k] })).sort((a,b) => b.total - a.total);
+
+  // Gráfica 2: por sucursal (ya viene por fila)
+  const sucursalesOrdenadas = data.slice().sort((a,b) => (b.total||0) - (a.total||0));
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;">
+    <div class="card"><h2>Razón Social vs Total 2026</h2>${barrasVerticales(clientesOrdenados, 'cliente', 'total', '#F1FE34')}</div>
+    <div class="card"><h2>Sucursal vs Total 2026</h2>${barrasVerticales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43')}</div>
+  </div>`;
+
+  const r = await rpc('dash_top_tipo_a_comparativo', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null });
+  if (r.ok) {
+    const rows = r.data || [];
+    html += `<div class="card"><h2>Comparativo Ene-${MESES[r.mes_corte-1]} 2025 vs 2026 por sucursal</h2><table><tr><th>Sucursal</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>` +
+      rows.map(c => {
+        const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
+        const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
+        return `<tr><td>${c.sucursal_despacho}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      }).join('') +
+    '</table></div>';
+  }
+
+  el.innerHTML = html;
+  habilitarOrdenTablas(el);
+}
+
 async function loadTipoA(kam, cliente, sucursal, mes) {
   const el = document.getElementById('view-tipoa');
   if (!TIPOA_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando aliados tipo A...</div>';
@@ -359,8 +407,10 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   });
   html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td></tr>`;
   html += '</table></div>';
+  html += '<div id="tipoa-graficas"></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
+  cargarTipoAExtra(data, kam, cliente, sucursal);
 
   document.getElementById('taMes').value = mes || '';
   document.getElementById('taKam').value = kam || '';
