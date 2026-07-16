@@ -42,6 +42,15 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   }
 });
 
+document.getElementById('cargarVentasBtn').addEventListener('click', () => {
+  document.querySelectorAll('#app > main > .tabs > .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('main > div[id^="view-"]').forEach(v => v.classList.add('hidden'));
+  document.getElementById('sub-oportunidades').classList.add('hidden');
+  document.getElementById('oportunidades-filtro').classList.add('hidden');
+  document.getElementById('view-cargar').classList.remove('hidden');
+  loadTab('cargar');
+});
+
 document.getElementById('logoutBtn').addEventListener('click', () => {
   localStorage.removeItem('brk_token');
   TOKEN = null;
