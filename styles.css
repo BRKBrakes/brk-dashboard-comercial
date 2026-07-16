@@ -26,7 +26,9 @@
   header button{width:auto;padding:8px 16px;background:transparent;color:var(--silver);border:1px solid var(--dust);}
 
   main{padding:24px;max-width:1200px;margin:0 auto;}
-  .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;position:sticky;top:76px;z-index:90;background:var(--bg);padding:10px 0;}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;background:var(--bg);padding:6px 0;}
+  .tabs-fila1{position:sticky;top:76px;z-index:91;margin-bottom:0;}
+  .tabs-fila2{position:sticky;top:122px;z-index:90;margin-bottom:20px;}
   .tab{padding:8px 16px;border-radius:6px;background:var(--card);color:var(--text-dim);cursor:pointer;font-size:13px;border:1px solid var(--dust);}
   .tab.active{background:var(--forest);color:var(--neon);border-color:var(--neon);}
 
