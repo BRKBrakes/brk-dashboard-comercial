@@ -335,18 +335,18 @@ async function loadGapCilindros() {
 let TIPOA_FILTROS_HTML = '';
 function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick) {
   const maxV = Math.max(...items.map(i => i[valueKey]), 1);
+  const totalGrupo = items.reduce((s,i) => s + (i[valueKey]||0), 0);
   const filaAltura = 26;
-  const alturaTotal = items.length * filaAltura + 10;
   let filas = '';
   items.forEach((it, i) => {
-    const y = i * filaAltura;
-    const anchoBarra = Math.max(2, (it[valueKey] / maxV) * 62); // % del ancho disponible para barra (dejamos espacio a label y valor)
+    const anchoBarra = Math.max(2, (it[valueKey] / maxV) * 62);
+    const pct = totalGrupo ? Math.round((it[valueKey]/totalGrupo)*1000)/10 : 0;
     filas += `<div class="${claseClick}" data-key="${(it[labelKey]||'').replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;cursor:pointer;">
       <div style="width:130px;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${it[labelKey]||''}">${it[labelKey]||''}</div>
       <div style="flex:1;background:#333630;border-radius:3px;height:14px;position:relative;">
         <div style="width:${anchoBarra}%;height:100%;background:${colorHex};border-radius:3px;"></div>
       </div>
-      <div style="width:90px;font-size:11px;color:var(--text-dim);text-align:right;flex-shrink:0;">${money(it[valueKey])}</div>
+      <div style="width:130px;font-size:11px;color:var(--text-dim);text-align:right;flex-shrink:0;">${money(it[valueKey])} <span style="color:var(--neon);">(${pct}%)</span></div>
     </div>`;
   });
   return `<div>${filas}</div>`;
@@ -365,11 +365,13 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal) {
   const tablaCard = document.getElementById('tipoa-tabla-comparativa');
   if (r.ok && tablaCard) {
     const rows = r.data || [];
-    let html = `<h2>Comparativo Ene-${MESES[r.mes_corte-1]} 2025 vs 2026 por sucursal</h2><table><tr><th>Sucursal</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
+    const totalGrupo2026 = rows.reduce((s,c) => s + (c.venta2026||0), 0);
+    let html = `<h2>Comparativo Ene-${MESES[r.mes_corte-1]} 2025 vs 2026 por sucursal</h2><table><tr><th>Sucursal</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">% del total 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
     rows.forEach(c => {
       const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
       const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
-      html += `<tr><td>${c.sucursal_despacho}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
+      html += `<tr><td>${c.sucursal_despacho}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
     });
     html += '</table>';
     tablaCard.innerHTML = html;
@@ -701,6 +703,11 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
 }
 
 let RECUP_KAM_HTML = '';
+function mesRelativo(offset) {
+  const idx = (new Date().getMonth() - offset + 12) % 12;
+  return MESES[idx];
+}
+
 async function loadPerdidos(kam) {
   const el = document.getElementById('view-perdidos');
   if (!RECUP_KAM_HTML) el.innerHTML = '<div class="loading">Analizando caídas y clientes inactivos...</div>';
@@ -715,19 +722,19 @@ async function loadPerdidos(kam) {
     </div>`;
   }
 
-  const cayendo = (r.cayendo || []).slice().sort((a,b) => b.total_ant - a.total_ant);
+  const cayendo = (r.cayendo || []).slice().sort((a,b) => b.caida_total - a.caida_total);
   const sinCompra = r.sin_compra_60d || [];
 
   let html = RECUP_KAM_HTML;
-  html += `<div class="card"><h2>Cayendo vs. mes anterior (mismo tramo de días) — ${cayendo.length} sucursales</h2>
-    <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Mes anterior</th><th class="num">Mes actual</th><th class="num">Caída</th><th>Detalle por categoría</th></tr>`;
+  html += `<div class="card"><h2>Cayendo vs. promedio de los 2 meses anteriores (mismo tramo de días) — ${cayendo.length} sucursales</h2>
+    <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">${mesRelativo(2)}</th><th class="num">${mesRelativo(1)}</th><th class="num">Promedio 2m</th><th class="num">Mes actual</th><th class="num">Caída</th><th>Detalle por categoría</th></tr>`;
   cayendo.forEach(c => {
     const detalles = [];
     if (c.delta_pastas < 0) detalles.push(`Pastas ${money(c.delta_pastas)}`);
     if (c.delta_discos < 0) detalles.push(`Discos ${money(c.delta_discos)}`);
     if (c.delta_liquidos < 0) detalles.push(`Líquidos ${money(c.delta_liquidos)}`);
     html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor||'')}</td>
-      <td class="num money">${money(c.total_ant)}</td><td class="num money">${money(c.total_act)}</td>
+      <td class="num money">${money(c.total_ant2)}</td><td class="num money">${money(c.total_ant1)}</td><td class="num money">${money(c.promedio_2m)}</td><td class="num money">${money(c.total_act)}</td>
       <td class="num" style="color:#ff6b6b;font-weight:700;">${money(c.caida_total)} (${c.caida_pct}%)</td>
       <td style="font-size:11px;color:var(--text-dim);">${detalles.join(' · ') || '—'}</td></tr>`;
   });
