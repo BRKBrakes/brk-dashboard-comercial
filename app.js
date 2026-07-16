@@ -429,11 +429,12 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
 
   const data = r.data || [];
   const total = data.reduce((s,c) => s + (c.total||0), 0);
-  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th></tr>';
+  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
   data.forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td class="num money">${money(c.total)}</td></tr>`;
+    const pctFila = total ? Math.round(((c.total||0)/total)*1000)/10 : 0;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td></tr>`;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num">100%</td></tr>`;
   html += '</table></div>';
   html += '<div id="tipoa-graficas"></div>';
   el.innerHTML = html;
