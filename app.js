@@ -102,6 +102,8 @@ async function loadTab(tab) {
   if (tab === 'portafolio') return loadPortafolio();
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
+  if (tab === 'remisiones') return loadRemisiones();
+  if (tab === 'cartera') return loadCartera();
   if (tab === 'cargar') return loadCargarVentas();
 }
 
@@ -1016,6 +1018,93 @@ const FUENTES_DATA = {
     filtro: f => f.total_cop !== null
   }
 };
+
+async function loadRemisiones() {
+  const el = document.getElementById('view-remisiones');
+  el.innerHTML = '<div class="loading">Cargando remisiones...</div>';
+  const r = await rpc('dash_remisiones_resumen', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  const filas = r.filas || [];
+  const meses = [...new Set(filas.map(f => f.mes))].sort((a,b) => a-b);
+
+  // Agrupar por vendedor -> sucursal
+  const grupos = {};
+  filas.forEach(f => {
+    grupos[f.vendedor] = grupos[f.vendedor] || {};
+    grupos[f.vendedor][f.sucursal_factura] = grupos[f.vendedor][f.sucursal_factura] || {};
+    grupos[f.vendedor][f.sucursal_factura][f.mes] = (grupos[f.vendedor][f.sucursal_factura][f.mes]||0) + f.valor;
+  });
+
+  let html = `<div class="kpis">
+    <div class="kpi"><div class="label">Valor Remisiones</div><div class="value">${money(r.valor_total)}</div></div>
+    <div class="kpi"><div class="label"># Remisiones</div><div class="value">${r.num_remisiones||0}</div></div>
+  </div>`;
+
+  html += `<div class="card"><h2>Remisiones por vendedor y sucursal (excluye Grupo GE)</h2><table><tr><th>Vendedor</th><th>Sucursal</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  Object.keys(grupos).sort().forEach(vend => {
+    const sucursales = grupos[vend];
+    let totalVend = 0;
+    const filasVend = Object.keys(sucursales).sort().map(suc => {
+      let totalFila = 0;
+      const celdas = meses.map(m => { const v = sucursales[suc][m]||0; totalFila += v; return `<td class="num money">${v?money(v):''}</td>`; }).join('');
+      totalVend += totalFila;
+      return `<tr><td>${titleCase(vend)}</td><td>${suc}</td>${celdas}<td class="num money">${money(totalFila)}</td></tr>`;
+    }).join('');
+    html += filasVend;
+    html += `<tr style="font-weight:700;background:#2a2e24;"><td colspan="2">Total ${titleCase(vend)}</td>${meses.map(m=>{const v=Object.values(sucursales).reduce((s,x)=>s+(x[m]||0),0);return `<td class="num money">${v?money(v):''}</td>`;}).join('')}<td class="num money">${money(totalVend)}</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+  habilitarOrdenTablas(el);
+}
+
+function colorKpiCartera(pct) {
+  if (pct === null || pct === undefined) return 'var(--text-dim)';
+  if (pct <= 2.5) return '#4ade80';
+  if (pct <= 3.0) return '#ff9f43';
+  return '#ff6b6b';
+}
+function colorDiasVencido(dias) {
+  if (dias === null || dias === undefined) return 'var(--text)';
+  if (dias > 60) return '#ff6b6b';
+  if (dias >= 30) return '#ff9f43';
+  return 'var(--text)';
+}
+
+async function loadCartera() {
+  const el = document.getElementById('view-cartera');
+  el.innerHTML = '<div class="loading">Cargando cartera...</div>';
+  const r = await rpc('dash_cartera_resumen', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  const g = r.general || {};
+  const colorGeneral = colorKpiCartera(g.kpi_pct);
+
+  let html = `<div class="kpis">
+    <div class="kpi"><div class="label">Cartera Total</div><div class="value">${money(g.total)}</div></div>
+    <div class="kpi"><div class="label">Cartera &gt; 60 días</div><div class="value">${money(g.vencido_60)}</div></div>
+    <div class="kpi"><div class="label">KPI (meta &lt; 2.5%)</div><div class="value" style="color:${colorGeneral};">${g.kpi_pct}%</div></div>
+  </div>`;
+
+  html += '<div class="card"><h2>KPI por KAM (meta &lt; 2.5%)</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>';
+  (r.por_kam || []).forEach(k => {
+    const color = colorKpiCartera(k.kpi_pct);
+    html += `<tr><td>${titleCase(k.vendedor)}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
+  });
+  html += '</table></div>';
+
+  html += '<div class="card"><h2>Detalle por sucursal</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
+  (r.detalle || []).sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
+    const colorKpi = colorKpiCartera(d.kpi_pct);
+    const colorDias = colorDiasVencido(d.dias_max);
+    html += `<tr><td>${titleCase(d.vendedor||'')}</td><td>${d.sucursal||''}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+  autoFitKpis();
+  habilitarOrdenTablas(el);
+}
 
 function loadCargarVentas() {
   const el = document.getElementById('view-cargar');
