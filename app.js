@@ -13,7 +13,16 @@ async function rpc(fn, params = {}) {
     },
     body: JSON.stringify(params)
   });
-  return res.json();
+  const data = await res.json();
+  if (data && data.ok === false && data.error === 'Sesión inválida') {
+    localStorage.removeItem('brk_token');
+    TOKEN = null;
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('login').classList.remove('hidden');
+    const errEl = document.getElementById('loginErr');
+    if (errEl) errEl.textContent = 'Tu sesión expiró. Vuelve a iniciar sesión.';
+  }
+  return data;
 }
 
 const money = n => '$' + Math.round(n||0).toLocaleString('es-CO');
@@ -1146,6 +1155,8 @@ function loadCargarVentas() {
       <h2>DATA · Cargar información desde Siesa</h2>
       <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">
         La primera vez, cada botón te pedirá seleccionar la carpeta <b>Data Tableros BRK</b> (una sola vez, el navegador la recuerda).
+        <b>Importante:</b> ese cuadro de Windows solo muestra carpetas, no archivos — es normal que se vea "vacío" aunque tus .xls estén ahí.
+        Solo entra a la carpeta correcta y presiona "Seleccionar carpeta".
         Después, con un clic busca el archivo correspondiente en esa carpeta y lo sube — sin que tengas que buscarlo tú.
       </p>
       <div style="display:flex;gap:12px;flex-wrap:wrap;">
