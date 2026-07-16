@@ -354,7 +354,7 @@ async function loadGapCilindros() {
 }
 
 let TIPOA_FILTROS_HTML = '';
-function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick) {
+function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick, seleccionActual) {
   const maxV = Math.max(...items.map(i => i[valueKey]), 1);
   const totalGrupo = items.reduce((s,i) => s + (i[valueKey]||0), 0);
   const filaAltura = 26;
@@ -362,8 +362,9 @@ function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick) {
   items.forEach((it, i) => {
     const anchoBarra = Math.max(2, (it[valueKey] / maxV) * 62);
     const pct = totalGrupo ? Math.round((it[valueKey]/totalGrupo)*1000)/10 : 0;
-    filas += `<div class="${claseClick}" data-key="${(it[labelKey]||'').replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;cursor:pointer;">
-      <div style="width:130px;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${it[labelKey]||''}">${it[labelKey]||''}</div>
+    const activo = seleccionActual && seleccionActual === it[labelKey];
+    filas += `<div class="${claseClick}" data-key="${(it[labelKey]||'').replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;cursor:pointer;padding:0 4px;border-radius:4px;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
+      <div style="width:130px;font-size:11px;color:${activo?'var(--neon)':'var(--text)'};font-weight:${activo?'700':'400'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${it[labelKey]||''}">${it[labelKey]||''}</div>
       <div style="flex:1;background:#333630;border-radius:3px;height:14px;position:relative;">
         <div style="width:${anchoBarra}%;height:100%;background:${colorHex};border-radius:3px;"></div>
       </div>
@@ -435,7 +436,7 @@ function renderTipoAGraficas(data) {
   const sucursalesOrdenadas = dataSucursales.slice().sort((a,b) => (b.total||0) - (a.total||0));
 
   const html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">
-    <div class="card"><h2>Razón Social vs Total 2026 (clic para filtrar)</h2>${barrasHorizontales(clientesOrdenados, 'cliente', 'total', '#F1FE34', 'ta-bar-cliente')}</div>
+    <div class="card"><h2>Razón Social vs Total 2026 (clic para filtrar)</h2>${barrasHorizontales(clientesOrdenados, 'cliente', 'total', '#F1FE34', 'ta-bar-cliente', TIPOA_CLIENTE_SEL)}</div>
     <div class="card"><h2>Sucursal vs Total 2026 ${TIPOA_CLIENTE_SEL ? '— ' + TIPOA_CLIENTE_SEL + ' <span id="taLimpiarCliente" style="cursor:pointer;color:var(--neon);font-size:11px;">(ver todos)</span>' : ''}</h2>${barrasHorizontales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43', '')}</div>
   </div>
   <div class="card" id="tipoa-tabla-comparativa"><div class="loading">Cargando comparativo...</div></div>
@@ -688,7 +689,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   data.forEach((d, i) => {
     const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
     const activo = PORTAFOLIO_FAMILIA_SEL === d.familia;
-    html += `<div class="fam-leyenda" data-familia="${d.familia}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;${activo?'font-weight:700;':''}">
+    html += `<div class="fam-leyenda" data-familia="${d.familia}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;padding:3px 6px;border-radius:4px;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
       <span style="width:12px;height:12px;background:${color};border-radius:2px;flex-shrink:0;"></span>
       <span style="flex:1;">${d.familia}</span>
       <span style="color:var(--text-dim);">${d.pct}%</span>
@@ -1028,18 +1029,29 @@ const FUENTES_DATA = {
   }
 };
 
+let REMISIONES_DATA = null;
+let REMISIONES_KAM_SEL = null;
+
 async function loadRemisiones() {
   const el = document.getElementById('view-remisiones');
   el.innerHTML = '<div class="loading">Cargando remisiones...</div>';
   const r = await rpc('dash_remisiones_resumen', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  REMISIONES_DATA = r;
+  REMISIONES_KAM_SEL = null;
+  renderRemisiones();
+}
 
+function renderRemisiones() {
+  const el = document.getElementById('view-remisiones');
+  const r = REMISIONES_DATA;
   const filas = r.filas || [];
   const meses = [...new Set(filas.map(f => f.mes))].sort((a,b) => a-b);
 
-  // Agrupar por vendedor -> sucursal
+  const filasFiltradas = REMISIONES_KAM_SEL ? filas.filter(f => f.vendedor === REMISIONES_KAM_SEL) : filas;
+
   const grupos = {};
-  filas.forEach(f => {
+  filasFiltradas.forEach(f => {
     grupos[f.vendedor] = grupos[f.vendedor] || {};
     grupos[f.vendedor][f.sucursal_factura] = grupos[f.vendedor][f.sucursal_factura] || {};
     grupos[f.vendedor][f.sucursal_factura][f.mes] = (grupos[f.vendedor][f.sucursal_factura][f.mes]||0) + f.valor;
@@ -1050,33 +1062,38 @@ async function loadRemisiones() {
     <div class="kpi"><div class="label"># Remisiones</div><div class="value">${r.num_remisiones||0}</div></div>
   </div>`;
 
-  // Tarjeta de totales por KAM (lectura rápida)
   const totalesPorKam = {};
   filas.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor]||0) + f.valor; });
   const kamOrdenados = Object.keys(totalesPorKam).sort((a,b) => totalesPorKam[b]-totalesPorKam[a]);
-  html += '<div class="card"><h2>Totales por KAM</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>';
+  html += `<div class="card"><h2>Totales por KAM ${REMISIONES_KAM_SEL ? '<span id="remLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : '(clic para filtrar)'}</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>`;
   kamOrdenados.forEach(k => {
-    html += `<tr><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
+    const activo = REMISIONES_KAM_SEL === k;
+    html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
   });
   html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td></tr>`;
   html += '</table></div>';
 
-  html += `<div class="card"><h2>Remisiones por vendedor y sucursal (excluye Grupo GE)</h2><table><tr><th>Vendedor</th><th>Sucursal</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Remisiones por vendedor y sucursal</h2><table><tr><th>Vendedor</th><th>Sucursal</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   Object.keys(grupos).sort().forEach(vend => {
     const sucursales = grupos[vend];
-    let totalVend = 0;
-    const filasVend = Object.keys(sucursales).sort().map(suc => {
+    Object.keys(sucursales).sort().forEach(suc => {
       let totalFila = 0;
       const celdas = meses.map(m => { const v = sucursales[suc][m]||0; totalFila += v; return `<td class="num money">${v?money(v):''}</td>`; }).join('');
-      totalVend += totalFila;
-      return `<tr><td>${titleCase(vend)}</td><td>${suc}</td>${celdas}<td class="num money">${money(totalFila)}</td></tr>`;
-    }).join('');
-    html += filasVend;
-    html += `<tr style="font-weight:700;background:#2a2e24;"><td colspan="2">Total ${titleCase(vend)}</td>${meses.map(m=>{const v=Object.values(sucursales).reduce((s,x)=>s+(x[m]||0),0);return `<td class="num money">${v?money(v):''}</td>`;}).join('')}<td class="num money">${money(totalVend)}</td></tr>`;
+      html += `<tr><td>${titleCase(vend)}</td><td>${suc}</td>${celdas}<td class="num money">${money(totalFila)}</td></tr>`;
+    });
   });
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
+
+  el.querySelectorAll('.fila-kam-rem').forEach(fila => {
+    fila.addEventListener('click', () => {
+      REMISIONES_KAM_SEL = (REMISIONES_KAM_SEL === fila.dataset.kam) ? null : fila.dataset.kam;
+      renderRemisiones();
+    });
+  });
+  const limpiar = document.getElementById('remLimpiar');
+  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); REMISIONES_KAM_SEL = null; renderRemisiones(); });
 }
 
 function colorKpiCartera(pct) {
@@ -1092,12 +1109,22 @@ function colorDiasVencido(dias) {
   return 'var(--text)';
 }
 
+let CARTERA_DATA = null;
+let CARTERA_KAM_SEL = null;
+
 async function loadCartera() {
   const el = document.getElementById('view-cartera');
   el.innerHTML = '<div class="loading">Cargando cartera...</div>';
   const r = await rpc('dash_cartera_resumen', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  CARTERA_DATA = r;
+  CARTERA_KAM_SEL = null;
+  renderCartera();
+}
 
+function renderCartera() {
+  const el = document.getElementById('view-cartera');
+  const r = CARTERA_DATA;
   const g = r.general || {};
   const colorGeneral = colorKpiCartera(g.kpi_pct);
 
@@ -1107,15 +1134,17 @@ async function loadCartera() {
     <div class="kpi"><div class="label">KPI (meta &lt; 2.5%)</div><div class="value" style="color:${colorGeneral};">${g.kpi_pct}%</div></div>
   </div>`;
 
-  html += '<div class="card"><h2>KPI por KAM (meta &lt; 2.5%)</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>';
+  html += `<div class="card"><h2>KPI por KAM (meta &lt; 2.5%) ${CARTERA_KAM_SEL ? '<span id="carLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : '(clic para filtrar)'}</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>`;
   (r.por_kam || []).forEach(k => {
     const color = colorKpiCartera(k.kpi_pct);
-    html += `<tr><td>${titleCase(k.vendedor)}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
+    const activo = CARTERA_KAM_SEL === k.vendedor;
+    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k.vendedor)}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
 
+  const detalleFiltrado = CARTERA_KAM_SEL ? (r.detalle||[]).filter(d => d.vendedor === CARTERA_KAM_SEL) : (r.detalle||[]);
   html += '<div class="card"><h2>Detalle por sucursal (clic en una fila para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
-  (r.detalle || []).sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
+  detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorKpi = colorKpiCartera(d.kpi_pct);
     const colorDias = colorDiasVencido(d.dias_max);
     html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;"><td>${titleCase(d.vendedor||'')}</td><td>${d.sucursal||''}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
@@ -1125,6 +1154,15 @@ async function loadCartera() {
   el.innerHTML = html;
   autoFitKpis();
   habilitarOrdenTablas(el);
+
+  el.querySelectorAll('.fila-kam-cartera').forEach(fila => {
+    fila.addEventListener('click', () => {
+      CARTERA_KAM_SEL = (CARTERA_KAM_SEL === fila.dataset.kam) ? null : fila.dataset.kam;
+      renderCartera();
+    });
+  });
+  const limpiar = document.getElementById('carLimpiar');
+  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); CARTERA_KAM_SEL = null; renderCartera(); });
 
   el.querySelectorAll('.fila-cartera').forEach(fila => {
     fila.addEventListener('click', () => mostrarFacturasCartera(fila.dataset.vendedor, fila.dataset.sucursal));
