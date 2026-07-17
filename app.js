@@ -316,9 +316,9 @@ async function loadGapDiscos() {
   el.innerHTML = '<div class="loading">Cargando gap de discos...</div>';
   const r = await rpc('dash_gap_discos', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Discos</th><th class="num">Ratio</th></tr>';
+  let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.discos)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td></tr>`;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -331,9 +331,9 @@ async function loadGapLiquidos() {
   el.innerHTML = '<div class="loading">Cargando gap de líquidos...</div>';
   const r = await rpc('dash_gap_liquidos', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Líquidos</th><th class="num">Potencial/mes</th></tr>';
+  let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal) — meta: 1 juego pastas : 0.5 unid. líquido</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Líquidos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.liquidos)}</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -346,9 +346,9 @@ async function loadGapCilindros() {
   el.innerHTML = '<div class="loading">Cargando gap de cilindros...</div>';
   const r = await rpc('dash_gap_cilindros', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes sin compra de cilindros (últimos 180 días, por sucursal)</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas</th><th class="num">Cilindros</th><th class="num">Potencial/mes</th></tr>';
+  let html = '<div class="card"><h2>Clientes con gap de cilindros (últimos 180 días, por sucursal) — meta: 1 juego zapatas : 0.3 unid. cilindros</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Zapatas (unid.)</th><th class="num">Cilindros (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.pastas)}</td><td class="num money">${money(c.cilindros)}</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;

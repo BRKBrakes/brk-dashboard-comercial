@@ -42,7 +42,7 @@
   .card h2{margin:0 0 16px;font-size:14px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;}
 
   table{width:100%;border-collapse:collapse;font-size:13px;}
-  th{text-align:left;color:var(--text-dim);font-weight:400;padding:8px;border-bottom:1px solid var(--dust);font-size:11px;text-transform:uppercase;}
+  th{text-align:center;color:var(--text-dim);font-weight:700;padding:8px;border-bottom:1px solid var(--dust);font-size:11px;text-transform:uppercase;}
   td{padding:8px;border-bottom:1px solid #333630;}
   tr:hover td{background:#2a2e24;}
   .num{text-align:right;font-variant-numeric:tabular-nums;}
