@@ -1229,8 +1229,8 @@ async function loadTableroControl(mesParam) {
 
   const factTotal = (r.general.facturado||0) + (r.general.remisiones||0);
   const deberiaHoy = r.dias_habiles_totales ? (r.presupuesto_mes / r.dias_habiles_totales) * r.dias_habiles_corridos : 0;
-  const faltanteHoy = deberiaHoy - factTotal;
-  const faltante100 = r.presupuesto_mes - factTotal;
+  const faltanteHoy = factTotal - deberiaHoy;
+  const faltante100 = factTotal - r.presupuesto_mes;
   const pctCumpl = r.presupuesto_mes ? Math.round((factTotal / r.presupuesto_mes) * 1000)/10 : 0;
 
   const porKam = (r.por_kam || []).map(k => {
@@ -1238,8 +1238,8 @@ async function loadTableroControl(mesParam) {
     return {
       vendedor: k.vendedor,
       fact_remas: k.fact_remas,
-      faltante_hoy: deberiaHoyKam - k.fact_remas,
-      faltante_100: k.presupuesto - k.fact_remas,
+      faltante_hoy: k.fact_remas - deberiaHoyKam,
+      faltante_100: k.fact_remas - k.presupuesto,
       pct_cumpl: k.presupuesto ? Math.round((k.fact_remas / k.presupuesto) * 1000)/10 : 0
     };
   });
