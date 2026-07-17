@@ -112,6 +112,7 @@ async function loadTab(tab) {
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
   if (tab === 'remisiones') return loadRemisiones();
+  if (tab === 'tablerocontrol') return loadTableroControl();
   if (tab === 'cartera') return loadCartera();
   if (tab === 'cargar') return loadCargarVentas();
 }
@@ -1184,6 +1185,132 @@ async function mostrarFacturasCartera(vendedor, sucursal) {
   el.innerHTML = html;
   habilitarOrdenTablas(el);
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function barraSigno(items, labelKey, valueKey) {
+  const maxAbs = Math.max(...items.map(i => Math.abs(i[valueKey]||0)), 1);
+  const filaAltura = 26;
+  let filas = '';
+  items.forEach(it => {
+    const v = it[valueKey] || 0;
+    const color = v >= 0 ? '#4ade80' : '#ff6b6b';
+    const ancho = Math.max(2, (Math.abs(v)/maxAbs) * 55);
+    filas += `<div style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;">
+      <div style="width:150px;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${it[labelKey]||''}">${it[labelKey]||''}</div>
+      <div style="flex:1;background:#333630;border-radius:3px;height:14px;">
+        <div style="width:${ancho}%;height:100%;background:${color};border-radius:3px;"></div>
+      </div>
+      <div style="width:130px;font-size:11px;color:${color};font-weight:700;text-align:right;flex-shrink:0;">${v>=0?'+':''}${money(v)}</div>
+    </div>`;
+  });
+  return `<div>${filas}</div>`;
+}
+
+let TABLERO_MES = null;
+let TABLERO_EXCLUIDAS_CACHE = {};
+
+function cargarExcluidasStorage(mes) {
+  try { return JSON.parse(localStorage.getItem('brk_remisiones_excluidas_mes_' + mes) || '[]'); }
+  catch(e) { return []; }
+}
+function guardarExcluidasStorage(mes, arr) {
+  localStorage.setItem('brk_remisiones_excluidas_mes_' + mes, JSON.stringify(arr));
+}
+
+async function loadTableroControl(mesParam) {
+  const el = document.getElementById('view-tablerocontrol');
+  const mes = mesParam || TABLERO_MES || 7;
+  TABLERO_MES = mes;
+  el.innerHTML = '<div class="loading">Cargando tablero de control...</div>';
+
+  const excluidas = cargarExcluidasStorage(mes);
+  const r = await rpc('dash_tablero_control', { p_token: TOKEN, p_mes: parseInt(mes), p_anio: 2026, p_remisiones_excluidas: excluidas });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  const factTotal = (r.general.facturado||0) + (r.general.remisiones||0);
+  const deberiaHoy = r.dias_habiles_totales ? (r.presupuesto_mes / r.dias_habiles_totales) * r.dias_habiles_corridos : 0;
+  const faltanteHoy = deberiaHoy - factTotal;
+  const faltante100 = r.presupuesto_mes - factTotal;
+  const pctCumpl = r.presupuesto_mes ? Math.round((factTotal / r.presupuesto_mes) * 1000)/10 : 0;
+
+  const porKam = (r.por_kam || []).map(k => {
+    const deberiaHoyKam = r.dias_habiles_totales ? (k.presupuesto / r.dias_habiles_totales) * r.dias_habiles_corridos : 0;
+    return {
+      vendedor: k.vendedor,
+      fact_remas: k.fact_remas,
+      faltante_hoy: deberiaHoyKam - k.fact_remas,
+      faltante_100: k.presupuesto - k.fact_remas,
+      pct_cumpl: k.presupuesto ? Math.round((k.fact_remas / k.presupuesto) * 1000)/10 : 0
+    };
+  });
+
+  const colorFaltante = (v) => v >= 0 ? '#4ade80' : '#ff6b6b';
+
+  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:12px;color:var(--text-dim);">Mes:</span>
+    <select id="tcMes" class="estado">${optMeses(mes)}</select>
+    <button id="tcFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Ver</button>
+    <span style="margin-left:auto;font-size:11px;color:var(--text-dim);">${excluidas.length} remisión(es) excluida(s) del cierre — ver abajo</span>
+  </div>`;
+
+  html += `<div class="kpis">
+    <div class="kpi"><div class="label">Presupuesto</div><div class="value">${money(r.presupuesto_mes)}</div></div>
+    <div class="kpi"><div class="label">Fact + Remas - NC</div><div class="value">${money(factTotal)}</div></div>
+    <div class="kpi"><div class="label">Faltante a hoy</div><div class="value" style="color:${colorFaltante(faltanteHoy)};">${faltanteHoy>=0?'+':''}${money(faltanteHoy)}</div></div>
+    <div class="kpi"><div class="label">Faltante 100%</div><div class="value" style="color:${colorFaltante(faltante100)};">${faltante100>=0?'+':''}${money(faltante100)}</div></div>
+    <div class="kpi"><div class="label">% Cumplimiento</div><div class="value" style="color:${colorFaltante(pctCumpl-100)};">${pctCumpl}%</div></div>
+  </div>`;
+
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;">
+    <div class="card"><h2>Fact + Remas - NC por KAM</h2>${barraSigno(porKam.slice().sort((a,b)=>b.fact_remas-a.fact_remas), 'vendedor', 'fact_remas')}</div>
+    <div class="card"><h2>Faltante a hoy por KAM</h2>${barraSigno(porKam.slice().sort((a,b)=>a.faltante_hoy-b.faltante_hoy), 'vendedor', 'faltante_hoy')}</div>
+  </div>`;
+
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:16px;">
+    <div class="card"><h2>% Cumplimiento por KAM</h2><table><tr><th>KAM</th><th class="num">% Cumpl.</th></tr>
+      ${porKam.slice().sort((a,b)=>b.pct_cumpl-a.pct_cumpl).map(k => `<tr><td>${titleCase(k.vendedor)}</td><td class="num" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
+    </table></div>
+    <div class="card"><h2>Faltante para 100% por KAM</h2>${barraSigno(porKam.slice().sort((a,b)=>a.faltante_100-b.faltante_100), 'vendedor', 'faltante_100')}</div>
+  </div>`;
+
+  // Selector de remisiones a incluir/excluir del cierre
+  const remisiones = r.remisiones_mes || [];
+  html += `<div class="card" style="margin-top:16px;"><h2>Remisiones del mes — desmarca las que NO se van a facturar (se recalcula al instante)</h2>
+    <div style="max-height:340px;overflow-y:auto;">
+    <table><tr><th style="width:40px;"></th><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Valor</th></tr>
+    ${remisiones.map(rm => {
+      const marcado = !excluidas.includes(rm.nro_documento);
+      return `<tr><td><input type="checkbox" class="chk-remision" data-doc="${rm.nro_documento}" ${marcado?'checked':''}></td><td>${rm.cliente}</td><td>${rm.sucursal_factura||''}</td><td>${titleCase(rm.vendedor||'')}</td><td class="num money">${money(rm.valor_subtotal)}</td></tr>`;
+    }).join('')}
+    </table></div>
+    <div style="margin-top:10px;display:flex;gap:10px;">
+      <button id="tcMarcarTodas" style="width:auto;padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">Marcar todas</button>
+      <button id="tcDesmarcarTodas" style="width:auto;padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">Desmarcar todas</button>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+  autoFitKpis();
+
+  document.getElementById('tcFiltrar').addEventListener('click', () => {
+    loadTableroControl(document.getElementById('tcMes').value);
+  });
+
+  el.querySelectorAll('.chk-remision').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const excluidasActuales = cargarExcluidasStorage(mes);
+      const doc = chk.dataset.doc;
+      const idx = excluidasActuales.indexOf(doc);
+      if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
+      if (!chk.checked && idx < 0) excluidasActuales.push(doc);
+      guardarExcluidasStorage(mes, excluidasActuales);
+      loadTableroControl(mes);
+    });
+  });
+  const btnMarcar = document.getElementById('tcMarcarTodas');
+  if (btnMarcar) btnMarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, []); loadTableroControl(mes); });
+  const btnDesmarcar = document.getElementById('tcDesmarcarTodas');
+  if (btnDesmarcar) btnDesmarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
 }
 
 function loadCargarVentas() {
