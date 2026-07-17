@@ -65,10 +65,6 @@
     </div>
 
     <div id="view-ejecutivo">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start;">
-        <div id="top-kam"></div>
-        <div id="top-aliados"></div>
-      </div>
       <div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
         <select id="mesDesde" class="estado"></select>
@@ -77,6 +73,10 @@
         <button id="btnFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Aplicar</button>
       </div>
       <div id="ejecutivo-contenido"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start;margin-top:16px;">
+        <div id="top-kam"></div>
+        <div id="top-aliados"></div>
+      </div>
     </div>
     <div id="view-oportunidades" class="hidden">
       <div id="view-gapdiscos"></div>

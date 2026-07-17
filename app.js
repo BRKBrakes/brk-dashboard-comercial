@@ -258,7 +258,7 @@ async function loadEjecutivo() {
     <div class="kpi"><div class="label">Presupuesto anual AFL</div><div class="value">${money(totalPpto)}</div></div>
     <div class="kpi"><div class="label">Cumplimiento</div><div class="value">${cumplPct}%</div></div>
     <div class="kpi"><div class="label">Ratio discos/pastas (juegos)</div><div class="value">${Math.round((resumen.ratio_discos_pastas_global||0)*100)}%</div></div>
-    <div class="kpi"><div class="label">Meta ratio discos</div><div class="value" style="color:var(--text-dim);font-size:14px;">50% (juegos)</div></div>
+
     <div class="kpi"><div class="label">Concentración top 10</div><div class="value">${resumen.concentracion_top10_pct||0}%</div></div>
     <div class="kpi"><div class="label">Clientes activos 90d</div><div class="value">${resumen.clientes_activos_90d||0} / ${resumen.clientes_totales_2026||0}</div></div>
   </div>`;
@@ -299,18 +299,19 @@ async function loadEjecutivo() {
   const crec = await rpc('dash_crecimiento_anual', { p_token: TOKEN });
   if (crec.ok) {
     const anios = crec.por_anio || [];
-    const maxVenta = Math.max(...anios.map(a => a.venta || 0), 1);
-    html += `<div class="card"><h2>Venta acumulada Ene-${MESES[crec.mes_corte-1]} por año</h2>`;
+    const anio2026 = anios.find(a => a.anio === 2026);
+    html += `<div class="card"><h2>Venta acumulada Ene-${MESES[crec.mes_corte-1]} por año</h2><table><tr><th>Año</th><th class="num">Venta</th><th class="num">% vs. año anterior</th><th class="num">% vs. 2026</th></tr>`;
     anios.forEach((a, i) => {
-      const w = Math.round((a.venta / maxVenta) * 100);
       const prev = anios[i-1];
-      const creceVsAnterior = prev ? Math.round(((a.venta - prev.venta) / prev.venta) * 100) : null;
-      const colorBar = creceVsAnterior === null ? 'var(--silver)' : (creceVsAnterior >= 0 ? '#4ade80' : '#ff6b6b');
-      html += `<div class="bar-row"><div class="bar-label">${a.anio}${creceVsAnterior !== null ? ' (' + (creceVsAnterior>=0?'+':'') + creceVsAnterior + '%)' : ''}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${colorBar};"></div></div>
-        <div class="bar-pct" style="width:110px;color:${colorBar};">${money(a.venta)}</div></div>`;
+      const vsAnterior = prev ? Math.round(((a.venta - prev.venta) / prev.venta) * 100) : null;
+      const vs2026 = (anio2026 && a.anio !== 2026) ? Math.round(((anio2026.venta - a.venta) / a.venta) * 100) : null;
+      const colorAnterior = vsAnterior === null ? 'var(--text-dim)' : (vsAnterior >= 0 ? '#4ade80' : '#ff6b6b');
+      const colorVs2026 = vs2026 === null ? 'var(--text-dim)' : (vs2026 >= 0 ? '#4ade80' : '#ff6b6b');
+      html += `<tr><td>${a.anio}</td><td class="num money">${money(a.venta)}</td>
+        <td class="num" style="color:${colorAnterior};font-weight:700;">${vsAnterior===null?'—':(vsAnterior>=0?'+':'')+vsAnterior+'%'}</td>
+        <td class="num" style="color:${colorVs2026};font-weight:700;">${vs2026===null?'—':(vs2026>=0?'+':'')+vs2026+'%'}</td></tr>`;
     });
-    html += '</div>';
+    html += '</table></div>';
 
     html += '<div class="card"><h2>Crecimiento por KAM (Ene-' + MESES[crec.mes_corte-1] + ' 2025 vs 2026)</h2><table><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ $</th><th class="num">Δ %</th></tr>';
     (crec.por_kam || []).sort((a,b) => b.crecimiento_pesos - a.crecimiento_pesos).forEach(k => {
@@ -1339,13 +1340,13 @@ async function loadTableroControl(mesParam) {
     <table><tr><th style="width:40px;"></th><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num"># Remisiones</th><th class="num">Valor total</th></tr>
     ${gruposRemArr.map((g, i) => {
       const marcado = g.docs.every(d => !excluidas.includes(d));
-      return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''}></td><td>${g.cliente}</td><td>${g.sucursal_factura||''}</td><td>${titleCase(g.vendedor||'')}</td><td class="num">${g.docs.length}</td><td class="num money">${money(g.total)}</td></tr>`;
+      return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''} ${ROL!=='admin'?'disabled':''}></td><td>${g.cliente}</td><td>${g.sucursal_factura||''}</td><td>${titleCase(g.vendedor||'')}</td><td class="num">${g.docs.length}</td><td class="num money">${money(g.total)}</td></tr>`;
     }).join('')}
     </table></div>
-    <div style="margin-top:10px;display:flex;gap:10px;">
+    ${ROL==='admin' ? `<div style="margin-top:10px;display:flex;gap:10px;">
       <button id="tcMarcarTodas" style="width:auto;padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">Marcar todas</button>
       <button id="tcDesmarcarTodas" style="width:auto;padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">Desmarcar todas</button>
-    </div>
+    </div>` : '<p style="font-size:11px;color:var(--text-dim);margin-top:8px;">Solo el Administrador puede modificar esta selección.</p>'}
   </div>`;
 
   el.innerHTML = html;
