@@ -216,7 +216,8 @@ async function loadEjecutivo() {
     <div class="kpi"><div class="label">Venta acumulada 2026</div><div class="value">${money(totalReal)}</div></div>
     <div class="kpi"><div class="label">Presupuesto anual AFL</div><div class="value">${money(totalPpto)}</div></div>
     <div class="kpi"><div class="label">Cumplimiento</div><div class="value">${cumplPct}%</div></div>
-    <div class="kpi"><div class="label">Ratio discos/pastas</div><div class="value">${Math.round((resumen.ratio_discos_pastas_global||0)*100)}%</div></div>
+    <div class="kpi"><div class="label">Ratio discos/pastas (juegos)</div><div class="value">${Math.round((resumen.ratio_discos_pastas_global||0)*100)}%</div></div>
+    <div class="kpi"><div class="label">Meta ratio discos</div><div class="value" style="color:var(--text-dim);font-size:14px;">50% (juegos)</div></div>
     <div class="kpi"><div class="label">Concentración top 10</div><div class="value">${resumen.concentracion_top10_pct||0}%</div></div>
     <div class="kpi"><div class="label">Clientes activos 90d</div><div class="value">${resumen.clientes_activos_90d||0} / ${resumen.clientes_totales_2026||0}</div></div>
   </div>`;
