@@ -118,7 +118,7 @@ async function loadTab(tab) {
 }
 
 function poblarSelectMeses() {
-  const mesActual = 7; // dato disponible hasta julio 2026
+  const mesActual = new Date().getMonth() + 1; // se actualiza solo cada mes
   const dSel = document.getElementById('mesDesde');
   const hSel = document.getElementById('mesHasta');
   if (dSel.options.length) return; // ya poblado
@@ -566,8 +566,9 @@ async function loadSegmentacion() {
 let TICKET_FILTROS_HTML = '';
 const MESES_DISPONIBLES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function optMeses(mesSel) {
+  const mesActualReal = new Date().getMonth() + 1;
   let out = `<option value="">Todos los meses</option>`;
-  for (let m = 1; m <= 7; m++) out += `<option value="${m}" ${String(m)===String(mesSel)?'selected':''}>${MESES_DISPONIBLES[m-1]}</option>`;
+  for (let m = 1; m <= mesActualReal; m++) out += `<option value="${m}" ${String(m)===String(mesSel)?'selected':''}>${MESES_DISPONIBLES[m-1]}</option>`;
   return out;
 }
 
@@ -1219,7 +1220,7 @@ function guardarExcluidasStorage(mes, arr) {
 
 async function loadTableroControl(mesParam) {
   const el = document.getElementById('view-tablerocontrol');
-  const mes = mesParam || TABLERO_MES || 7;
+  const mes = mesParam || TABLERO_MES || (new Date().getMonth() + 1);
   TABLERO_MES = mes;
   el.innerHTML = '<div class="loading">Cargando tablero de control...</div>';
 
