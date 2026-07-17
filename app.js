@@ -1261,26 +1261,37 @@ async function loadTableroControl(mesParam) {
     <div class="kpi"><div class="label">% Cumplimiento</div><div class="value" style="color:${colorFaltante(pctCumpl-100)};">${pctCumpl}%</div></div>
   </div>`;
 
+  const porKamOrdenFijo = porKam.slice().sort((a,b) => b.fact_remas - a.fact_remas);
+
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;">
-    <div class="card"><h2>Fact + Remas - NC por KAM</h2>${barraSigno(porKam.slice().sort((a,b)=>b.fact_remas-a.fact_remas), 'vendedor', 'fact_remas')}</div>
-    <div class="card"><h2>Faltante a hoy por KAM</h2>${barraSigno(porKam.slice().sort((a,b)=>a.faltante_hoy-b.faltante_hoy), 'vendedor', 'faltante_hoy')}</div>
+    <div class="card"><h2>Fact + Remas - NC por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'fact_remas')}</div>
+    <div class="card"><h2>Faltante a hoy por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_hoy')}</div>
   </div>`;
 
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:16px;">
     <div class="card"><h2>% Cumplimiento por KAM</h2><table><tr><th>KAM</th><th class="num">% Cumpl.</th></tr>
-      ${porKam.slice().sort((a,b)=>b.pct_cumpl-a.pct_cumpl).map(k => `<tr><td>${titleCase(k.vendedor)}</td><td class="num" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
+      ${porKamOrdenFijo.map(k => `<tr><td>${titleCase(k.vendedor)}</td><td class="num" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
     </table></div>
-    <div class="card"><h2>Faltante para 100% por KAM</h2>${barraSigno(porKam.slice().sort((a,b)=>a.faltante_100-b.faltante_100), 'vendedor', 'faltante_100')}</div>
+    <div class="card"><h2>Faltante para 100% por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_100')}</div>
   </div>`;
 
   // Selector de remisiones a incluir/excluir del cierre
   const remisiones = r.remisiones_mes || [];
-  html += `<div class="card" style="margin-top:16px;"><h2>Remisiones del mes — desmarca las que NO se van a facturar (se recalcula al instante)</h2>
+  const gruposRem = {};
+  remisiones.forEach(rm => {
+    const clave = (rm.cliente||'') + '||' + (rm.sucursal_factura||'');
+    if (!gruposRem[clave]) gruposRem[clave] = { cliente: rm.cliente, sucursal_factura: rm.sucursal_factura, vendedor: rm.vendedor, total: 0, docs: [] };
+    gruposRem[clave].total += rm.valor_subtotal;
+    gruposRem[clave].docs.push(rm.nro_documento);
+  });
+  const gruposRemArr = Object.values(gruposRem).sort((a,b) => b.total - a.total);
+
+  html += `<div class="card" style="margin-top:16px;"><h2>Remisiones del mes por sucursal — desmarca las que NO se van a facturar (se recalcula al instante)</h2>
     <div style="max-height:340px;overflow-y:auto;">
-    <table><tr><th style="width:40px;"></th><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Valor</th></tr>
-    ${remisiones.map(rm => {
-      const marcado = !excluidas.includes(rm.nro_documento);
-      return `<tr><td><input type="checkbox" class="chk-remision" data-doc="${rm.nro_documento}" ${marcado?'checked':''}></td><td>${rm.cliente}</td><td>${rm.sucursal_factura||''}</td><td>${titleCase(rm.vendedor||'')}</td><td class="num money">${money(rm.valor_subtotal)}</td></tr>`;
+    <table><tr><th style="width:40px;"></th><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num"># Remisiones</th><th class="num">Valor total</th></tr>
+    ${gruposRemArr.map((g, i) => {
+      const marcado = g.docs.every(d => !excluidas.includes(d));
+      return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''}></td><td>${g.cliente}</td><td>${g.sucursal_factura||''}</td><td>${titleCase(g.vendedor||'')}</td><td class="num">${g.docs.length}</td><td class="num money">${money(g.total)}</td></tr>`;
     }).join('')}
     </table></div>
     <div style="margin-top:10px;display:flex;gap:10px;">
@@ -1296,13 +1307,15 @@ async function loadTableroControl(mesParam) {
     loadTableroControl(document.getElementById('tcMes').value);
   });
 
-  el.querySelectorAll('.chk-remision').forEach(chk => {
+  el.querySelectorAll('.chk-remision-grupo').forEach(chk => {
     chk.addEventListener('change', () => {
+      const grupo = gruposRemArr[parseInt(chk.dataset.idx)];
       const excluidasActuales = cargarExcluidasStorage(mes);
-      const doc = chk.dataset.doc;
-      const idx = excluidasActuales.indexOf(doc);
-      if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
-      if (!chk.checked && idx < 0) excluidasActuales.push(doc);
+      grupo.docs.forEach(doc => {
+        const idx = excluidasActuales.indexOf(doc);
+        if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
+        if (!chk.checked && idx < 0) excluidasActuales.push(doc);
+      });
       guardarExcluidasStorage(mes, excluidasActuales);
       loadTableroControl(mes);
     });
