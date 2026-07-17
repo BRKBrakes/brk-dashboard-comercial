@@ -2,6 +2,8 @@ const SUPABASE_URL = 'https://ytgziytuldsqhymqjyig.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0Z3ppeXR1bGRzcWh5bXFqeWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjA4ODAsImV4cCI6MjA5Nzc5Njg4MH0.z4KapPX5bGEXRmS-Ntky0XmYZz45s5j1DpBuPgE_PIU';
 
 let TOKEN = localStorage.getItem('brk_token') || null;
+let ROL = localStorage.getItem('brk_rol') || null;
+let KAM_ASIGNADO = localStorage.getItem('brk_kam_asignado') || null;
 
 async function rpc(fn, params = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -44,11 +46,24 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   const r = await rpc('dash_login', { p_email: email, p_password: password });
   if (r.ok) {
     TOKEN = r.token;
+    ROL = r.rol || 'admin';
+    KAM_ASIGNADO = r.kam_asignado || null;
     localStorage.setItem('brk_token', TOKEN);
+    localStorage.setItem('brk_rol', ROL);
+    localStorage.setItem('brk_kam_asignado', KAM_ASIGNADO || '');
     showApp();
   } else {
     errEl.textContent = r.error || 'Error al iniciar sesión';
   }
+});
+
+document.getElementById('usuariosBtn').addEventListener('click', () => {
+  document.querySelectorAll('#app > main > .tabs > .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('main > div[id^="view-"]').forEach(v => v.classList.add('hidden'));
+  document.getElementById('sub-oportunidades').classList.add('hidden');
+  document.getElementById('oportunidades-filtro').classList.add('hidden');
+  document.getElementById('view-usuarios').classList.remove('hidden');
+  loadUsuarios();
 });
 
 document.getElementById('cargarVentasBtn').addEventListener('click', () => {
@@ -62,7 +77,9 @@ document.getElementById('cargarVentasBtn').addEventListener('click', () => {
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
   localStorage.removeItem('brk_token');
-  TOKEN = null;
+  localStorage.removeItem('brk_rol');
+  localStorage.removeItem('brk_kam_asignado');
+  TOKEN = null; ROL = null; KAM_ASIGNADO = null;
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login').classList.remove('hidden');
 });
@@ -76,7 +93,7 @@ document.querySelectorAll('#app > main > .tabs > .tab').forEach(tab => {
     const view = document.getElementById('view-' + tab.dataset.tab);
     view.classList.remove('hidden');
     document.getElementById('sub-oportunidades').classList.toggle('hidden', tab.dataset.tab !== 'oportunidades');
-    document.getElementById('oportunidades-filtro').classList.toggle('hidden', tab.dataset.tab !== 'oportunidades');
+    document.getElementById('oportunidades-filtro').classList.toggle('hidden', tab.dataset.tab !== 'oportunidades' || ROL === 'colaborador');
     loadTab(tab.dataset.tab);
   });
 });
@@ -95,7 +112,31 @@ document.querySelectorAll('#sub-oportunidades .tab').forEach(sub => {
 async function showApp() {
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  if (!ROL) ROL = 'admin'; // sesiones antiguas antes de roles
+  aplicarRestriccionesRol();
   loadTab('ejecutivo');
+}
+
+const TABS_SIN_ACCESO_GERENCIA = ['oportunidades','tipoa','segmentacion','perdidos','ticket','planes'];
+
+function aplicarRestriccionesRol() {
+  const btnUsuarios = document.getElementById('usuariosBtn');
+  const btnData = document.getElementById('cargarVentasBtn');
+  if (btnUsuarios) btnUsuarios.classList.toggle('hidden', ROL !== 'admin');
+  if (btnData) btnData.classList.toggle('hidden', ROL !== 'admin');
+
+  document.querySelectorAll('#app > main > .tabs > .tab').forEach(tab => {
+    const oculto = ROL === 'gerencia' && TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
+    tab.classList.toggle('hidden', oculto);
+  });
+}
+
+function ocultarFiltroKamSiColaborador(idsSelectYBoton) {
+  if (ROL !== 'colaborador') return;
+  idsSelectYBoton.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 }
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -490,6 +531,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
 
   document.getElementById('taMes').value = mes || '';
   document.getElementById('taKam').value = kam || '';
+  ocultarFiltroKamSiColaborador(['taKam']);
   document.getElementById('taCliente').value = cliente || '';
   document.getElementById('taSucursal').value = sucursal || '';
   document.getElementById('taFiltrar').addEventListener('click', () => {
@@ -540,6 +582,7 @@ function renderSegmentacionTabla() {
   el.innerHTML = html;
   habilitarOrdenTablas(el);
   autoFitKpis();
+  ocultarFiltroKamSiColaborador(['segKam']);
 
   document.getElementById('segKam').addEventListener('change', (e) => {
     SEGMENTACION_KAM = e.target.value;
@@ -628,6 +671,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
 
   document.getElementById('tkMes').value = mes||'';
   document.getElementById('tkKam').value = kam||'';
+  ocultarFiltroKamSiColaborador(['tkKam']);
   document.getElementById('tkCliente').value = cliente||'';
   document.getElementById('tkSucursal').value = sucursal||'';
   document.getElementById('tkFiltrar').addEventListener('click', () => {
@@ -734,6 +778,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
 
   document.getElementById('pfMes').value = mes||'';
   document.getElementById('pfKam').value = kam||'';
+  ocultarFiltroKamSiColaborador(['pfKam']);
   document.getElementById('pfCliente').value = cliente||'';
   document.getElementById('pfSucursal').value = sucursal||'';
   document.getElementById('pfFiltrar').addEventListener('click', () => {
@@ -799,6 +844,7 @@ async function loadPerdidos(kam) {
   el.innerHTML = html;
   habilitarOrdenTablas(el);
   document.getElementById('recKam').value = kam || '';
+  ocultarFiltroKamSiColaborador(['recKam']);
   document.getElementById('recKam').addEventListener('change', (e) => loadPerdidos(e.target.value));
 }
 
@@ -1326,6 +1372,80 @@ async function loadTableroControl(mesParam) {
   if (btnMarcar) btnMarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, []); loadTableroControl(mes); });
   const btnDesmarcar = document.getElementById('tcDesmarcarTodas');
   if (btnDesmarcar) btnDesmarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
+}
+
+const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
+
+async function loadUsuarios() {
+  const el = document.getElementById('view-usuarios');
+  el.innerHTML = '<div class="loading">Cargando usuarios...</div>';
+  const r = await rpc('dash_usuarios_listar', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sin acceso.'}</div>`; return; }
+
+  const kamsConocidos = ['PEREZ RAMIREZ JHONATAN ALEXANDER','FRANCO ARBOLEDA MARIA ISABEL','LONDOÑO MEJIA JOSE GLEISON','ARISMENDY CRUZ CRISTIAN YONARD','BEDOYA VELASQUEZ JORGE ESTEBAN','GOMEZ RODRIGUEZ CARLOS ANDRES'];
+
+  let html = `<div class="card"><h2>Crear nuevo usuario</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
+      <input type="email" id="nuEmail" placeholder="correo@brkbrakes.com">
+      <input type="password" id="nuPassword" placeholder="contraseña temporal">
+      <input type="text" id="nuNombre" placeholder="Nombre a mostrar">
+      <select id="nuRol" class="estado">
+        <option value="colaborador">Colaborador</option>
+        <option value="gerencia">Gerencia General</option>
+        <option value="admin">Administrador</option>
+      </select>
+      <select id="nuKam" class="estado">
+        <option value="">— KAM asignado (solo Colaborador) —</option>
+        ${kamsConocidos.map(k => `<option value="${k}">${titleCase(k)}</option>`).join('')}
+      </select>
+      <button id="nuCrear" style="width:auto;">Crear usuario</button>
+    </div>
+    <div id="nuEstado" style="margin-top:10px;font-size:12px;color:var(--text-dim);"></div>
+  </div>`;
+
+  html += '<div class="card"><h2>Usuarios existentes</h2><table><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>KAM asignado</th><th>Bloqueado</th><th>Acciones</th></tr>';
+  (r.data || []).forEach(u => {
+    html += `<tr>
+      <td>${u.nombre}</td><td>${u.email}</td><td>${NOMBRES_ROL[u.rol]||u.rol}</td><td>${u.kam_asignado ? titleCase(u.kam_asignado) : '—'}</td>
+      <td>${u.locked ? '🔒 Sí' : 'No'}</td>
+      <td>
+        <button class="btn-reset-pass" data-id="${u.id}" data-nombre="${u.nombre}" style="width:auto;padding:4px 10px;font-size:11px;">Cambiar contraseña</button>
+        ${u.email !== 'carlos.gomez@brkbrakes.com' ? `<button class="btn-eliminar-user" data-id="${u.id}" data-nombre="${u.nombre}" style="width:auto;padding:4px 10px;font-size:11px;background:transparent;border:1px solid #ff6b6b;color:#ff6b6b;margin-left:6px;">Eliminar</button>` : ''}
+      </td>
+    </tr>`;
+  });
+  html += '</table></div>';
+
+  el.innerHTML = html;
+
+  document.getElementById('nuCrear').addEventListener('click', async () => {
+    const email = document.getElementById('nuEmail').value.trim();
+    const password = document.getElementById('nuPassword').value;
+    const nombre = document.getElementById('nuNombre').value.trim();
+    const rol = document.getElementById('nuRol').value;
+    const kam = document.getElementById('nuKam').value || null;
+    const estado = document.getElementById('nuEstado');
+    if (!email || !password || !nombre) { estado.innerHTML = '<span style="color:#ff6b6b;">Completa correo, contraseña y nombre.</span>'; return; }
+    const res = await rpc('dash_usuarios_crear', { p_token: TOKEN, p_email: email, p_password: password, p_nombre: nombre, p_rol: rol, p_kam_asignado: kam });
+    if (res.ok) { estado.innerHTML = '<span style="color:#4ade80;">✓ Usuario creado.</span>'; loadUsuarios(); }
+    else { estado.innerHTML = `<span style="color:#ff6b6b;">${res.error}</span>`; }
+  });
+
+  el.querySelectorAll('.btn-reset-pass').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const nueva = prompt(`Nueva contraseña para ${btn.dataset.nombre}:`);
+      if (!nueva) return;
+      const res = await rpc('dash_usuarios_cambiar_password_admin', { p_token: TOKEN, p_user_id: btn.dataset.id, p_password_nueva: nueva });
+      alert(res.ok ? 'Contraseña actualizada.' : (res.error || 'Error'));
+    });
+  });
+  el.querySelectorAll('.btn-eliminar-user').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`¿Eliminar al usuario ${btn.dataset.nombre}? Esta acción no se puede deshacer.`)) return;
+      const res = await rpc('dash_usuarios_eliminar', { p_token: TOKEN, p_user_id: btn.dataset.id });
+      if (res.ok) loadUsuarios(); else alert(res.error || 'Error');
+    });
+  });
 }
 
 function loadCargarVentas() {
