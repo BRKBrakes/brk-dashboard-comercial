@@ -1417,7 +1417,7 @@ async function loadUsuarios() {
   (r.data || []).forEach(u => {
     const kams = (u.kam_asignados||[]).map(k=>titleCase(k)).join(', ') || '—';
     html += `<tr>
-      <td>${u.nombre}</td><td>${u.email}</td><td>${NOMBRES_ROL[u.rol]||u.rol}</td><td>${kams}</td>
+      <td>${esc(u.nombre)}</td><td>${esc(u.email)}</td><td>${NOMBRES_ROL[u.rol]||u.rol}</td><td>${kams}</td>
       <td>${u.locked ? '🔒 Sí' : 'No'}</td>
       <td><button class="btn-editar-user" data-id="${u.id}" style="width:auto;padding:4px 10px;font-size:11px;">Editar</button></td>
     </tr>`;
@@ -1450,7 +1450,7 @@ function abrirEditorUsuario(userId, usuarios) {
   const panel = document.getElementById('editar-usuario-panel');
   const esSuperAdmin = u.email === 'carlos.gomez@brkbrakes.com';
   panel.innerHTML = `<div class="card" style="border:1px solid var(--neon);">
-    <h2>Editar — ${u.nombre}</h2>
+    <h2>Editar — ${esc(u.nombre)}</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
       <div>
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Rol</div>
@@ -1630,6 +1630,11 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     }
     progreso.style.display = 'none';
   }
+}
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
 function titleCase(s) {
