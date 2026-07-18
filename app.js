@@ -271,7 +271,7 @@ async function loadEjecutivo() {
     let color = '#ff6b6b'; // rojo <80%
     if (pct >= 100) color = '#4ade80'; // verde
     else if (pct >= 80) color = '#ff9f43'; // naranja
-    html += `<tr><td>${titleCase(k.vendedor)}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.venta_real||0),0);
@@ -360,7 +360,7 @@ async function loadGapDiscos() {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -375,7 +375,7 @@ async function loadGapLiquidos() {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal) — meta: 1 juego pastas : 0.5 unid. líquido</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Líquidos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -390,7 +390,7 @@ async function loadGapCilindros() {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   let html = '<div class="card"><h2>Clientes con gap de cilindros (últimos 180 días, por sucursal) — meta: 1 juego zapatas : 0.3 unid. cilindros</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Zapatas (unid.)</th><th class="num">Cilindros (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -407,8 +407,8 @@ function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick, sel
     const anchoBarra = Math.max(2, (it[valueKey] / maxV) * 62);
     const pct = totalGrupo ? Math.round((it[valueKey]/totalGrupo)*1000)/10 : 0;
     const activo = seleccionActual && seleccionActual === it[labelKey];
-    filas += `<div class="${claseClick}" data-key="${(it[labelKey]||'').replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;cursor:pointer;padding:0 4px;border-radius:4px;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
-      <div style="width:130px;font-size:11px;color:${activo?'var(--neon)':'var(--text)'};font-weight:${activo?'700':'400'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${it[labelKey]||''}">${it[labelKey]||''}</div>
+    filas += `<div class="${claseClick}" data-key="${esc(it[labelKey]||'')}" style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;cursor:pointer;padding:0 4px;border-radius:4px;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
+      <div style="width:130px;font-size:11px;color:${activo?'var(--neon)':'var(--text)'};font-weight:${activo?'700':'400'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${esc(it[labelKey]||'')}">${esc(it[labelKey]||'')}</div>
       <div style="flex:1;background:#333630;border-radius:3px;height:14px;position:relative;">
         <div style="width:${anchoBarra}%;height:100%;background:${colorHex};border-radius:3px;"></div>
       </div>
@@ -441,7 +441,7 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal) {
       const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
       const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
       const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
-      html += `<tr><td>${c.sucursal_despacho}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      html += `<tr><td>${esc(c.sucursal_despacho)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
     });
     html += '</table>';
     tablaCard.innerHTML = html;
@@ -459,7 +459,7 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal) {
       const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
       const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
       const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
-      html += `<tr><td>${c.cliente}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      html += `<tr><td>${esc(c.cliente)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
     });
     html += '</table>';
     tablaClienteCard.innerHTML = html;
@@ -506,7 +506,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
 
   if (!TIPOA_FILTROS_HTML) {
     const f = r.filtros || {};
-    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
+    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
     TIPOA_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
       <select id="taMes" class="estado">${optMeses(mes)}</select>
       <select id="taKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
@@ -521,7 +521,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
   data.forEach(c => {
     const pctFila = total ? Math.round(((c.total||0)/total)*1000)/10 : 0;
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor)}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td></tr>`;
   });
   html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num">100%</td></tr>`;
   html += '</table></div>';
@@ -577,7 +577,7 @@ function renderSegmentacionTabla() {
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">% del total</th><th class="num">Días sin comprar</th></tr>`;
   filtrados.forEach(c => {
     const pctFila = totalGeneral ? Math.round(((c.total||0)/totalGeneral)*1000)/10 : 0;
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${c.segmento}</td><td>${titleCase(c.vendedor)}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${c.segmento}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -633,7 +633,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
 
   if (!TICKET_FILTROS_HTML) {
     const f = r.filtros || {};
-    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
+    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
     TICKET_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
       <select id="tkMes" class="estado">${optMeses(mes)}</select>
       <select id="tkKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
@@ -653,7 +653,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   html += '<div class="card"><h2>Top 12 por familia (clic para ver descripciones)</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>';
   (r.por_familia || []).forEach(f => {
     const activo = TICKET_FAMILIA_SEL === f.familia;
-    html += `<tr class="fam-row-ticket" data-familia="${f.familia}" style="cursor:pointer;${activo?'background:#2a2e24;':''}"><td>${f.familia}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
+    html += `<tr class="fam-row-ticket" data-familia="${esc(f.familia)}" style="cursor:pointer;${activo?'background:#2a2e24;':''}"><td>${esc(f.familia)}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
   });
   html += '</table></div>';
 
@@ -661,7 +661,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
     html += `<div class="card"><h2>Descripciones — ${TICKET_FAMILIA_SEL} <span id="tkLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todas las familias)</span></h2>
       <table><tr><th>Descripción</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>`;
     (prod.data || []).forEach(p => {
-      html += `<tr><td>${p.descripcion||''}</td><td class="num money">${money(p.venta)}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(p.ticket_promedio)}</td></tr>`;
+      html += `<tr><td>${esc(p.descripcion||'')}</td><td class="num money">${money(p.venta)}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(p.ticket_promedio)}</td></tr>`;
     });
     html += '</table></div>';
   }
@@ -704,7 +704,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
 
   if (!PORTAFOLIO_FILTROS_HTML) {
     const f = r.filtros || {};
-    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${v}">${titleCase(v)}</option>`).join('');
+    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
     PORTAFOLIO_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
       <select id="pfMes" class="estado">${optMeses(mes)}</select>
       <select id="pfKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
@@ -728,7 +728,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     const x2 = cx + radio * Math.cos(endAngle), y2 = cy + radio * Math.sin(endAngle);
     const largeArc = frac > 0.5 ? 1 : 0;
     const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
-    paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}" class="fam-slice" data-familia="${d.familia}" style="cursor:pointer;"/>`;
+    paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}" class="fam-slice" data-familia="${esc(d.familia)}" style="cursor:pointer;"/>`;
   });
 
   let html = PORTAFOLIO_FILTROS_HTML + '<div class="card"><h2>Participación de portafolio por familia (top 12, clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
@@ -737,9 +737,9 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   data.forEach((d, i) => {
     const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
     const activo = PORTAFOLIO_FAMILIA_SEL === d.familia;
-    html += `<div class="fam-leyenda" data-familia="${d.familia}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;padding:3px 6px;border-radius:4px;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
+    html += `<div class="fam-leyenda" data-familia="${esc(d.familia)}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;padding:3px 6px;border-radius:4px;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
       <span style="width:12px;height:12px;background:${color};border-radius:2px;flex-shrink:0;"></span>
-      <span style="flex:1;">${d.familia}</span>
+      <span style="flex:1;">${esc(d.familia)}</span>
       <span style="color:var(--text-dim);">${d.pct}%</span>
     </div>`;
   });
@@ -751,10 +751,10 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     html += `<div class="card"><h2>Top 12 por familia</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Familia</th><th class="num">Venta</th></tr>
-          ${porVentaFam.map(d => `<tr><td>${d.familia}</td><td class="num money">${money(d.venta)}</td></tr>`).join('')}
+          ${porVentaFam.map(d => `<tr><td>${esc(d.familia)}</td><td class="num money">${money(d.venta)}</td></tr>`).join('')}
         </table></div>
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr><th>Familia</th><th class="num">Unidades</th></tr>
-          ${porUnidFam.map(d => `<tr><td>${d.familia}</td><td class="num">${Math.round(d.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
+          ${porUnidFam.map(d => `<tr><td>${esc(d.familia)}</td><td class="num">${Math.round(d.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
         </table></div>
       </div></div>`;
   }
@@ -766,10 +766,10 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     html += `<div class="card"><h2>Top 25 referencias — ${PORTAFOLIO_FAMILIA_SEL} <span id="pfLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todos)</span></h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Venta</th></tr>
-          ${porVenta.map(p => `<tr><td>${p.referencia}</td><td>${p.descripcion||''}</td><td class="num money">${money(p.venta)}</td></tr>`).join('')}
+          ${porVenta.map(p => `<tr><td>${esc(p.referencia)}</td><td>${esc(p.descripcion||'')}</td><td class="num money">${money(p.venta)}</td></tr>`).join('')}
         </table></div>
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Unidades</th></tr>
-          ${porUnidades.map(p => `<tr><td>${p.referencia}</td><td>${p.descripcion||''}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
+          ${porUnidades.map(p => `<tr><td>${esc(p.referencia)}</td><td>${esc(p.descripcion||'')}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
         </table></div>
       </div></div>`;
   }
@@ -828,7 +828,7 @@ async function loadPerdidos(kam) {
     if (c.delta_pastas < 0) detalles.push(`Pastas ${money(c.delta_pastas)}`);
     if (c.delta_discos < 0) detalles.push(`Discos ${money(c.delta_discos)}`);
     if (c.delta_liquidos < 0) detalles.push(`Líquidos ${money(c.delta_liquidos)}`);
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor||'')}</td>
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td>
       <td class="num money">${money(c.total_ant2)}</td><td class="num money">${money(c.total_ant1)}</td><td class="num money">${money(c.promedio_2m)}</td><td class="num money">${money(c.total_act)}</td>
       <td class="num" style="color:#ff6b6b;font-weight:700;">${money(c.caida_total)} (${c.caida_pct}%)</td>
       <td style="font-size:11px;color:var(--text-dim);">${detalles.join(' · ') || '—'}</td></tr>`;
@@ -838,7 +838,7 @@ async function loadPerdidos(kam) {
   html += `<div class="card"><h2>Sin compras hace 60+ días — ${sinCompra.length} sucursales</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Venta 2026</th><th class="num">Días sin comprar</th></tr>`;
   sinCompra.forEach(c => {
-    html += `<tr><td>${c.cliente}</td><td>${c.sucursal_despacho||''}</td><td>${titleCase(c.vendedor||'')}</td><td>${c.ciudad||''}</td><td class="num money">${money(c.total_2026)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td><td>${esc(c.ciudad||'')}</td><td class="num money">${money(c.total_2026)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
 
@@ -860,7 +860,7 @@ async function loadPlanes() {
   } else {
     html += '<table><tr><th>Cliente</th><th>Sucursal</th><th>Tipo</th><th>Vendedor</th><th class="num">Potencial/mes</th><th>Estado</th></tr>';
     r.data.forEach(p => {
-      html += `<tr><td>${p.cliente}</td><td>${p.sucursal||''}</td><td>${p.tipo_plan}</td><td>${titleCase(p.vendedor||'')}</td><td class="num money">${money(p.potencial_mes)}</td><td>
+      html += `<tr><td>${esc(p.cliente)}</td><td>${esc(p.sucursal||'')}</td><td>${p.tipo_plan}</td><td>${esc(titleCase(p.vendedor||''))}</td><td class="num money">${money(p.potencial_mes)}</td><td>
         <select class="estado" data-id="${p.id}">
           <option value="pendiente" ${p.estado==='pendiente'?'selected':''}>Pendiente</option>
           <option value="gestionado" ${p.estado==='gestionado'?'selected':''}>Gestionado</option>
@@ -1188,7 +1188,7 @@ function renderCartera() {
   (r.por_kam || []).forEach(k => {
     const color = colorKpiCartera(k.kpi_pct);
     const activo = CARTERA_KAM_SEL === k.vendedor;
-    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k.vendedor)}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
 
@@ -1197,7 +1197,7 @@ function renderCartera() {
   detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorKpi = colorKpiCartera(d.kpi_pct);
     const colorDias = colorDiasVencido(d.dias_max);
-    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;"><td>${titleCase(d.vendedor||'')}</td><td>${d.sucursal||''}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
@@ -1228,7 +1228,7 @@ async function mostrarFacturasCartera(vendedor, sucursal) {
   let html = `<div class="card"><h2>Facturas — ${sucursal} (${titleCase(vendedor)})</h2><table><tr><th>Nro. documento</th><th>Fecha factura</th><th>Fecha real vencimiento</th><th class="num">Valor</th><th class="num">Días vencido</th></tr>`;
   facturas.forEach(f => {
     const color = colorDiasVencido(f.dias_real_vencido);
-    html += `<tr><td>${f.nro_documento_cruce||''}</td><td>${f.fecha_docto_cruce||''}</td><td>${f.fecha_real_vencimiento||''}</td><td class="num money">${money(f.total_cop)}</td><td class="num" style="color:${color};font-weight:700;">${f.dias_real_vencido}</td></tr>`;
+    html += `<tr><td>${esc(f.nro_documento_cruce||'')}</td><td>${f.fecha_docto_cruce||''}</td><td>${f.fecha_real_vencimiento||''}</td><td class="num money">${money(f.total_cop)}</td><td class="num" style="color:${color};font-weight:700;">${f.dias_real_vencido}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -1245,7 +1245,7 @@ function barraSigno(items, labelKey, valueKey) {
     const color = v >= 0 ? '#4ade80' : '#ff6b6b';
     const ancho = Math.max(2, (Math.abs(v)/maxAbs) * 55);
     filas += `<div style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;">
-      <div style="width:150px;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${it[labelKey]||''}">${it[labelKey]||''}</div>
+      <div style="width:150px;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${esc(it[labelKey]||'')}">${esc(it[labelKey]||'')}</div>
       <div style="flex:1;background:#333630;border-radius:3px;height:14px;">
         <div style="width:${ancho}%;height:100%;background:${color};border-radius:3px;"></div>
       </div>
@@ -1319,7 +1319,7 @@ async function loadTableroControl(mesParam) {
 
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:16px;">
     <div class="card"><h2>% Cumplimiento por KAM</h2><table><tr><th>KAM</th><th class="num">% Cumpl.</th></tr>
-      ${porKamOrdenFijo.map(k => `<tr><td>${titleCase(k.vendedor)}</td><td class="num" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
+      ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
     </table></div>
     <div class="card"><h2>Faltante para 100% por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_100')}</div>
   </div>`;
@@ -1340,7 +1340,7 @@ async function loadTableroControl(mesParam) {
     <table><tr><th style="width:40px;"></th><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num"># Remisiones</th><th class="num">Valor total</th></tr>
     ${gruposRemArr.map((g, i) => {
       const marcado = g.docs.every(d => !excluidas.includes(d));
-      return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''} ${ROL!=='admin'?'disabled':''}></td><td>${g.cliente}</td><td>${g.sucursal_factura||''}</td><td>${titleCase(g.vendedor||'')}</td><td class="num">${g.docs.length}</td><td class="num money">${money(g.total)}</td></tr>`;
+      return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''} ${ROL!=='admin'?'disabled':''}></td><td>${esc(g.cliente)}</td><td>${esc(g.sucursal_factura||'')}</td><td>${esc(titleCase(g.vendedor||''))}</td><td class="num">${g.docs.length}</td><td class="num money">${money(g.total)}</td></tr>`;
     }).join('')}
     </table></div>
     ${ROL==='admin' ? `<div style="margin-top:10px;display:flex;gap:10px;">
