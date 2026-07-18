@@ -3,7 +3,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let TOKEN = localStorage.getItem('brk_token') || null;
 let ROL = localStorage.getItem('brk_rol') || null;
-let KAM_ASIGNADO = localStorage.getItem('brk_kam_asignado') || null;
+let KAM_ASIGNADOS = JSON.parse(localStorage.getItem('brk_kam_asignados') || '[]');
 
 async function rpc(fn, params = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -47,10 +47,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   if (r.ok) {
     TOKEN = r.token;
     ROL = r.rol || 'admin';
-    KAM_ASIGNADO = r.kam_asignado || null;
+    KAM_ASIGNADOS = r.kam_asignados || [];
     localStorage.setItem('brk_token', TOKEN);
     localStorage.setItem('brk_rol', ROL);
-    localStorage.setItem('brk_kam_asignado', KAM_ASIGNADO || '');
+    localStorage.setItem('brk_kam_asignados', JSON.stringify(KAM_ASIGNADOS));
     showApp();
   } else {
     errEl.textContent = r.error || 'Error al iniciar sesión';
@@ -78,8 +78,8 @@ document.getElementById('cargarVentasBtn').addEventListener('click', () => {
 document.getElementById('logoutBtn').addEventListener('click', () => {
   localStorage.removeItem('brk_token');
   localStorage.removeItem('brk_rol');
-  localStorage.removeItem('brk_kam_asignado');
-  TOKEN = null; ROL = null; KAM_ASIGNADO = null;
+  localStorage.removeItem('brk_kam_asignados');
+  TOKEN = null; ROL = null; KAM_ASIGNADOS = [];
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login').classList.remove('hidden');
 });
@@ -1377,13 +1377,22 @@ async function loadTableroControl(mesParam) {
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
 
+const KAMS_CONOCIDOS = ['PEREZ RAMIREZ JHONATAN ALEXANDER','FRANCO ARBOLEDA MARIA ISABEL','LONDOÑO MEJIA JOSE GLEISON','ARISMENDY CRUZ CRISTIAN YONARD','BEDOYA VELASQUEZ JORGE ESTEBAN','GOMEZ RODRIGUEZ CARLOS ANDRES'];
+
+function checksKam(idPrefijo, seleccionados) {
+  seleccionados = seleccionados || [];
+  return KAMS_CONOCIDOS.map(k => `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 0;">
+      <input type="checkbox" class="${idPrefijo}-chk" value="${k}" ${seleccionados.includes(k)?'checked':''}>
+      ${titleCase(k)}
+    </label>`).join('');
+}
+
 async function loadUsuarios() {
   const el = document.getElementById('view-usuarios');
   el.innerHTML = '<div class="loading">Cargando usuarios...</div>';
   const r = await rpc('dash_usuarios_listar', { p_token: TOKEN });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sin acceso.'}</div>`; return; }
-
-  const kamsConocidos = ['PEREZ RAMIREZ JHONATAN ALEXANDER','FRANCO ARBOLEDA MARIA ISABEL','LONDOÑO MEJIA JOSE GLEISON','ARISMENDY CRUZ CRISTIAN YONARD','BEDOYA VELASQUEZ JORGE ESTEBAN','GOMEZ RODRIGUEZ CARLOS ANDRES'];
 
   let html = `<div class="card"><h2>Crear nuevo usuario</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
@@ -1395,27 +1404,26 @@ async function loadUsuarios() {
         <option value="gerencia">Gerencia General</option>
         <option value="admin">Administrador</option>
       </select>
-      <select id="nuKam" class="estado">
-        <option value="">— KAM asignado (solo Colaborador) —</option>
-        ${kamsConocidos.map(k => `<option value="${k}">${titleCase(k)}</option>`).join('')}
-      </select>
-      <button id="nuCrear" style="width:auto;">Crear usuario</button>
     </div>
+    <div style="margin-top:10px;">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">KAM asignado(s) — solo aplica para Colaborador, puedes elegir varios</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2px;background:#2c3126;padding:8px;border-radius:6px;">${checksKam('nu', [])}</div>
+    </div>
+    <button id="nuCrear" style="width:auto;margin-top:10px;">Crear usuario</button>
     <div id="nuEstado" style="margin-top:10px;font-size:12px;color:var(--text-dim);"></div>
   </div>`;
 
   html += '<div class="card"><h2>Usuarios existentes</h2><table><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>KAM asignado</th><th>Bloqueado</th><th>Acciones</th></tr>';
   (r.data || []).forEach(u => {
+    const kams = (u.kam_asignados||[]).map(k=>titleCase(k)).join(', ') || '—';
     html += `<tr>
-      <td>${u.nombre}</td><td>${u.email}</td><td>${NOMBRES_ROL[u.rol]||u.rol}</td><td>${u.kam_asignado ? titleCase(u.kam_asignado) : '—'}</td>
+      <td>${u.nombre}</td><td>${u.email}</td><td>${NOMBRES_ROL[u.rol]||u.rol}</td><td>${kams}</td>
       <td>${u.locked ? '🔒 Sí' : 'No'}</td>
-      <td>
-        <button class="btn-reset-pass" data-id="${u.id}" data-nombre="${u.nombre}" style="width:auto;padding:4px 10px;font-size:11px;">Cambiar contraseña</button>
-        ${u.email !== 'carlos.gomez@brkbrakes.com' ? `<button class="btn-eliminar-user" data-id="${u.id}" data-nombre="${u.nombre}" style="width:auto;padding:4px 10px;font-size:11px;background:transparent;border:1px solid #ff6b6b;color:#ff6b6b;margin-left:6px;">Eliminar</button>` : ''}
-      </td>
+      <td><button class="btn-editar-user" data-id="${u.id}" style="width:auto;padding:4px 10px;font-size:11px;">Editar</button></td>
     </tr>`;
   });
   html += '</table></div>';
+  html += '<div id="editar-usuario-panel"></div>';
 
   el.innerHTML = html;
 
@@ -1424,28 +1432,82 @@ async function loadUsuarios() {
     const password = document.getElementById('nuPassword').value;
     const nombre = document.getElementById('nuNombre').value.trim();
     const rol = document.getElementById('nuRol').value;
-    const kam = document.getElementById('nuKam').value || null;
+    const kams = Array.from(el.querySelectorAll('.nu-chk:checked')).map(c => c.value);
     const estado = document.getElementById('nuEstado');
     if (!email || !password || !nombre) { estado.innerHTML = '<span style="color:#ff6b6b;">Completa correo, contraseña y nombre.</span>'; return; }
-    const res = await rpc('dash_usuarios_crear', { p_token: TOKEN, p_email: email, p_password: password, p_nombre: nombre, p_rol: rol, p_kam_asignado: kam });
+    const res = await rpc('dash_usuarios_crear', { p_token: TOKEN, p_email: email, p_password: password, p_nombre: nombre, p_rol: rol, p_kam_asignados: kams });
     if (res.ok) { estado.innerHTML = '<span style="color:#4ade80;">✓ Usuario creado.</span>'; loadUsuarios(); }
     else { estado.innerHTML = `<span style="color:#ff6b6b;">${res.error}</span>`; }
   });
 
-  el.querySelectorAll('.btn-reset-pass').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const nueva = prompt(`Nueva contraseña para ${btn.dataset.nombre}:`);
-      if (!nueva) return;
-      const res = await rpc('dash_usuarios_cambiar_password_admin', { p_token: TOKEN, p_user_id: btn.dataset.id, p_password_nueva: nueva });
-      alert(res.ok ? 'Contraseña actualizada.' : (res.error || 'Error'));
-    });
+  el.querySelectorAll('.btn-editar-user').forEach(btn => {
+    btn.addEventListener('click', () => abrirEditorUsuario(btn.dataset.id, r.data));
   });
-  el.querySelectorAll('.btn-eliminar-user').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (!confirm(`¿Eliminar al usuario ${btn.dataset.nombre}? Esta acción no se puede deshacer.`)) return;
-      const res = await rpc('dash_usuarios_eliminar', { p_token: TOKEN, p_user_id: btn.dataset.id });
-      if (res.ok) loadUsuarios(); else alert(res.error || 'Error');
-    });
+}
+
+function abrirEditorUsuario(userId, usuarios) {
+  const u = usuarios.find(x => x.id === userId);
+  const panel = document.getElementById('editar-usuario-panel');
+  const esSuperAdmin = u.email === 'carlos.gomez@brkbrakes.com';
+  panel.innerHTML = `<div class="card" style="border:1px solid var(--neon);">
+    <h2>Editar — ${u.nombre}</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Rol</div>
+        <select id="edRol" class="estado" ${esSuperAdmin?'disabled':''}>
+          <option value="colaborador" ${u.rol==='colaborador'?'selected':''}>Colaborador</option>
+          <option value="gerencia" ${u.rol==='gerencia'?'selected':''}>Gerencia General</option>
+          <option value="admin" ${u.rol==='admin'?'selected':''}>Administrador</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Nueva contraseña (dejar vacío para no cambiar)</div>
+        <input type="password" id="edPassword" placeholder="Nueva contraseña">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Estado</div>
+        <select id="edLocked" class="estado" ${esSuperAdmin?'disabled':''}>
+          <option value="false" ${!u.locked?'selected':''}>Activo</option>
+          <option value="true" ${u.locked?'selected':''}>Bloqueado</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">KAM asignado(s)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2px;background:#2c3126;padding:8px;border-radius:6px;">${checksKam('ed', u.kam_asignados||[])}</div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;">
+      <button id="edGuardar" style="width:auto;">Guardar cambios</button>
+      <button id="edCancelar" style="width:auto;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">Cancelar</button>
+      ${!esSuperAdmin ? `<button id="edEliminar" style="width:auto;background:transparent;border:1px solid #ff6b6b;color:#ff6b6b;margin-left:auto;">Eliminar usuario</button>` : ''}
+    </div>
+    <div id="edEstado" style="margin-top:10px;font-size:12px;color:var(--text-dim);"></div>
+  </div>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  document.getElementById('edGuardar').addEventListener('click', async () => {
+    const rol = document.getElementById('edRol').value;
+    const password = document.getElementById('edPassword').value;
+    const locked = document.getElementById('edLocked').value === 'true';
+    const kams = Array.from(panel.querySelectorAll('.ed-chk:checked')).map(c => c.value);
+    const estado = document.getElementById('edEstado');
+
+    const res = await rpc('dash_usuarios_editar', { p_token: TOKEN, p_user_id: userId, p_rol: esSuperAdmin?null:rol, p_kam_asignados: kams, p_locked: esSuperAdmin?null:locked });
+    if (!res.ok) { estado.innerHTML = `<span style="color:#ff6b6b;">${res.error}</span>`; return; }
+
+    if (password) {
+      const res2 = await rpc('dash_usuarios_cambiar_password_admin', { p_token: TOKEN, p_user_id: userId, p_password_nueva: password });
+      if (!res2.ok) { estado.innerHTML = `<span style="color:#ff6b6b;">${res2.error}</span>`; return; }
+    }
+    estado.innerHTML = '<span style="color:#4ade80;">✓ Cambios guardados.</span>';
+    loadUsuarios();
+  });
+  document.getElementById('edCancelar').addEventListener('click', () => { panel.innerHTML = ''; });
+  const btnEliminar = document.getElementById('edEliminar');
+  if (btnEliminar) btnEliminar.addEventListener('click', async () => {
+    if (!confirm(`¿Eliminar al usuario ${u.nombre}? Esta acción no se puede deshacer.`)) return;
+    const res = await rpc('dash_usuarios_eliminar', { p_token: TOKEN, p_user_id: userId });
+    if (res.ok) loadUsuarios(); else alert(res.error || 'Error');
   });
 }
 
