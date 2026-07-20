@@ -115,6 +115,7 @@ async function showApp() {
   if (!ROL) ROL = 'admin'; // sesiones antiguas antes de roles
   aplicarRestriccionesRol();
   loadTab('ejecutivo');
+  setTimeout(ajustarStickyResponsive, 50);
 }
 
 const TABS_SIN_ACCESO_GERENCIA = ['oportunidades','tipoa','segmentacion','perdidos','ticket','planes'];
@@ -1642,6 +1643,27 @@ function titleCase(s) {
     palabra ? palabra.charAt(0).toUpperCase() + palabra.slice(1) : palabra
   ).join(' ');
 }
+
+// Ajusta el "pegado" del header/tabs al alto REAL (evita desalineación en móvil)
+function ajustarStickyResponsive() {
+  const header = document.querySelector('header');
+  const fila1 = document.querySelector('.tabs-fila1');
+  if (!header) return;
+  const alturaHeader = header.offsetHeight;
+  document.documentElement.style.setProperty('--header-h', alturaHeader + 'px');
+  if (fila1) {
+    document.documentElement.style.setProperty('--header-fila1-bottom', (alturaHeader + fila1.offsetHeight) + 'px');
+  }
+}
+window.addEventListener('load', ajustarStickyResponsive);
+window.addEventListener('resize', ajustarStickyResponsive);
+window.addEventListener('orientationchange', ajustarStickyResponsive);
+// Vuelve a medir cada vez que cambia de pestaña (el contenido puede cambiar el alto del header en pantallas angostas)
+const _observadorHeader = new MutationObserver(ajustarStickyResponsive);
+document.addEventListener('DOMContentLoaded', () => {
+  const header = document.querySelector('header');
+  if (header) _observadorHeader.observe(header, { childList: true, subtree: true, attributes: true });
+});
 
 // Auto-login si hay token guardado
 if (TOKEN) { showApp(); }
