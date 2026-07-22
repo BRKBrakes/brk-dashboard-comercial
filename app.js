@@ -1592,18 +1592,18 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador) {
 
   html += `<div class="kpis">
     <div class="kpi"><div class="label">Total Servicios</div><div class="value">${(r.total_servicios||0).toLocaleString('es-CO')}</div></div>
-    <div class="kpi"><div class="label">Días con Servicio</div><div class="value">${r.dias_con_servicio||0}</div></div>
     <div class="kpi"><div class="label">Días Hábiles del Periodo</div><div class="value" style="font-size:20px;">${r.dias_habiles_periodo||0}</div></div>
     <div class="kpi"><div class="label">Promedio por Día</div><div class="value">${r.promedio_por_dia||0}</div></div>
     <div class="kpi"><div class="label">Servicios por KAM (teórico, total/3)</div><div class="value">${r.servicios_por_kam_teorico||0}</div></div>
+    <div class="kpi"><div class="label">Servicios x KAM x Día</div><div class="value">${r.servicios_por_kam_por_dia_habil||0}</div></div>
   </div>`;
 
   // Por KAM (3 comerciales de Medellín) — clicable
-  html += `<div class="card"><h2>Servicios por Comercial (Medellín) ${FACILITADORES_KAM ? '<span id="fzLimpiarKam" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro de KAM)</span>' : '(clic para filtrar)'}</h2><table><tr><th>KAM</th><th class="num">Servicios</th></tr>`;
+  html += `<div class="card"><h2>Servicios por Comercial (Medellín) ${FACILITADORES_KAM ? '<span id="fzLimpiarKam" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro de KAM)</span>' : '(clic para filtrar)'}</h2><table><tr><th>KAM</th><th class="num">Servicios</th><th class="num">Servicios/Día</th></tr>`;
   (r.por_kam || []).forEach(k => {
     const esKam = !k.kam.includes('Sin identificar');
     const activo = FACILITADORES_KAM === k.kam;
-    html += `<tr class="fila-fz-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esKam ? titleCase(k.kam) : esc(k.kam)}</td><td class="num">${k.total}</td></tr>`;
+    html += `<tr class="fila-fz-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esKam ? titleCase(k.kam) : esc(k.kam)}</td><td class="num">${k.total}</td><td class="num">${k.promedio_dia}</td></tr>`;
   });
   html += '</table></div>';
 
