@@ -148,6 +148,7 @@ async function loadTab(tab) {
   if (tab === 'gapliquidos') return loadGapLiquidos();
   if (tab === 'gapcilindros') return loadGapCilindros();
   if (tab === 'tipoa') return loadTipoA();
+  if (tab === 'clientes') return loadClientes();
   if (tab === 'segmentacion') return loadSegmentacion();
   if (tab === 'ticket') return loadTicket();
   if (tab === 'portafolio') return loadPortafolio();
@@ -1773,6 +1774,156 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
     hora: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, null, undefined),
     fecha: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, undefined, null)
   }, () => loadFacilitadores(null, null, null, null, null, null, null, null));
+}
+
+// ---- Helper genérico: agrupa filas {mes, valorField} en pivote por mes ----
+function pivotarPorMes(filas, obtenerClave, valorField) {
+  const grupos = {};
+  (filas || []).forEach(f => {
+    const clave = obtenerClave(f);
+    if (!grupos[clave.id]) grupos[clave.id] = Object.assign({}, clave, { meses: {}, total: 0 });
+    grupos[clave.id].meses[f.mes] = (grupos[clave.id].meses[f.mes] || 0) + (f[valorField] || 0);
+    grupos[clave.id].total += (f[valorField] || 0);
+  });
+  return Object.values(grupos).sort((a, b) => b.total - a.total);
+}
+
+let CLIENTES_MES = null;
+let CLIENTES_KAM = null;
+let CLIENTES_CLIENTE = null;
+let CLIENTES_SUCURSAL = null;
+let CLIENTES_REFERENCIA = null;
+let CLIENTES_NRO_DOCUMENTO = null;
+let CLIENTES_FILTROS_HTML = '';
+
+async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento) {
+  const el = document.getElementById('view-clientes');
+  el.innerHTML = '<div class="loading">Cargando clientes...</div>';
+  CLIENTES_MES = mes !== undefined ? mes : CLIENTES_MES;
+  CLIENTES_KAM = kam !== undefined ? kam : CLIENTES_KAM;
+  CLIENTES_CLIENTE = cliente !== undefined ? cliente : CLIENTES_CLIENTE;
+  CLIENTES_SUCURSAL = sucursal !== undefined ? sucursal : CLIENTES_SUCURSAL;
+  CLIENTES_REFERENCIA = referencia !== undefined ? referencia : CLIENTES_REFERENCIA;
+  CLIENTES_NRO_DOCUMENTO = nroDocumento !== undefined ? nroDocumento : CLIENTES_NRO_DOCUMENTO;
+
+  const r = await rpc('dash_clientes_resumen', {
+    p_token: TOKEN,
+    p_mes: CLIENTES_MES ? parseInt(CLIENTES_MES) : null,
+    p_kam: CLIENTES_KAM || null,
+    p_cliente: CLIENTES_CLIENTE || null,
+    p_sucursal: CLIENTES_SUCURSAL || null,
+    p_referencia: CLIENTES_REFERENCIA || null,
+    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null
+  });
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
+
+  if (!CLIENTES_FILTROS_HTML) {
+    const f = r.filtros || {};
+    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
+    CLIENTES_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
+      <select id="clMes" class="estado">${optMeses(mes)}</select>
+      <select id="clKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
+      <select id="clCliente" class="estado"><option value="">Todos los aliados</option>${opt(f.clientes)}</select>
+      <select id="clSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
+      <button id="clFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
+    </div>`;
+  }
+
+  const meses = [...new Set([
+    ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
+    ...(r.facturas||[]).map(x=>x.mes)
+  ])].sort((a,b)=>a-b);
+
+  let html = CLIENTES_FILTROS_HTML;
+  html += renderBarraFiltros([
+    { id: 'mes', label: 'Mes', valor: CLIENTES_MES, valorMostrar: CLIENTES_MES ? MESES[parseInt(CLIENTES_MES)-1] : null },
+    { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, valorMostrar: CLIENTES_KAM ? titleCase(CLIENTES_KAM) : null },
+    { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, valorMostrar: CLIENTES_CLIENTE ? titleCase(CLIENTES_CLIENTE) : null },
+    { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
+    { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
+    { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO }
+  ]);
+
+  // Top Clientes — pivote por sucursal
+  const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
+  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  topClientes.forEach(c => {
+    const activo = CLIENTES_SUCURSAL === c.sucursal_despacho;
+    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}<td class="num money">${money(c.total)}</td></tr>`;
+  });
+  html += '</table></div></div>';
+
+  // Productos más vendidos [$] y [#] — lado a lado
+  const prodValor = pivotarPorMes(r.productos_valor, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'valor');
+  const prodUnidades = pivotarPorMes(r.productos_unidades, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'unidades');
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:16px;">';
+  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  prodValor.forEach(p => {
+    const activo = CLIENTES_REFERENCIA === p.referencia;
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}<td class="num money">${money(p.total)}</td></tr>`;
+  });
+  html += '</table></div></div>';
+
+  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  prodUnidades.forEach(p => {
+    const activo = CLIENTES_REFERENCIA === p.referencia;
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}<td class="num">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
+  });
+  html += '</table></div></div></div>';
+
+  // Facturas — pivote por nro_documento
+  const facturas = pivotarPorMes(r.facturas, f => ({ id: f.nro_documento, nro_documento: f.nro_documento }), 'valor');
+  html += `<div class="card"><h2>Facturas (clic para filtrar) — ${facturas.length} documentos</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Nro. documento</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  facturas.forEach(f => {
+    const activo = CLIENTES_NRO_DOCUMENTO === f.nro_documento;
+    html += `<tr class="fila-cl-factura" data-nrodoc="${esc(f.nro_documento)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(f.nro_documento)}</td>${meses.map(m => `<td class="num money">${f.meses[m]?money(f.meses[m]):''}</td>`).join('')}<td class="num money">${money(f.total)}</td></tr>`;
+  });
+  html += '</table></div></div>';
+
+  el.innerHTML = html;
+  habilitarOrdenTablas(el);
+
+  document.getElementById('clMes').value = CLIENTES_MES || '';
+  document.getElementById('clKam').value = CLIENTES_KAM || '';
+  ocultarFiltroKamSiColaborador(['clKam']);
+  document.getElementById('clCliente').value = CLIENTES_CLIENTE || '';
+  document.getElementById('clSucursal').value = CLIENTES_SUCURSAL || '';
+  document.getElementById('clFiltrar').addEventListener('click', () => {
+    loadClientes(
+      document.getElementById('clMes').value,
+      document.getElementById('clKam').value,
+      document.getElementById('clCliente').value,
+      document.getElementById('clSucursal').value,
+      CLIENTES_REFERENCIA,
+      CLIENTES_NRO_DOCUMENTO
+    );
+  });
+
+  el.querySelectorAll('.fila-cl-sucursal').forEach(fila => {
+    fila.addEventListener('click', () => {
+      loadClientes(undefined, undefined, undefined, CLIENTES_SUCURSAL === fila.dataset.sucursal ? null : fila.dataset.sucursal, undefined, undefined);
+    });
+  });
+  el.querySelectorAll('.fila-cl-referencia').forEach(fila => {
+    fila.addEventListener('click', () => {
+      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined);
+    });
+  });
+  el.querySelectorAll('.fila-cl-factura').forEach(fila => {
+    fila.addEventListener('click', () => {
+      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc);
+    });
+  });
+
+  activarBarraFiltros(el, {
+    mes: () => loadClientes(null, undefined, undefined, undefined, undefined, undefined),
+    kam: () => loadClientes(undefined, null, undefined, undefined, undefined, undefined),
+    cliente: () => loadClientes(undefined, undefined, null, undefined, undefined, undefined),
+    sucursal: () => loadClientes(undefined, undefined, undefined, null, undefined, undefined),
+    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined),
+    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null)
+  }, () => loadClientes(null, null, null, null, null, null));
 }
 
 function loadCargarVentas() {
