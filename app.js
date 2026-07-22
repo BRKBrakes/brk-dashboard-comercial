@@ -1632,9 +1632,9 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador) {
   html += '</table></div>';
 
   // Servicios por día (tendencia) — informativo, sin clic
-  html += '<div class="card"><h2>Servicios por día</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Facilitadores activos</th></tr>';
+  html += '<div class="card"><h2>Servicios por día</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Servicios/KAM</th><th class="num">Facilitadores activos</th></tr>';
   (r.por_dia || []).forEach(d => {
-    html += `<tr><td>${d.dia}</td><td class="num">${d.total}</td><td class="num">${d.facilitadores_activos}</td></tr>`;
+    html += `<tr><td>${d.dia}</td><td class="num">${d.total}</td><td class="num">${Math.round((d.total/3)*10)/10}</td><td class="num">${d.facilitadores_activos}</td></tr>`;
   });
   html += '</table></div>';
 
