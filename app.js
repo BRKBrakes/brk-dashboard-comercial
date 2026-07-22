@@ -1631,6 +1631,43 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador) {
   });
   html += '</table></div>';
 
+  // Tiempo de respuesta (solo disponible desde julio, cuando Logística empezó a registrar hora de finalización)
+  const tr = r.tiempo_respuesta || {};
+  if (tr.con_dato) {
+    html += `<div class="kpis">
+      <div class="kpi"><div class="label">Tiempo de Respuesta (mediana)</div><div class="value">${tr.mediana_minutos} min</div></div>
+      <div class="kpi"><div class="label">Tiempo de Respuesta (promedio)</div><div class="value">${tr.promedio_minutos} min</div></div>
+      <div class="kpi"><div class="label">Con dato de finalización</div><div class="value" style="font-size:20px;">${tr.con_dato} servicios</div></div>
+    </div>`;
+
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">';
+    html += '<div class="card"><h2>Tiempo de respuesta por Tipo</h2><table><tr><th>Tipo</th><th class="num">Servicios</th><th class="num">Promedio (min)</th></tr>';
+    (r.tiempo_respuesta_por_tipo || []).forEach(t => {
+      html += `<tr><td>${esc(t.tipo_servicio)}</td><td class="num">${t.n}</td><td class="num">${t.promedio_minutos}</td></tr>`;
+    });
+    html += '</table></div>';
+    html += '<div class="card"><h2>Tiempo de respuesta por Facilitador</h2><table><tr><th>Facilitador</th><th class="num">Servicios</th><th class="num">Promedio (min)</th></tr>';
+    (r.tiempo_respuesta_por_facilitador || []).forEach(t => {
+      html += `<tr><td>${esc(titleCase(t.facilitador))}</td><td class="num">${t.n}</td><td class="num">${t.promedio_minutos}</td></tr>`;
+    });
+    html += '</table></div></div>';
+  } else {
+    html += '<div class="card"><p style="color:var(--text-dim);font-size:12px;">Tiempo de respuesta: aún no hay datos con fecha de finalización en el periodo seleccionado (disponible desde julio 2026 en adelante).</p></div>';
+  }
+
+  // Patrón por día de la semana y hora del día — para programar turnos
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">';
+  html += '<div class="card"><h2>Servicios por Día de la Semana</h2><table><tr><th>Día</th><th class="num">Servicios</th></tr>';
+  (r.por_dia_semana || []).forEach(d => {
+    html += `<tr><td>${d.dia_semana}</td><td class="num">${d.total}</td></tr>`;
+  });
+  html += '</table></div>';
+  html += '<div class="card"><h2>Servicios por Hora del Día</h2><table><tr><th>Hora</th><th class="num">Servicios</th></tr>';
+  (r.por_hora || []).forEach(h => {
+    html += `<tr><td>${String(h.hora).padStart(2,'0')}:00</td><td class="num">${h.total}</td></tr>`;
+  });
+  html += '</table></div></div>';
+
   // Servicios por día (tendencia) — informativo, sin clic
   html += '<div class="card"><h2>Servicios por día</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Servicios/KAM</th><th class="num">Facilitadores activos</th></tr>';
   (r.por_dia || []).forEach(d => {
