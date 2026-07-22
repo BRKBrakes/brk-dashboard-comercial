@@ -156,6 +156,7 @@ async function loadTab(tab) {
   if (tab === 'remisiones') return loadRemisiones();
   if (tab === 'tablerocontrol') return loadTableroControl();
   if (tab === 'cartera') return loadCartera();
+  if (tab === 'facilitadores') return loadFacilitadores();
   if (tab === 'cargar') return loadCargarVentas();
 }
 
@@ -1051,12 +1052,24 @@ function formatearFechaExcel(valor) {
   return null;
 }
 
-function mapearFilas(filas, mapeo, camposFecha) {
+function formatearFechaHoraExcel(valor) {
+  if (valor instanceof Date) {
+    const y = valor.getFullYear(), m = String(valor.getMonth()+1).padStart(2,'0'), d = String(valor.getDate()).padStart(2,'0');
+    const hh = String(valor.getHours()).padStart(2,'0'), mm = String(valor.getMinutes()).padStart(2,'0'), ss = String(valor.getSeconds()).padStart(2,'0');
+    return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+  }
+  if (typeof valor === 'string' && valor.trim()) return valor;
+  return null;
+}
+
+function mapearFilas(filas, mapeo, camposFecha, camposFechaHora) {
+  camposFechaHora = camposFechaHora || [];
   return filas.map(f => {
     const out = {};
     for (const [colExcel, colDB] of Object.entries(mapeo)) {
       let val = f[colExcel];
-      if (camposFecha.includes(colDB)) val = formatearFechaExcel(val);
+      if (camposFechaHora.includes(colDB)) val = formatearFechaHoraExcel(val);
+      else if (camposFecha.includes(colDB)) val = formatearFechaExcel(val);
       out[colDB] = (val === undefined) ? null : val;
     }
     return out;
@@ -1064,6 +1077,16 @@ function mapearFilas(filas, mapeo, camposFecha) {
 }
 
 // ---- Configuración de las 3 fuentes ----
+const MAPEO_FACILITADORES_V1 = { // formato ene-jun
+  'Consecutivo': 'consecutivo', 'CLIENTE ': 'cliente', 'TIPO ': 'tipo_servicio',
+  'UEN': 'uen', 'FACILITADOR': 'facilitador', 'FECHA': 'fecha_creacion'
+};
+const MAPEO_FACILITADORES_V2 = { // formato julio en adelante
+  'Consecutivo': 'consecutivo', 'Estado': 'estado', 'Nombre del cliente': 'cliente',
+  'Tipo de servicio': 'tipo_servicio', 'colaborador': 'facilitador', 'Creación': 'fecha_creacion',
+  'Destino 1 - dirección': 'destino_direccion', 'Destino 1 - fecha finalización': 'fecha_finalizacion'
+};
+
 const FUENTES_DATA = {
   facturacion: {
     titulo: 'Facturación', prefijoArchivo: '1 facturacion', mapeo: MAPEO_COLUMNAS_SIESA,
@@ -1077,6 +1100,11 @@ const FUENTES_DATA = {
     titulo: 'Cartera', prefijoArchivo: '3 cartera', mapeo: MAPEO_CARTERA,
     camposFecha: ['fecha_docto_cruce', 'fecha_vcto_siesa'], rpc: 'dash_cartera_cargar_lote',
     filtro: f => f.total_cop !== null
+  },
+  facilitadores: {
+    titulo: 'Facilitadores', prefijoArchivo: 'entregas', mapeos: [MAPEO_FACILITADORES_V1, MAPEO_FACILITADORES_V2],
+    camposFecha: [], camposFechaHora: ['fecha_creacion', 'fecha_finalizacion'], rpc: 'dash_facilitadores_cargar_lote',
+    filtro: f => f.consecutivo && f.fecha_creacion, sinPrimerLote: true
   }
 };
 
@@ -1512,6 +1540,100 @@ function abrirEditorUsuario(userId, usuarios) {
   });
 }
 
+let FACILITADORES_MES = null;
+let FACILITADORES_CLIENTE = null;
+let FACILITADORES_TIPO = null;
+let FACILITADORES_FILTROS_HTML = '';
+
+async function loadFacilitadores(mes, cliente, tipo) {
+  const el = document.getElementById('view-facilitadores');
+  el.innerHTML = '<div class="loading">Cargando facilitadores...</div>';
+  FACILITADORES_MES = mes !== undefined ? mes : FACILITADORES_MES;
+  FACILITADORES_CLIENTE = cliente !== undefined ? cliente : FACILITADORES_CLIENTE;
+  FACILITADORES_TIPO = tipo !== undefined ? tipo : FACILITADORES_TIPO;
+
+  const r = await rpc('dash_facilitadores_resumen', {
+    p_token: TOKEN,
+    p_mes: FACILITADORES_MES ? parseInt(FACILITADORES_MES) : null,
+    p_cliente: FACILITADORES_CLIENTE || null,
+    p_tipo: FACILITADORES_TIPO || null
+  });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+
+  if (!FACILITADORES_FILTROS_HTML) {
+    const f = r.filtros || {};
+    const optSimple = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    FACILITADORES_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
+      <select id="fzMes" class="estado"><option value="">Todos los meses</option>
+        <option value="1">Ene</option><option value="2">Feb</option><option value="3">Mar</option>
+        <option value="4">Abr</option><option value="5">May</option><option value="6">Jun</option><option value="7">Jul</option>
+      </select>
+      <select id="fzCliente" class="estado"><option value="">Todos los clientes</option>${optSimple(f.clientes)}</select>
+      <select id="fzTipo" class="estado"><option value="">Todos los tipos</option>${optSimple(f.tipos)}</select>
+      <button id="fzFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
+    </div>`;
+  }
+
+  let html = FACILITADORES_FILTROS_HTML;
+
+  html += `<div class="kpis">
+    <div class="kpi"><div class="label">Total Servicios</div><div class="value">${(r.total_servicios||0).toLocaleString('es-CO')}</div></div>
+    <div class="kpi"><div class="label">Días con Servicio</div><div class="value">${r.dias_con_servicio||0}</div></div>
+    <div class="kpi"><div class="label">Promedio por Día</div><div class="value">${r.promedio_por_dia||0}</div></div>
+  </div>`;
+
+  // Por KAM (3 comerciales de Medellín)
+  html += '<div class="card"><h2>Servicios por Comercial (Medellín)</h2><table><tr><th>KAM</th><th class="num">Servicios</th></tr>';
+  (r.por_kam || []).forEach(k => {
+    const esKam = !k.kam.includes('Sin identificar');
+    html += `<tr><td>${esKam ? titleCase(k.kam) : esc(k.kam)}</td><td class="num">${k.total}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  // Por facilitador (los "4" — capacidad real)
+  html += '<div class="card"><h2>Servicios por Facilitador — ¿nos sobra o nos falta gente?</h2><table><tr><th>Facilitador</th><th class="num">Total</th><th class="num">Días activos</th><th class="num">Promedio/día</th><th class="num">Máximo en 1 día</th></tr>';
+  (r.por_facilitador || []).forEach(fac => {
+    html += `<tr><td>${esc(titleCase(fac.facilitador))}</td><td class="num">${fac.total}</td><td class="num">${fac.dias_activos}</td><td class="num">${fac.promedio_dia}</td><td class="num">${fac.maximo_en_un_dia}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  // Por tipo de servicio
+  html += '<div class="card"><h2>Servicios por Tipo</h2><table><tr><th>Tipo</th><th class="num">Servicios</th></tr>';
+  (r.por_tipo || []).forEach(t => {
+    html += `<tr><td>${esc(t.tipo_servicio)}</td><td class="num">${t.n}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  // Clientes que más piden en un solo día
+  html += '<div class="card"><h2>Clientes con más servicios en un mismo día (top 15)</h2><table><tr><th>Cliente</th><th class="num">Máximo en 1 día</th><th class="num">Total en el periodo</th></tr>';
+  (r.top_clientes_dia || []).forEach(c => {
+    html += `<tr><td>${esc(c.cliente)}</td><td class="num">${c.max_dia}</td><td class="num">${c.total_periodo}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  // Servicios por día (tendencia)
+  html += '<div class="card"><h2>Servicios por día</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Facilitadores activos</th></tr>';
+  (r.por_dia || []).forEach(d => {
+    html += `<tr><td>${d.dia}</td><td class="num">${d.total}</td><td class="num">${d.facilitadores_activos}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  el.innerHTML = html;
+  autoFitKpis();
+  habilitarOrdenTablas(el);
+
+  document.getElementById('fzMes').value = FACILITADORES_MES || '';
+  document.getElementById('fzCliente').value = FACILITADORES_CLIENTE || '';
+  document.getElementById('fzTipo').value = FACILITADORES_TIPO || '';
+  document.getElementById('fzFiltrar').addEventListener('click', () => {
+    loadFacilitadores(
+      document.getElementById('fzMes').value,
+      document.getElementById('fzCliente').value,
+      document.getElementById('fzTipo').value
+    );
+  });
+}
+
 function loadCargarVentas() {
   const el = document.getElementById('view-cargar');
   el.innerHTML = `
@@ -1527,6 +1649,7 @@ function loadCargarVentas() {
         <button class="btn-fuente" data-fuente="facturacion" style="width:auto;padding:14px 24px;">📄 Facturación</button>
         <button class="btn-fuente" data-fuente="remisiones" style="width:auto;padding:14px 24px;">🚚 Remisiones</button>
         <button class="btn-fuente" data-fuente="cartera" style="width:auto;padding:14px 24px;">💰 Cartera</button>
+        <button class="btn-fuente" data-fuente="facilitadores" style="width:auto;padding:14px 24px;">🏍️ Facilitadores</button>
         <button id="btnCambiarCarpeta" style="width:auto;padding:14px 24px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">📁 Cambiar carpeta</button>
       </div>
       <div id="cargaEstado" style="margin-top:16px;font-size:13px;color:var(--text-dim);"></div>
@@ -1587,23 +1710,32 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     if (!filas.length) { estado.textContent = 'El archivo no tiene datos.'; progreso.style.display = 'none'; return; }
 
     const columnasArchivo = Object.keys(filas[0]);
-    const columnasEsperadas = Object.keys(fuente.mapeo);
-    const faltantes = columnasEsperadas.filter(c => !columnasArchivo.includes(c));
-    if (faltantes.length > 3) {
-      estado.innerHTML = `<span style="color:#ff6b6b;">El archivo no tiene el formato esperado de ${fuente.titulo}. Faltan columnas: ${faltantes.join(', ')}</span>`;
+
+    // Elegir el mapeo que mejor coincida (soporta fuentes con más de un formato posible, ej. Facilitadores)
+    const candidatos = fuente.mapeos || [fuente.mapeo];
+    let mejorMapeo = candidatos[0];
+    let mejorFaltantes = Object.keys(candidatos[0]).filter(c => !columnasArchivo.includes(c));
+    candidatos.slice(1).forEach(m => {
+      const f = Object.keys(m).filter(c => !columnasArchivo.includes(c));
+      if (f.length < mejorFaltantes.length) { mejorMapeo = m; mejorFaltantes = f; }
+    });
+
+    if (mejorFaltantes.length > 3) {
+      estado.innerHTML = `<span style="color:#ff6b6b;">El archivo no tiene el formato esperado de ${fuente.titulo}. Faltan columnas: ${mejorFaltantes.join(', ')}</span>`;
       progreso.style.display = 'none';
       return;
     }
 
-    const filasMapeadas = mapearFilas(filas, fuente.mapeo, fuente.camposFecha).filter(fuente.filtro);
+    const filasMapeadas = mapearFilas(filas, mejorMapeo, fuente.camposFecha, fuente.camposFechaHora).filter(fuente.filtro);
     estado.textContent = `${filasMapeadas.length} filas válidas de ${fuente.titulo}. Subiendo...`;
 
     const TAM_LOTE = 500;
     let subidos = 0;
     for (let i = 0; i < filasMapeadas.length; i += TAM_LOTE) {
       const lote = filasMapeadas.slice(i, i + TAM_LOTE);
-      const esPrimero = i === 0;
-      const r = await rpc(fuente.rpc, { p_token: TOKEN, p_lote: lote, p_primer_lote: esPrimero });
+      const parametros = { p_token: TOKEN, p_lote: lote };
+      if (!fuente.sinPrimerLote) parametros.p_primer_lote = (i === 0);
+      const r = await rpc(fuente.rpc, parametros);
       if (!r.ok) {
         estado.innerHTML = `<span style="color:#ff6b6b;">Error subiendo el lote: ${r.error || 'desconocido'}</span>`;
         progreso.style.display = 'none';
@@ -1616,7 +1748,7 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     }
 
     // Si el archivo llegó vacío de filas válidas, igual truncamos para reflejar la realidad (remisiones/cartera fluctuantes)
-    if (filasMapeadas.length === 0) {
+    if (filasMapeadas.length === 0 && !fuente.sinPrimerLote) {
       await rpc(fuente.rpc, { p_token: TOKEN, p_lote: [], p_primer_lote: true });
     }
 
