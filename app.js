@@ -481,9 +481,10 @@ function renderTipoAGraficas(data) {
   const dataSucursales = TIPOA_CLIENTE_SEL ? data.filter(c => c.cliente === TIPOA_CLIENTE_SEL) : data;
   const sucursalesOrdenadas = dataSucursales.slice().sort((a,b) => (b.total||0) - (a.total||0));
 
-  const html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">
+  const html = renderBarraFiltros([{ id: 'cliente', label: 'Cliente', valor: TIPOA_CLIENTE_SEL }]) +
+  `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">
     <div class="card"><h2>Razón Social vs Total 2026 (clic para filtrar)</h2>${barrasHorizontales(clientesOrdenados, 'cliente', 'total', '#F1FE34', 'ta-bar-cliente', TIPOA_CLIENTE_SEL)}</div>
-    <div class="card"><h2>Sucursal vs Total 2026 ${TIPOA_CLIENTE_SEL ? '— ' + TIPOA_CLIENTE_SEL + ' <span id="taLimpiarCliente" style="cursor:pointer;color:var(--neon);font-size:11px;">(ver todos)</span>' : ''}</h2>${barrasHorizontales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43', '')}</div>
+    <div class="card"><h2>Sucursal vs Total 2026 ${TIPOA_CLIENTE_SEL ? '— ' + esc(TIPOA_CLIENTE_SEL) : ''}</h2>${barrasHorizontales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43', '')}</div>
   </div>
   <div class="card" id="tipoa-tabla-comparativa"><div class="loading">Cargando comparativo...</div></div>
   <div class="card" id="tipoa-tabla-comparativa-cliente"><div class="loading">Cargando comparativo...</div></div>`;
@@ -496,8 +497,7 @@ function renderTipoAGraficas(data) {
       renderTipoAGraficas(data);
     });
   });
-  const limpiar = document.getElementById('taLimpiarCliente');
-  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); TIPOA_CLIENTE_SEL = null; renderTipoAGraficas(data); });
+  activarBarraFiltros(el, { cliente: () => { TIPOA_CLIENTE_SEL = null; renderTipoAGraficas(data); } });
 }
 
 async function loadTipoA(kam, cliente, sucursal, mes) {
@@ -562,6 +562,11 @@ function renderSegmentacionTabla() {
     <select id="segKam" class="estado"><option value="">Todos</option>${kams.map(k => `<option value="${k}" ${k===SEGMENTACION_KAM?'selected':''}>${titleCase(k)}</option>`).join('')}</select>
   </div>`;
 
+  html += renderBarraFiltros([
+    { id: 'kam', label: 'KAM', valor: SEGMENTACION_KAM, valorMostrar: SEGMENTACION_KAM ? titleCase(SEGMENTACION_KAM) : null },
+    { id: 'segmento', label: 'Segmento', valor: SEGMENTACION_FILTRO }
+  ]);
+
   const totalGeneral = baseData.reduce((s,c) => s + (c.total||0), 0);
 
   html += '<div class="kpis">';
@@ -575,7 +580,7 @@ function renderSegmentacionTabla() {
   html += '</div>';
 
   const filtrados = SEGMENTACION_FILTRO ? baseData.filter(c => c.segmento === SEGMENTACION_FILTRO) : baseData;
-  html += `<div class="card"><h2>Detalle por sucursal ${SEGMENTACION_FILTRO ? '— filtrado: ' + SEGMENTACION_FILTRO + ' <span id="segLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : ''}</h2>
+  html += `<div class="card"><h2>Detalle por sucursal</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">% del total</th><th class="num">Días sin comprar</th></tr>`;
   filtrados.forEach(c => {
     const pctFila = totalGeneral ? Math.round(((c.total||0)/totalGeneral)*1000)/10 : 0;
@@ -597,8 +602,10 @@ function renderSegmentacionTabla() {
       renderSegmentacionTabla();
     });
   });
-  const limpiar = document.getElementById('segLimpiar');
-  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); SEGMENTACION_FILTRO = null; renderSegmentacionTabla(); });
+  activarBarraFiltros(el, {
+    kam: () => { SEGMENTACION_KAM = null; renderSegmentacionTabla(); },
+    segmento: () => { SEGMENTACION_FILTRO = null; renderSegmentacionTabla(); }
+  }, () => { SEGMENTACION_KAM = null; SEGMENTACION_FILTRO = null; renderSegmentacionTabla(); });
 }
 
 async function loadSegmentacion() {
@@ -646,7 +653,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   }
 
   const g = r.general || {};
-  let html = TICKET_FILTROS_HTML + `<div class="kpis">
+  let html = TICKET_FILTROS_HTML + renderBarraFiltros([{ id: 'familia', label: 'Familia', valor: TICKET_FAMILIA_SEL }]) + `<div class="kpis">
     <div class="kpi"><div class="label">Venta Total</div><div class="value">${money(g.venta_total)}</div></div>
     <div class="kpi"><div class="label">Ticket Promedio</div><div class="value">${money(g.ticket_promedio)}</div></div>
     <div class="kpi"><div class="label">Unidades Vendidas</div><div class="value">${Math.round(g.unidades||0).toLocaleString('es-CO')}</div></div>
@@ -660,7 +667,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   html += '</table></div>';
 
   if (TICKET_FAMILIA_SEL && prod && prod.ok) {
-    html += `<div class="card"><h2>Descripciones — ${TICKET_FAMILIA_SEL} <span id="tkLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todas las familias)</span></h2>
+    html += `<div class="card"><h2>Descripciones — ${esc(TICKET_FAMILIA_SEL)}</h2>
       <table><tr><th>Descripción</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>`;
     (prod.data || []).forEach(p => {
       html += `<tr><td>${esc(p.descripcion||'')}</td><td class="num money">${money(p.venta)}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(p.ticket_promedio)}</td></tr>`;
@@ -686,8 +693,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
       loadTicket(kam, cliente, sucursal, mes);
     });
   });
-  const limpiarFam = document.getElementById('tkLimpiarFam');
-  if (limpiarFam) limpiarFam.addEventListener('click', (e) => { e.stopPropagation(); TICKET_FAMILIA_SEL = null; loadTicket(kam, cliente, sucursal, mes); });
+  activarBarraFiltros(el, { familia: () => { TICKET_FAMILIA_SEL = null; loadTicket(kam, cliente, sucursal, mes); } });
 }
 
 const COLORES_FAMILIA = ['#F1FE34','#596B63','#9A979F','#414930','#ff9f43','#4ade80','#ff6b6b','#8b5cf6','#06b6d4'];
@@ -733,7 +739,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}" class="fam-slice" data-familia="${esc(d.familia)}" style="cursor:pointer;"/>`;
   });
 
-  let html = PORTAFOLIO_FILTROS_HTML + '<div class="card"><h2>Participación de portafolio por familia (top 12, clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
+  let html = PORTAFOLIO_FILTROS_HTML + renderBarraFiltros([{ id: 'familia', label: 'Familia', valor: PORTAFOLIO_FAMILIA_SEL }]) + '<div class="card"><h2>Participación de portafolio por familia (top 12, clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
   html += `<svg width="200" height="200" viewBox="0 0 200 200">${paths}</svg>`;
   html += '<div style="flex:1;min-width:220px;">';
   data.forEach((d, i) => {
@@ -765,7 +771,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     const productos = prod.data || [];
     const porUnidades = productos.slice().sort((a,b) => b.unidades - a.unidades);
     const porVenta = productos.slice().sort((a,b) => b.venta - a.venta);
-    html += `<div class="card"><h2>Top 25 referencias — ${PORTAFOLIO_FAMILIA_SEL} <span id="pfLimpiarFam" style="cursor:pointer;color:var(--neon);font-size:12px;">(ver todos)</span></h2>
+    html += `<div class="card"><h2>Top 25 referencias — ${esc(PORTAFOLIO_FAMILIA_SEL)}</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Venta</th></tr>
           ${porVenta.map(p => `<tr><td>${esc(p.referencia)}</td><td>${esc(p.descripcion||'')}</td><td class="num money">${money(p.venta)}</td></tr>`).join('')}
@@ -795,8 +801,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   el.querySelectorAll('.fam-slice, .fam-leyenda').forEach(node => {
     node.addEventListener('click', () => seleccionarFamilia(node.dataset.familia));
   });
-  const limpiarFam = document.getElementById('pfLimpiarFam');
-  if (limpiarFam) limpiarFam.addEventListener('click', () => seleccionarFamilia(PORTAFOLIO_FAMILIA_SEL));
+  activarBarraFiltros(el, { familia: () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio(kam, cliente, sucursal, mes); } });
 }
 
 let RECUP_KAM_HTML = '';
@@ -822,7 +827,7 @@ async function loadPerdidos(kam) {
   const cayendo = (r.cayendo || []).slice().sort((a,b) => b.caida_total - a.caida_total);
   const sinCompra = r.sin_compra_60d || [];
 
-  let html = RECUP_KAM_HTML;
+  let html = RECUP_KAM_HTML + renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: kam, valorMostrar: kam ? titleCase(kam) : null }]);
   html += `<div class="card"><h2>Cayendo vs. promedio de los 2 meses anteriores (mismo tramo de días) — ${cayendo.length} sucursales</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">${mesRelativo(2)}</th><th class="num">${mesRelativo(1)}</th><th class="num">Promedio 2m</th><th class="num">Mes actual</th><th class="num">Caída</th><th>Detalle por categoría</th></tr>`;
   cayendo.forEach(c => {
@@ -849,6 +854,7 @@ async function loadPerdidos(kam) {
   document.getElementById('recKam').value = kam || '';
   ocultarFiltroKamSiColaborador(['recKam']);
   document.getElementById('recKam').addEventListener('change', (e) => loadPerdidos(e.target.value));
+  activarBarraFiltros(el, { kam: () => loadPerdidos('') });
 }
 
 async function loadPlanes() {
@@ -1136,7 +1142,8 @@ function renderRemisiones() {
     grupos[f.vendedor][f.sucursal_factura][f.mes] = (grupos[f.vendedor][f.sucursal_factura][f.mes]||0) + f.valor;
   });
 
-  let html = `<div class="kpis">
+  let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: REMISIONES_KAM_SEL, valorMostrar: REMISIONES_KAM_SEL ? titleCase(REMISIONES_KAM_SEL) : null }]) +
+  `<div class="kpis">
     <div class="kpi"><div class="label">Valor Remisiones</div><div class="value">${money(r.valor_total)}</div></div>
     <div class="kpi"><div class="label"># Remisiones</div><div class="value">${r.num_remisiones||0}</div></div>
   </div>`;
@@ -1144,7 +1151,7 @@ function renderRemisiones() {
   const totalesPorKam = {};
   filas.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor]||0) + f.valor; });
   const kamOrdenados = Object.keys(totalesPorKam).sort((a,b) => totalesPorKam[b]-totalesPorKam[a]);
-  html += `<div class="card"><h2>Totales por KAM ${REMISIONES_KAM_SEL ? '<span id="remLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : '(clic para filtrar)'}</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>`;
+  html += `<div class="card"><h2>Totales por KAM (clic para filtrar)</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>`;
   kamOrdenados.forEach(k => {
     const activo = REMISIONES_KAM_SEL === k;
     html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
@@ -1171,8 +1178,7 @@ function renderRemisiones() {
       renderRemisiones();
     });
   });
-  const limpiar = document.getElementById('remLimpiar');
-  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); REMISIONES_KAM_SEL = null; renderRemisiones(); });
+  activarBarraFiltros(el, { kam: () => { REMISIONES_KAM_SEL = null; renderRemisiones(); } });
 }
 
 function colorKpiCartera(pct) {
@@ -1207,13 +1213,14 @@ function renderCartera() {
   const g = r.general || {};
   const colorGeneral = colorKpiCartera(g.kpi_pct);
 
-  let html = `<div class="kpis">
+  let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: CARTERA_KAM_SEL, valorMostrar: CARTERA_KAM_SEL ? titleCase(CARTERA_KAM_SEL) : null }]) +
+  `<div class="kpis">
     <div class="kpi"><div class="label">Cartera Total</div><div class="value">${money(g.total)}</div></div>
     <div class="kpi"><div class="label">Cartera &gt; 60 días</div><div class="value">${money(g.vencido_60)}</div></div>
     <div class="kpi"><div class="label">KPI (meta &lt; 2.5%)</div><div class="value" style="color:${colorGeneral};">${g.kpi_pct}%</div></div>
   </div>`;
 
-  html += `<div class="card"><h2>KPI por KAM (meta &lt; 2.5%) ${CARTERA_KAM_SEL ? '<span id="carLimpiar" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : '(clic para filtrar)'}</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>`;
+  html += `<div class="card"><h2>KPI por KAM (meta &lt; 2.5%) (clic para filtrar)</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>`;
   (r.por_kam || []).forEach(k => {
     const color = colorKpiCartera(k.kpi_pct);
     const activo = CARTERA_KAM_SEL === k.vendedor;
@@ -1240,8 +1247,7 @@ function renderCartera() {
       renderCartera();
     });
   });
-  const limpiar = document.getElementById('carLimpiar');
-  if (limpiar) limpiar.addEventListener('click', (e) => { e.stopPropagation(); CARTERA_KAM_SEL = null; renderCartera(); });
+  activarBarraFiltros(el, { kam: () => { CARTERA_KAM_SEL = null; renderCartera(); } });
 
   el.querySelectorAll('.fila-cartera').forEach(fila => {
     fila.addEventListener('click', () => mostrarFacturasCartera(fila.dataset.vendedor, fila.dataset.sucursal));
@@ -1592,18 +1598,15 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
 
   let html = FACILITADORES_FILTROS_HTML;
 
-  // Aviso de filtros activos por clic
+  // Barra de filtros activos (chips con "x")
   const NOMBRES_DIA_SEMANA = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo'};
-  if (FACILITADORES_KAM || FACILITADORES_FACILITADOR || FACILITADORES_DIA_SEMANA || FACILITADORES_HORA !== null || FACILITADORES_FECHA) {
-    html += `<div class="card" style="padding:10px 20px;margin-bottom:16px;border-color:var(--neon);font-size:12px;">
-      Filtrando por clic:
-      ${FACILITADORES_KAM ? '<b style="color:var(--neon);">KAM = ' + esc(titleCase(FACILITADORES_KAM)) + '</b> ' : ''}
-      ${FACILITADORES_FACILITADOR ? '<b style="color:var(--neon);">Facilitador = ' + esc(titleCase(FACILITADORES_FACILITADOR)) + '</b> ' : ''}
-      ${FACILITADORES_DIA_SEMANA ? '<b style="color:var(--neon);">Día = ' + NOMBRES_DIA_SEMANA[FACILITADORES_DIA_SEMANA] + '</b> ' : ''}
-      ${(FACILITADORES_HORA !== null && FACILITADORES_HORA !== undefined) ? '<b style="color:var(--neon);">Hora = ' + String(FACILITADORES_HORA).padStart(2,'0') + ':00</b> ' : ''}
-      ${FACILITADORES_FECHA ? '<b style="color:var(--neon);">Fecha = ' + FACILITADORES_FECHA + '</b>' : ''}
-    </div>`;
-  }
+  html += renderBarraFiltros([
+    { id: 'kam', label: 'KAM', valor: FACILITADORES_KAM, valorMostrar: FACILITADORES_KAM ? titleCase(FACILITADORES_KAM) : null },
+    { id: 'facilitador', label: 'Facilitador', valor: FACILITADORES_FACILITADOR, valorMostrar: FACILITADORES_FACILITADOR ? titleCase(FACILITADORES_FACILITADOR) : null },
+    { id: 'diasemana', label: 'Día', valor: FACILITADORES_DIA_SEMANA, valorMostrar: NOMBRES_DIA_SEMANA[FACILITADORES_DIA_SEMANA] },
+    { id: 'hora', label: 'Hora', valor: (FACILITADORES_HORA !== null && FACILITADORES_HORA !== undefined) ? FACILITADORES_HORA : null, valorMostrar: (FACILITADORES_HORA !== null && FACILITADORES_HORA !== undefined) ? String(FACILITADORES_HORA).padStart(2,'0') + ':00' : null },
+    { id: 'fecha', label: 'Fecha', valor: FACILITADORES_FECHA }
+  ]);
 
   html += `<div class="kpis">
     <div class="kpi"><div class="label">Total Servicios</div><div class="value">${(r.total_servicios||0).toLocaleString('es-CO')}</div></div>
@@ -1774,6 +1777,14 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   if (limpiarHora) limpiarHora.addEventListener('click', (e) => { e.stopPropagation(); loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, null, undefined); });
   const limpiarFecha = document.getElementById('fzLimpiarFecha');
   if (limpiarFecha) limpiarFecha.addEventListener('click', (e) => { e.stopPropagation(); loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, undefined, null); });
+
+  activarBarraFiltros(el, {
+    kam: () => loadFacilitadores(undefined, undefined, undefined, null, undefined),
+    facilitador: () => loadFacilitadores(undefined, undefined, undefined, undefined, null),
+    diasemana: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, null, undefined, undefined),
+    hora: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, null, undefined),
+    fecha: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, undefined, null)
+  }, () => loadFacilitadores(undefined, undefined, undefined, null, null, null, null, null));
 }
 
 function loadCargarVentas() {
@@ -1910,6 +1921,34 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
 function esc(s) {
   if (s === null || s === undefined) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// ---- Barra de filtros activos (chips con "x" removible) — reutilizable en toda la app ----
+// chips: [{ id, label, valor }]
+function renderBarraFiltros(chips) {
+  const activos = (chips || []).filter(c => c.valor !== null && c.valor !== undefined && c.valor !== '');
+  if (!activos.length) return '';
+  return `<div class="card barra-filtros-activos" style="padding:10px 20px;margin-bottom:16px;border-color:var(--neon);display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <span style="font-size:11px;color:var(--text-dim);">Filtros activos:</span>
+    ${activos.map(c => `<span class="chip-filtro" data-clear-id="${esc(c.id)}" style="background:#2a2e24;border:1px solid var(--neon);border-radius:14px;padding:3px 6px 3px 12px;font-size:12px;display:inline-flex;align-items:center;gap:8px;">
+      ${esc(c.label)}: <b style="color:var(--neon);">${esc(c.valorMostrar || c.valor)}</b>
+      <span class="btn-quitar-chip" data-clear-id="${esc(c.id)}" style="cursor:pointer;color:#ff6b6b;font-weight:700;padding:0 4px;">✕</span>
+    </span>`).join('')}
+    ${activos.length > 1 ? `<span class="chip-filtro-limpiar-todo" style="cursor:pointer;color:var(--text-dim);font-size:11px;text-decoration:underline;margin-left:6px;">Quitar todos</span>` : ''}
+  </div>`;
+}
+
+// handlers: { [id]: fn } — se llama al hacer clic en la "x" de ese chip. limpiarTodoFn: función opcional para "Quitar todos".
+function activarBarraFiltros(el, handlers, limpiarTodoFn) {
+  el.querySelectorAll('.btn-quitar-chip').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.clearId;
+      if (handlers && handlers[id]) handlers[id]();
+    });
+  });
+  const btnTodo = el.querySelector('.chip-filtro-limpiar-todo');
+  if (btnTodo && limpiarTodoFn) btnTodo.addEventListener('click', (e) => { e.stopPropagation(); limpiarTodoFn(); });
 }
 
 function titleCase(s) {
