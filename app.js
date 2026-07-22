@@ -361,13 +361,15 @@ async function loadGapDiscos() {
   el.innerHTML = '<div class="loading">Cargando gap de discos...</div>';
   const r = await rpc('dash_gap_discos', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
+  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, valorMostrar: OP_KAM ? titleCase(OP_KAM) : null }]);
+  html += '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
+  activarBarraFiltros(el, { opkam: () => { OP_KAM = ''; document.getElementById('opKam').value=''; loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
 }
 
 async function loadGapLiquidos() {
@@ -376,13 +378,15 @@ async function loadGapLiquidos() {
   el.innerHTML = '<div class="loading">Cargando gap de líquidos...</div>';
   const r = await rpc('dash_gap_liquidos', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal) — meta: 1 juego pastas : 0.5 unid. líquido</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Líquidos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
+  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, valorMostrar: OP_KAM ? titleCase(OP_KAM) : null }]);
+  html += '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal) — meta: 1 juego pastas : 0.5 unid. líquido</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Líquidos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
+  activarBarraFiltros(el, { opkam: () => { OP_KAM = ''; document.getElementById('opKam').value=''; loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
 }
 
 async function loadGapCilindros() {
@@ -391,13 +395,15 @@ async function loadGapCilindros() {
   el.innerHTML = '<div class="loading">Cargando gap de cilindros...</div>';
   const r = await rpc('dash_gap_cilindros', { p_token: TOKEN, p_kam: OP_KAM || null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Clientes con gap de cilindros (últimos 180 días, por sucursal) — meta: 1 juego zapatas : 0.3 unid. cilindros</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Zapatas (unid.)</th><th class="num">Cilindros (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
+  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, valorMostrar: OP_KAM ? titleCase(OP_KAM) : null }]);
+  html += '<div class="card"><h2>Clientes con gap de cilindros (últimos 180 días, por sucursal) — meta: 1 juego zapatas : 0.3 unid. cilindros</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Zapatas (unid.)</th><th class="num">Cilindros (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
+  activarBarraFiltros(el, { opkam: () => { OP_KAM = ''; document.getElementById('opKam').value=''; loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
 }
 
 let TIPOA_FILTROS_HTML = '';
@@ -858,18 +864,42 @@ async function loadPerdidos(kam) {
   activarBarraFiltros(el, { kam: () => loadPerdidos('') });
 }
 
+let PLANES_TIPO_SEL = null;
+let PLANES_KAM_SEL = null;
+let PLANES_DATA = null;
+
 async function loadPlanes() {
   const el = document.getElementById('view-planes');
   el.innerHTML = '<div class="loading">Cargando planes de acción...</div>';
   const r = await rpc('dash_planes_listar', { p_token: TOKEN, p_tipo_plan: null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = '<div class="card"><h2>Planes de acción</h2><p style="font-size:12px;color:var(--text-dim);margin:-8px 0 16px;">"Potencial/mes" = venta mensual estimada que se ganaría si el cliente llega al comportamiento esperado (ratio de cross-sell o recompra de su categoría). Es una proyección, no una venta garantizada.</p>';
-  if (!r.data || r.data.length === 0) {
-    html += '<p style="color:var(--text-dim);font-size:13px;">Aún no hay planes cargados. Se poblarán con las listas de Gap Discos y Recuperación priorizadas.</p>';
+  PLANES_DATA = r.data || [];
+  renderPlanes();
+}
+
+function renderPlanes() {
+  const el = document.getElementById('view-planes');
+  const datos = PLANES_DATA.filter(p =>
+    (!PLANES_TIPO_SEL || p.tipo_plan === PLANES_TIPO_SEL) &&
+    (!PLANES_KAM_SEL || p.vendedor === PLANES_KAM_SEL)
+  );
+
+  let html = renderBarraFiltros([
+    { id: 'tipo', label: 'Tipo', valor: PLANES_TIPO_SEL },
+    { id: 'kam', label: 'Vendedor', valor: PLANES_KAM_SEL, valorMostrar: PLANES_KAM_SEL ? titleCase(PLANES_KAM_SEL) : null }
+  ]);
+  html += '<div class="card"><h2>Planes de acción</h2><p style="font-size:12px;color:var(--text-dim);margin:-8px 0 16px;">"Potencial/mes" = venta mensual estimada que se ganaría si el cliente llega al comportamiento esperado (ratio de cross-sell o recompra de su categoría). Es una proyección, no una venta garantizada.</p>';
+  if (!datos || datos.length === 0) {
+    html += '<p style="color:var(--text-dim);font-size:13px;">Aún no hay planes para este filtro.</p>';
   } else {
-    html += '<table><tr><th>Cliente</th><th>Sucursal</th><th>Tipo</th><th>Vendedor</th><th class="num">Potencial/mes</th><th>Estado</th></tr>';
-    r.data.forEach(p => {
-      html += `<tr><td>${esc(p.cliente)}</td><td>${esc(p.sucursal||'')}</td><td>${p.tipo_plan}</td><td>${esc(titleCase(p.vendedor||''))}</td><td class="num money">${money(p.potencial_mes)}</td><td>
+    html += '<table><tr><th>Cliente</th><th>Sucursal</th><th>Tipo (clic para filtrar)</th><th>Vendedor (clic para filtrar)</th><th class="num">Potencial/mes</th><th>Estado</th></tr>';
+    datos.forEach(p => {
+      const activoTipo = PLANES_TIPO_SEL === p.tipo_plan;
+      const activoKam = PLANES_KAM_SEL === p.vendedor;
+      html += `<tr><td>${esc(p.cliente)}</td><td>${esc(p.sucursal||'')}</td>
+        <td class="fila-plan-tipo" data-tipo="${esc(p.tipo_plan)}" style="cursor:pointer;${activoTipo?'background:#2a2e24;':''}">${esc(p.tipo_plan)}</td>
+        <td class="fila-plan-kam" data-kam="${esc(p.vendedor||'')}" style="cursor:pointer;${activoKam?'background:#2a2e24;':''}">${esc(titleCase(p.vendedor||''))}</td>
+        <td class="num money">${money(p.potencial_mes)}</td><td>
         <select class="estado" data-id="${p.id}">
           <option value="pendiente" ${p.estado==='pendiente'?'selected':''}>Pendiente</option>
           <option value="gestionado" ${p.estado==='gestionado'?'selected':''}>Gestionado</option>
@@ -889,6 +919,16 @@ async function loadPlanes() {
       await rpc('dash_planes_actualizar_estado', { p_token: TOKEN, p_id: parseInt(sel.dataset.id), p_estado: sel.value });
     });
   });
+  el.querySelectorAll('.fila-plan-tipo').forEach(fila => {
+    fila.addEventListener('click', () => { PLANES_TIPO_SEL = (PLANES_TIPO_SEL === fila.dataset.tipo) ? null : fila.dataset.tipo; renderPlanes(); });
+  });
+  el.querySelectorAll('.fila-plan-kam').forEach(fila => {
+    fila.addEventListener('click', () => { PLANES_KAM_SEL = (PLANES_KAM_SEL === fila.dataset.kam) ? null : fila.dataset.kam; renderPlanes(); });
+  });
+  activarBarraFiltros(el, {
+    tipo: () => { PLANES_TIPO_SEL = null; renderPlanes(); },
+    kam: () => { PLANES_KAM_SEL = null; renderPlanes(); }
+  }, () => { PLANES_TIPO_SEL = null; PLANES_KAM_SEL = null; renderPlanes(); });
 }
 
 function autoFitKpis() {
@@ -1387,6 +1427,7 @@ async function loadTableroControl(mesParam) {
 
   el.innerHTML = html;
   autoFitKpis();
+  habilitarOrdenTablas(el);
 
   document.getElementById('tcFiltrar').addEventListener('click', () => {
     loadTableroControl(document.getElementById('tcMes').value);
@@ -1462,6 +1503,7 @@ async function loadUsuarios() {
   html += '<div id="editar-usuario-panel"></div>';
 
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
 
   document.getElementById('nuCrear').addEventListener('click', async () => {
     const email = document.getElementById('nuEmail').value.trim();

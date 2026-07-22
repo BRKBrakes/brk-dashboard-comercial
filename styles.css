@@ -48,13 +48,14 @@
   .tab.active{background:var(--forest);color:var(--neon);border-color:var(--neon);}
 
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
-  .kpi{background:var(--card);border-radius:10px;padding:16px;border:1px solid var(--dust);min-width:0;overflow:hidden;}
-  .kpi .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
+  .kpi{background:var(--card);border-radius:10px;padding:16px;border:1px solid var(--dust);min-width:0;overflow:hidden;text-align:center;}
+  .kpi .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;text-align:center;}
   .kpi .value{font-size:22px;color:var(--neon);font-weight:700;margin-top:6px;white-space:nowrap;}
   .kpi .value-sub{font-size:11px;color:var(--text-dim);margin-top:4px;white-space:nowrap;}
 
   .card{background:var(--card);border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid var(--dust);overflow-x:auto;max-width:100%;box-sizing:border-box;}
-  .card h2{margin:0 0 16px;font-size:14px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;}
+  .card h2{margin:0 0 16px;font-size:14px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;text-align:center;}
+  .card h3{text-align:center;text-transform:uppercase;letter-spacing:0.5px;}
 
   table{width:100%;min-width:520px;border-collapse:collapse;font-size:13px;}
   @media (max-width: 640px){
