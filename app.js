@@ -118,7 +118,7 @@ async function showApp() {
   setTimeout(ajustarStickyResponsive, 50);
 }
 
-const TABS_SIN_ACCESO_GERENCIA = ['oportunidades','tipoa','segmentacion','perdidos','ticket','planes'];
+const TABS_SIN_ACCESO_GERENCIA = ['oportunidades','segmentacion','perdidos','planes'];
 
 function aplicarRestriccionesRol() {
   const btnUsuarios = document.getElementById('usuariosBtn');
