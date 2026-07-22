@@ -1543,22 +1543,28 @@ function abrirEditorUsuario(userId, usuarios) {
 let FACILITADORES_MES = null;
 let FACILITADORES_CLIENTE = null;
 let FACILITADORES_TIPO = null;
+let FACILITADORES_KAM = null;
+let FACILITADORES_FACILITADOR = null;
 let FACILITADORES_FILTROS_HTML = '';
 
-async function loadFacilitadores(mes, cliente, tipo) {
+async function loadFacilitadores(mes, cliente, tipo, kam, facilitador) {
   const el = document.getElementById('view-facilitadores');
   el.innerHTML = '<div class="loading">Cargando facilitadores...</div>';
   FACILITADORES_MES = mes !== undefined ? mes : FACILITADORES_MES;
   FACILITADORES_CLIENTE = cliente !== undefined ? cliente : FACILITADORES_CLIENTE;
   FACILITADORES_TIPO = tipo !== undefined ? tipo : FACILITADORES_TIPO;
+  FACILITADORES_KAM = kam !== undefined ? kam : FACILITADORES_KAM;
+  FACILITADORES_FACILITADOR = facilitador !== undefined ? facilitador : FACILITADORES_FACILITADOR;
 
   const r = await rpc('dash_facilitadores_resumen', {
     p_token: TOKEN,
     p_mes: FACILITADORES_MES ? parseInt(FACILITADORES_MES) : null,
     p_cliente: FACILITADORES_CLIENTE || null,
-    p_tipo: FACILITADORES_TIPO || null
+    p_tipo: FACILITADORES_TIPO || null,
+    p_kam: FACILITADORES_KAM || null,
+    p_facilitador: FACILITADORES_FACILITADOR || null
   });
-  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   if (!FACILITADORES_FILTROS_HTML) {
     const f = r.filtros || {};
@@ -1571,47 +1577,61 @@ async function loadFacilitadores(mes, cliente, tipo) {
       <select id="fzCliente" class="estado"><option value="">Todos los clientes</option>${optSimple(f.clientes)}</select>
       <select id="fzTipo" class="estado"><option value="">Todos los tipos</option>${optSimple(f.tipos)}</select>
       <button id="fzFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
+      <button id="fzLimpiar" style="width:auto;padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">Quitar todos los filtros</button>
     </div>`;
   }
 
   let html = FACILITADORES_FILTROS_HTML;
 
+  // Aviso de filtros activos por clic (KAM / Facilitador)
+  if (FACILITADORES_KAM || FACILITADORES_FACILITADOR) {
+    html += `<div class="card" style="padding:10px 20px;margin-bottom:16px;border-color:var(--neon);font-size:12px;">
+      Filtrando por clic: ${FACILITADORES_KAM ? '<b style="color:var(--neon);">KAM = ' + esc(titleCase(FACILITADORES_KAM)) + '</b>' : ''} ${FACILITADORES_FACILITADOR ? '<b style="color:var(--neon);">Facilitador = ' + esc(titleCase(FACILITADORES_FACILITADOR)) + '</b>' : ''}
+    </div>`;
+  }
+
   html += `<div class="kpis">
     <div class="kpi"><div class="label">Total Servicios</div><div class="value">${(r.total_servicios||0).toLocaleString('es-CO')}</div></div>
     <div class="kpi"><div class="label">Días con Servicio</div><div class="value">${r.dias_con_servicio||0}</div></div>
+    <div class="kpi"><div class="label">Días Hábiles del Periodo</div><div class="value" style="font-size:20px;">${r.dias_habiles_periodo||0}</div></div>
     <div class="kpi"><div class="label">Promedio por Día</div><div class="value">${r.promedio_por_dia||0}</div></div>
+    <div class="kpi"><div class="label">Servicios por KAM (teórico, total/3)</div><div class="value">${r.servicios_por_kam_teorico||0}</div></div>
   </div>`;
 
-  // Por KAM (3 comerciales de Medellín)
-  html += '<div class="card"><h2>Servicios por Comercial (Medellín)</h2><table><tr><th>KAM</th><th class="num">Servicios</th></tr>';
+  // Por KAM (3 comerciales de Medellín) — clicable
+  html += `<div class="card"><h2>Servicios por Comercial (Medellín) ${FACILITADORES_KAM ? '<span id="fzLimpiarKam" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro de KAM)</span>' : '(clic para filtrar)'}</h2><table><tr><th>KAM</th><th class="num">Servicios</th></tr>`;
   (r.por_kam || []).forEach(k => {
     const esKam = !k.kam.includes('Sin identificar');
-    html += `<tr><td>${esKam ? titleCase(k.kam) : esc(k.kam)}</td><td class="num">${k.total}</td></tr>`;
+    const activo = FACILITADORES_KAM === k.kam;
+    html += `<tr class="fila-fz-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esKam ? titleCase(k.kam) : esc(k.kam)}</td><td class="num">${k.total}</td></tr>`;
   });
   html += '</table></div>';
 
-  // Por facilitador (los "4" — capacidad real)
-  html += '<div class="card"><h2>Servicios por Facilitador — ¿nos sobra o nos falta gente?</h2><table><tr><th>Facilitador</th><th class="num">Total</th><th class="num">Días activos</th><th class="num">Promedio/día</th><th class="num">Máximo en 1 día</th></tr>';
+  // Por facilitador (capacidad real) — clicable
+  html += `<div class="card"><h2>Servicios por Facilitador — ¿nos sobra o nos falta gente? ${FACILITADORES_FACILITADOR ? '<span id="fzLimpiarFacilitador" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : '(clic para filtrar)'}</h2><table><tr><th>Facilitador</th><th class="num">Total</th><th class="num">Días activos</th><th class="num">Promedio/día</th><th class="num">Máximo en 1 día</th></tr>`;
   (r.por_facilitador || []).forEach(fac => {
-    html += `<tr><td>${esc(titleCase(fac.facilitador))}</td><td class="num">${fac.total}</td><td class="num">${fac.dias_activos}</td><td class="num">${fac.promedio_dia}</td><td class="num">${fac.maximo_en_un_dia}</td></tr>`;
+    const activo = FACILITADORES_FACILITADOR === fac.facilitador;
+    html += `<tr class="fila-fz-facilitador" data-facilitador="${esc(fac.facilitador)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(fac.facilitador))}</td><td class="num">${fac.total}</td><td class="num">${fac.dias_activos}</td><td class="num">${fac.promedio_dia_habil}</td><td class="num">${fac.maximo_en_un_dia}</td></tr>`;
   });
   html += '</table></div>';
 
-  // Por tipo de servicio
-  html += '<div class="card"><h2>Servicios por Tipo</h2><table><tr><th>Tipo</th><th class="num">Servicios</th></tr>';
+  // Por tipo de servicio — clicable
+  html += `<div class="card"><h2>Servicios por Tipo ${FACILITADORES_TIPO ? '<span id="fzLimpiarTipo" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : '(clic para filtrar)'}</h2><table><tr><th>Tipo</th><th class="num">Servicios</th></tr>`;
   (r.por_tipo || []).forEach(t => {
-    html += `<tr><td>${esc(t.tipo_servicio)}</td><td class="num">${t.n}</td></tr>`;
+    const activo = FACILITADORES_TIPO === t.tipo_servicio;
+    html += `<tr class="fila-fz-tipo" data-tipo="${esc(t.tipo_servicio)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(t.tipo_servicio)}</td><td class="num">${t.n}</td></tr>`;
   });
   html += '</table></div>';
 
-  // Clientes que más piden en un solo día
-  html += '<div class="card"><h2>Clientes con más servicios en un mismo día (top 15)</h2><table><tr><th>Cliente</th><th class="num">Máximo en 1 día</th><th class="num">Total en el periodo</th></tr>';
+  // Clientes que más piden en un solo día — clicable
+  html += `<div class="card"><h2>Clientes con más servicios en un mismo día (top 15) ${FACILITADORES_CLIENTE ? '<span id="fzLimpiarCliente" style="cursor:pointer;color:var(--neon);font-size:12px;">(quitar filtro)</span>' : '(clic para filtrar)'}</h2><table><tr><th>Cliente</th><th class="num">Máximo en 1 día</th><th class="num">Total en el periodo</th></tr>`;
   (r.top_clientes_dia || []).forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td class="num">${c.max_dia}</td><td class="num">${c.total_periodo}</td></tr>`;
+    const activo = FACILITADORES_CLIENTE === c.cliente;
+    html += `<tr class="fila-fz-cliente" data-cliente="${esc(c.cliente)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num">${c.max_dia}</td><td class="num">${c.total_periodo}</td></tr>`;
   });
   html += '</table></div>';
 
-  // Servicios por día (tendencia)
+  // Servicios por día (tendencia) — informativo, sin clic
   html += '<div class="card"><h2>Servicios por día</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Facilitadores activos</th></tr>';
   (r.por_dia || []).forEach(d => {
     html += `<tr><td>${d.dia}</td><td class="num">${d.total}</td><td class="num">${d.facilitadores_activos}</td></tr>`;
@@ -1629,9 +1649,43 @@ async function loadFacilitadores(mes, cliente, tipo) {
     loadFacilitadores(
       document.getElementById('fzMes').value,
       document.getElementById('fzCliente').value,
-      document.getElementById('fzTipo').value
+      document.getElementById('fzTipo').value,
+      FACILITADORES_KAM,
+      FACILITADORES_FACILITADOR
     );
   });
+  document.getElementById('fzLimpiar').addEventListener('click', () => {
+    loadFacilitadores(null, null, null, null, null);
+  });
+
+  el.querySelectorAll('.fila-fz-kam').forEach(fila => {
+    fila.addEventListener('click', () => {
+      loadFacilitadores(undefined, undefined, undefined, FACILITADORES_KAM === fila.dataset.kam ? null : fila.dataset.kam, undefined);
+    });
+  });
+  el.querySelectorAll('.fila-fz-facilitador').forEach(fila => {
+    fila.addEventListener('click', () => {
+      loadFacilitadores(undefined, undefined, undefined, undefined, FACILITADORES_FACILITADOR === fila.dataset.facilitador ? null : fila.dataset.facilitador);
+    });
+  });
+  el.querySelectorAll('.fila-fz-tipo').forEach(fila => {
+    fila.addEventListener('click', () => {
+      loadFacilitadores(undefined, undefined, FACILITADORES_TIPO === fila.dataset.tipo ? null : fila.dataset.tipo, undefined, undefined);
+    });
+  });
+  el.querySelectorAll('.fila-fz-cliente').forEach(fila => {
+    fila.addEventListener('click', () => {
+      loadFacilitadores(undefined, FACILITADORES_CLIENTE === fila.dataset.cliente ? null : fila.dataset.cliente, undefined, undefined, undefined);
+    });
+  });
+  const limpiarKam = document.getElementById('fzLimpiarKam');
+  if (limpiarKam) limpiarKam.addEventListener('click', (e) => { e.stopPropagation(); loadFacilitadores(undefined, undefined, undefined, null, undefined); });
+  const limpiarFac = document.getElementById('fzLimpiarFacilitador');
+  if (limpiarFac) limpiarFac.addEventListener('click', (e) => { e.stopPropagation(); loadFacilitadores(undefined, undefined, undefined, undefined, null); });
+  const limpiarTipo = document.getElementById('fzLimpiarTipo');
+  if (limpiarTipo) limpiarTipo.addEventListener('click', (e) => { e.stopPropagation(); loadFacilitadores(undefined, null, undefined, undefined, undefined); });
+  const limpiarCliente = document.getElementById('fzLimpiarCliente');
+  if (limpiarCliente) limpiarCliente.addEventListener('click', (e) => { e.stopPropagation(); loadFacilitadores(null, undefined, undefined, undefined, undefined); });
 }
 
 function loadCargarVentas() {
