@@ -1573,7 +1573,7 @@ async function loadTableroControl(mesParam) {
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
 
-const KAMS_CONOCIDOS = ['PEREZ RAMIREZ JHONATAN ALEXANDER','FRANCO ARBOLEDA MARIA ISABEL','LONDOÑO MEJIA JOSE GLEISON','ARISMENDY CRUZ CRISTIAN YONARD','BEDOYA VELASQUEZ JORGE ESTEBAN','GOMEZ RODRIGUEZ CARLOS ANDRES'];
+const KAMS_CONOCIDOS = ['PEREZ RAMIREZ JHONATAN ALEXANDER','FRANCO ARBOLEDA MARIA ISABEL','LONDOÑO MEJIA JOSE GLEISON','ARISMENDY CRUZ CRISTIAN YONARDO','BEDOYA VELASQUEZ JORGE ESTEBAN','GOMEZ RODRIGUEZ CARLOS ANDRES'];
 
 function checksKam(idPrefijo, seleccionados) {
   seleccionados = seleccionados || [];
@@ -1772,7 +1772,30 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
     <div class="kpi"><div class="label">Promedio por Día</div><div class="value">${r.promedio_por_dia||0}</div></div>
     <div class="kpi"><div class="label">Servicios por KAM (teórico, total/3)</div><div class="value">${r.servicios_por_kam_teorico||0}</div></div>
     <div class="kpi"><div class="label">Servicios x KAM x Día</div><div class="value">${r.servicios_por_kam_por_dia_habil||0}</div></div>
+    <div class="kpi"><div class="label">Costo del Periodo</div><div class="value" style="font-size:20px;">${money(r.costo_periodo)}</div><div class="value-sub">${(r.costo_con_dato||0).toLocaleString('es-CO')} servicios con tarifa</div>${r.costo_sin_dato ? `<div class="value-sub" style="color:#ff9f43;">${r.costo_sin_dato} por km sin dato de costo</div>` : ''}</div>
   </div>`;
+
+  // Análisis de capacidad: ¿nos alcanza con 3 facilitadores?
+  const cap = r.capacidad || {};
+  if (cap.capacidad_actual_dia) {
+    const colorUtil4 = cap.utilizacion_pct_4fac >= 90 ? '#ff6b6b' : cap.utilizacion_pct_4fac >= 75 ? '#ff9f43' : '#4ade80';
+    const colorUtil3 = cap.utilizacion_pct_3fac >= 90 ? '#ff6b6b' : cap.utilizacion_pct_3fac >= 75 ? '#ff9f43' : '#4ade80';
+    const picoExcede3 = (cap.max_dia_real||0) > cap.capacidad_3_facilitadores_dia;
+    const picoExcede4 = (cap.max_dia_real||0) > cap.capacidad_actual_dia;
+    html += `<div class="card"><h2>Análisis de Capacidad — ¿podemos operar con 3 facilitadores?</h2>
+      <div class="kpis" style="margin-bottom:12px;">
+        <div class="kpi"><div class="label">Capacidad actual (4 fac. × ${cap.vueltas_dia_por_facilitador})</div><div class="value">${cap.capacidad_actual_dia}/día</div><div class="value-sub" style="color:${colorUtil4};">Utilización: ${cap.utilizacion_pct_4fac}%</div></div>
+        <div class="kpi"><div class="label">Capacidad con 3 facilitadores</div><div class="value">${cap.capacidad_3_facilitadores_dia}/día</div><div class="value-sub" style="color:${colorUtil3};">Utilización sería: ${cap.utilizacion_pct_3fac}%</div></div>
+        <div class="kpi"><div class="label">Demanda promedio real</div><div class="value">${cap.demanda_promedio_dia}/día</div></div>
+        <div class="kpi"><div class="label">Pico máximo en 1 día</div><div class="value" style="color:${picoExcede3?'#ff9f43':'#4ade80'};">${cap.max_dia_real}</div><div class="value-sub">${picoExcede4 ? 'Excede incluso los 4 actuales' : picoExcede3 ? 'Excede la capacidad de 3 (54)' : 'Cabe en 3 facilitadores'}</div></div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);margin:0;">
+        Con el periodo/filtros seleccionados: el promedio diario ${cap.cabe_en_3 ? 'SÍ cabe' : 'NO cabe'} en 3 facilitadores (${cap.capacidad_3_facilitadores_dia} vueltas/día).
+        ${picoExcede3 ? `Ojo: hubo al menos un día con ${cap.max_dia_real} servicios, por encima de la capacidad de 3 — en picos se necesitaría apoyo o reprogramación.` : 'Ni siquiera el día pico superó la capacidad de 3.'}
+        En temporada alta cada facilitador puede llegar a 19-20 vueltas/día, lo que daría margen adicional.
+      </p>
+    </div>`;
+  }
 
   html += `<div class="card"><h2>Servicios por Comercial (Medellín) (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Servicios</th><th class="num">Servicios/Día</th></tr>`;
   (r.por_kam || []).forEach(k => {
