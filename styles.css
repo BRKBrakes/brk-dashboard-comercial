@@ -79,6 +79,7 @@
   .ms-btn{background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:5px 10px;font-family:inherit;font-size:12px;cursor:pointer;min-width:140px;text-align:left;display:inline-flex;justify-content:space-between;align-items:center;gap:8px;}
   .ms-btn:after{content:"▾";color:var(--text-dim);}
   .ms-panel{position:absolute;top:100%;left:0;margin-top:4px;background:#22261e;border:1px solid var(--neon);border-radius:6px;padding:8px;z-index:200;max-height:260px;overflow-y:auto;min-width:220px;box-shadow:0 8px 20px rgba(0,0,0,0.5);}
+  .card-filtros{overflow:visible !important;position:relative;z-index:150;}
   .ms-panel label{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 4px;white-space:nowrap;cursor:pointer;border-radius:3px;}
   .ms-panel label:hover{background:#2c3126;}
   .ms-actions{display:flex;gap:10px;border-top:1px solid var(--dust);margin-top:6px;padding-top:6px;}

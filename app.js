@@ -1870,7 +1870,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     ...(r.facturas||[]).map(x=>x.mes)
   ])].sort((a,b)=>a-b);
 
-  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
     ${renderMultiSelect('clMes', opcionesMeses, CLIENTES_MES, 'Todos los meses')}
     <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
