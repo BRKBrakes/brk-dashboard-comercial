@@ -1805,10 +1805,32 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   });
   html += '</table></div>';
 
-  html += `<div class="card"><h2>Servicios por Facilitador — ¿nos sobra o nos falta gente? (clic para filtrar, varios a la vez)</h2><table><tr><th>Facilitador</th><th class="num">Total</th><th class="num">Días activos</th><th class="num">Promedio/día</th><th class="num">Máximo en 1 día</th></tr>`;
-  (r.por_facilitador || []).forEach(fac => {
-    const activo = (FACILITADORES_FACILITADOR||[]).includes(fac.facilitador);
-    html += `<tr class="fila-fz-facilitador" data-facilitador="${esc(fac.facilitador)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(fac.facilitador))}</td><td class="num">${fac.total}</td><td class="num">${fac.dias_activos}</td><td class="num">${fac.promedio_dia_habil}</td><td class="num">${fac.maximo_en_un_dia}</td></tr>`;
+  // Top 20 clientes con más servicios en un mismo día (va justo tras KAM)
+  html += `<div class="card"><h2>Clientes con más servicios en un mismo día — Top 20 (clic para filtrar, varios a la vez)</h2><table><tr><th>Cliente</th><th class="num">Máximo en 1 día</th><th class="num">Total en el periodo</th></tr>`;
+  (r.top_clientes_dia || []).forEach(c => {
+    const activo = (FACILITADORES_CLIENTE||[]).includes(c.cliente);
+    html += `<tr class="fila-fz-cliente" data-cliente="${esc(c.cliente)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num">${c.max_dia}</td><td class="num">${c.total_periodo}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  // Tipos de servicio: cantidad, promedio/día, valor total y valor/día
+  const TARIFA = { 'metrofrenos cerca': 10588, 'Metrofrenos lejos': 16688 };
+  html += `<div class="card"><h2>Servicios por Tipo (clic para filtrar, varios a la vez)</h2>
+    <table><tr><th>Tipo</th><th class="num">Total servicios</th><th class="num">Servicios/día</th><th class="num">Valor total</th><th class="num">Valor/día</th></tr>`;
+  (r.por_tipo || []).forEach(t => {
+    const activo = (FACILITADORES_TIPO||[]).includes(t.tipo_servicio);
+    const tarifa = TARIFA[t.tipo_servicio];
+    const dias = r.dias_habiles_periodo || 1;
+    const valorTotal = tarifa ? tarifa * t.n : null;
+    const valorDia = tarifa ? Math.round(valorTotal / dias) : null;
+    const promDia = (t.n / dias).toFixed(1);
+    html += `<tr class="fila-fz-tipo" data-tipo="${esc(t.tipo_servicio)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
+      <td>${esc(t.tipo_servicio)}</td>
+      <td class="num">${t.n}</td>
+      <td class="num">${promDia}</td>
+      <td class="num">${valorTotal !== null ? money(valorTotal) : '<span style="color:var(--text-dim);font-size:11px;">sin dato (por km)</span>'}</td>
+      <td class="num">${valorDia !== null ? money(valorDia) : '—'}</td>
+    </tr>`;
   });
   html += '</table></div>';
 
@@ -1819,7 +1841,6 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
       <div class="kpi"><div class="label">Tiempo de Respuesta (promedio)</div><div class="value">${tr.promedio_minutos} min</div></div>
       <div class="kpi"><div class="label">Con dato de finalización</div><div class="value" style="font-size:20px;">${tr.con_dato} servicios</div></div>
     </div>`;
-
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">';
     html += `<div class="card"><h2>Tiempo de respuesta por Tipo (clic para filtrar)</h2><table><tr><th>Tipo</th><th class="num">Servicios</th><th class="num">Promedio (min)</th></tr>`;
     (r.tiempo_respuesta_por_tipo || []).forEach(t => {
@@ -1851,18 +1872,18 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   });
   html += '</table></div></div>';
 
+  // Facilitadores — va después de Día de la Semana y Hora
+  html += `<div class="card"><h2>Servicios por Facilitador — ¿nos sobra o nos falta gente? (clic para filtrar, varios a la vez)</h2><table><tr><th>Facilitador</th><th class="num">Total</th><th class="num">Días activos</th><th class="num">Promedio/día</th><th class="num">Máximo en 1 día</th></tr>`;
+  (r.por_facilitador || []).forEach(fac => {
+    const activo = (FACILITADORES_FACILITADOR||[]).includes(fac.facilitador);
+    html += `<tr class="fila-fz-facilitador" data-facilitador="${esc(fac.facilitador)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(fac.facilitador))}</td><td class="num">${fac.total}</td><td class="num">${fac.dias_activos}</td><td class="num">${fac.promedio_dia_habil}</td><td class="num">${fac.maximo_en_un_dia}</td></tr>`;
+  });
+  html += '</table></div>';
+
   html += `<div class="card"><h2>Servicios por día (clic para filtrar, varios a la vez)</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Servicios/KAM</th><th class="num">Facilitadores activos</th></tr>`;
   (r.por_dia || []).forEach(d => {
     const activo = (FACILITADORES_FECHA||[]).includes(d.dia);
     html += `<tr class="fila-fz-fecha" data-fecha="${d.dia}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${d.dia}</td><td class="num">${d.total}</td><td class="num">${Math.round((d.total/3)*10)/10}</td><td class="num">${d.facilitadores_activos}</td></tr>`;
-  });
-  html += '</table></div>';
-
-  // Clientes con más servicios en un mismo día (top 15)
-  html += `<div class="card"><h2>Clientes con más servicios en un mismo día (top 15) (clic para filtrar, varios a la vez)</h2><table><tr><th>Cliente</th><th class="num">Máximo en 1 día</th><th class="num">Total en el periodo</th></tr>`;
-  (r.top_clientes_dia || []).forEach(c => {
-    const activo = (FACILITADORES_CLIENTE||[]).includes(c.cliente);
-    html += `<tr class="fila-fz-cliente" data-cliente="${esc(c.cliente)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num">${c.max_dia}</td><td class="num">${c.total_periodo}</td></tr>`;
   });
   html += '</table></div>';
 
