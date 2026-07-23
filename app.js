@@ -268,33 +268,45 @@ async function loadEjecutivo() {
 
   // Cuadro de cumplimiento por KAM en el periodo seleccionado, semaforizado
   html += `<div class="card"><h2>Cumplimiento por KAM · ${MESES[mesDesde-1]} a ${MESES[mesHasta-1]} 2026</h2>
-    <table><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Debería llevar</th><th class="num">% Cumplimiento</th></tr>`;
+    <table><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Debería llevar</th><th class="num">Faltante</th><th class="num">% Cumplimiento</th></tr>`;
   (cumplPeriodo.data || []).forEach(k => {
     const pct = k.presupuesto_periodo ? Math.round((k.venta_real / k.presupuesto_periodo) * 100) : 0;
-    let color = '#ff6b6b'; // rojo <80%
-    if (pct >= 100) color = '#4ade80'; // verde
-    else if (pct >= 80) color = '#ff9f43'; // naranja
-    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
+    const faltante = (k.venta_real || 0) - (k.presupuesto_periodo || 0);
+    let color = '#ff6b6b';
+    if (pct >= 100) color = '#4ade80';
+    else if (pct >= 80) color = '#ff9f43';
+    const colorFalt = faltante >= 0 ? '#4ade80' : '#ff6b6b';
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.venta_real||0),0);
     const totPpto = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.presupuesto_periodo||0),0);
     const totPct = totPpto ? Math.round((totReal/totPpto)*100) : 0;
+    const totFalt = totReal - totPpto;
+    const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
     let color = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num" style="color:${color};">${totPct}%</td></tr>`;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${color};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
-  html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table><tr><th>Mes</th><th class="num">Real</th><th class="num">Presupuesto</th><th class="num">%</th></tr>';
+  html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table><tr><th>Mes</th><th class="num">Real</th><th class="num">Presupuesto</th><th class="num">Faltante</th><th class="num">%</th></tr>';
   (kpi.por_mes || []).forEach(m => {
     const pct = m.presupuesto ? Math.round((m.venta_real/m.presupuesto)*100) : 0;
-    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money">${money(m.venta_real)}</td><td class="num money">${money(m.presupuesto)}</td><td class="num">${pct}%</td></tr>`;
+    const faltante = (m.venta_real||0) - (m.presupuesto||0);
+    const colorFalt = faltante >= 0 ? '#4ade80' : '#ff6b6b';
+    let colorPct = '#ff6b6b';
+    if (pct >= 100) colorPct = '#4ade80';
+    else if (pct >= 80) colorPct = '#ff9f43';
+    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money">${money(m.venta_real)}</td><td class="num money">${money(m.presupuesto)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${colorPct};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (kpi.por_mes||[]).reduce((s,m)=>s+(m.venta_real||0),0);
     const totPpto = (kpi.por_mes||[]).reduce((s,m)=>s+(m.presupuesto||0),0);
     const totPct = totPpto ? Math.round((totReal/totPpto)*100) : 0;
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num">${totPct}%</td></tr>`;
+    const totFalt = totReal - totPpto;
+    const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
+    let colorPct = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${colorPct};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
@@ -303,19 +315,8 @@ async function loadEjecutivo() {
   if (crec.ok) {
     const anios = crec.por_anio || [];
     const anio2026 = anios.find(a => a.anio === 2026);
-    html += `<div class="card"><h2>Venta acumulada Ene-${MESES[crec.mes_corte-1]} por año</h2><table><tr><th>Año</th><th class="num">Venta</th><th class="num">% vs. año anterior</th><th class="num">% vs. 2026</th></tr>`;
-    anios.forEach((a, i) => {
-      const prev = anios[i-1];
-      const vsAnterior = prev ? Math.round(((a.venta - prev.venta) / prev.venta) * 100) : null;
-      const vs2026 = (anio2026 && a.anio !== 2026) ? Math.round(((anio2026.venta - a.venta) / a.venta) * 100) : null;
-      const colorAnterior = vsAnterior === null ? 'var(--text-dim)' : (vsAnterior >= 0 ? '#4ade80' : '#ff6b6b');
-      const colorVs2026 = vs2026 === null ? 'var(--text-dim)' : (vs2026 >= 0 ? '#4ade80' : '#ff6b6b');
-      html += `<tr><td>${a.anio}</td><td class="num money">${money(a.venta)}</td>
-        <td class="num" style="color:${colorAnterior};font-weight:700;">${vsAnterior===null?'—':(vsAnterior>=0?'+':'')+vsAnterior+'%'}</td>
-        <td class="num" style="color:${colorVs2026};font-weight:700;">${vs2026===null?'—':(vs2026>=0?'+':'')+vs2026+'%'}</td></tr>`;
-    });
-    html += '</table></div>';
 
+    // 1. Crecimiento por KAM (primero)
     html += '<div class="card"><h2>Crecimiento por KAM (Ene-' + MESES[crec.mes_corte-1] + ' 2025 vs 2026)</h2><table><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ $</th><th class="num">Δ %</th></tr>';
     (crec.por_kam || []).sort((a,b) => b.crecimiento_pesos - a.crecimiento_pesos).forEach(k => {
       const color = k.crecimiento_pct >= 0 ? '#4ade80' : '#ff6b6b';
@@ -329,6 +330,20 @@ async function loadEjecutivo() {
       const color = totPct>=0?'#4ade80':'#ff6b6b';
       html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totV25)}</td><td class="num money">${money(totV26)}</td><td class="num money" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
     }
+    html += '</table></div>';
+
+    // 2. Venta acumulada por año (después de crecimiento KAM)
+    html += `<div class="card"><h2>Venta acumulada Ene-${MESES[crec.mes_corte-1]} por año</h2><table><tr><th>Año</th><th class="num">Venta</th><th class="num">% vs. año anterior</th><th class="num">% vs. 2026</th></tr>`;
+    anios.forEach((a, i) => {
+      const prev = anios[i-1];
+      const vsAnterior = prev ? Math.round(((a.venta - prev.venta) / prev.venta) * 100) : null;
+      const vs2026 = (anio2026 && a.anio !== 2026) ? Math.round(((anio2026.venta - a.venta) / a.venta) * 100) : null;
+      const colorAnterior = vsAnterior === null ? 'var(--text-dim)' : (vsAnterior >= 0 ? '#4ade80' : '#ff6b6b');
+      const colorVs2026 = vs2026 === null ? 'var(--text-dim)' : (vs2026 >= 0 ? '#4ade80' : '#ff6b6b');
+      html += `<tr><td>${a.anio}</td><td class="num money">${money(a.venta)}</td>
+        <td class="num" style="color:${colorAnterior};font-weight:700;">${vsAnterior===null?'—':(vsAnterior>=0?'+':'')+vsAnterior+'%'}</td>
+        <td class="num" style="color:${colorVs2026};font-weight:700;">${vs2026===null?'—':(vs2026>=0?'+':'')+vs2026+'%'}</td></tr>`;
+    });
     html += '</table></div>';
   }
 
