@@ -80,8 +80,9 @@
   .ms-btn:after{content:"▾";color:var(--text-dim);}
   .ms-panel{position:absolute;top:100%;left:0;margin-top:4px;background:#22261e;border:1px solid var(--neon);border-radius:6px;padding:8px;z-index:200;max-height:260px;overflow-y:auto;overflow-x:hidden;width:280px;box-shadow:0 8px 20px rgba(0,0,0,0.5);}
   .card-filtros{overflow:visible !important;position:relative;z-index:150;}
-  .ms-panel label{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;font-size:12px;padding:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border-radius:3px;width:100%;box-sizing:border-box;text-align:left;}
-  .ms-panel label input[type="checkbox"]{flex:0 0 auto;margin:0;}
+  .ms-panel label{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;font-size:12px;padding:4px;cursor:pointer;border-radius:3px;width:100%;box-sizing:border-box;text-align:left;}
+  .ms-panel label input[type="checkbox"]{flex:0 0 auto;margin:0;width:14px;height:14px;}
+  .ms-panel label span{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
   .ms-panel label:hover{background:#2c3126;}
   .ms-actions{display:flex;gap:10px;border-top:1px solid var(--dust);margin-top:6px;padding-top:6px;}
   .ms-actions span{font-size:11px;color:var(--neon);cursor:pointer;text-decoration:underline;}

@@ -2104,7 +2104,7 @@ function renderMultiSelect(idBase, opciones, seleccionados, placeholder) {
   return `<div class="ms-wrap" id="ms-wrap-${idBase}">
     <button type="button" class="ms-btn" id="ms-btn-${idBase}">${esc(resumen)}</button>
     <div class="ms-panel hidden" id="ms-panel-${idBase}">
-      ${opciones.map(o => `<label><input type="checkbox" value="${esc(o.value)}" ${seleccionados.map(String).includes(String(o.value))?'checked':''}> ${esc(o.label)}</label>`).join('')}
+      ${opciones.map(o => `<label><input type="checkbox" value="${esc(o.value)}" ${seleccionados.map(String).includes(String(o.value))?'checked':''}><span>${esc(o.label)}</span></label>`).join('')}
       <div class="ms-actions"><span data-accion="todos">Todos</span><span data-accion="ninguno">Ninguno</span></div>
     </div>
   </div>`;
