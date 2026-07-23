@@ -339,19 +339,22 @@ async function loadEjecutivo() {
 
 document.getElementById('btnFiltrar').addEventListener('click', loadEjecutivo);
 
-let OP_KAM = '';
+let OP_KAM = [];
 let OP_FILTRO_INICIALIZADO = false;
 
 async function poblarFiltroOportunidades() {
-  if (OP_FILTRO_INICIALIZADO) return;
   const r = await rpc('dash_ticket_promedio', { p_token: TOKEN }); // reutiliza lista de KAM
   const kams = (r.filtros && r.filtros.kams || []).sort();
-  const sel = document.getElementById('opKam');
-  sel.innerHTML = '<option value="">Todos los KAM</option>' + kams.map(k => `<option value="${k}">${titleCase(k)}</option>`).join('');
-  document.getElementById('opFiltrar').addEventListener('click', () => {
-    OP_KAM = document.getElementById('opKam').value;
+  const opciones = kams.map(k => ({ value: k, label: titleCase(k) }));
+  document.getElementById('opKam-holder').innerHTML = renderMultiSelect('opKam', opciones, OP_KAM, 'Todos los KAM');
+  activarMultiSelect('opKam', (vals) => {
+    OP_KAM = vals;
     loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab);
   });
+  if (ROL === 'colaborador') {
+    const wrap = document.getElementById('ms-wrap-opKam');
+    if (wrap) wrap.style.display = 'none';
+  }
   OP_FILTRO_INICIALIZADO = true;
 }
 
@@ -359,9 +362,9 @@ async function loadGapDiscos() {
   await poblarFiltroOportunidades();
   const el = document.getElementById('view-gapdiscos');
   el.innerHTML = '<div class="loading">Cargando gap de discos...</div>';
-  const r = await rpc('dash_gap_discos', { p_token: TOKEN, p_kam: OP_KAM || null });
+  const r = await rpc('dash_gap_discos', { p_token: TOKEN, p_kam: (OP_KAM&&OP_KAM.length)?OP_KAM:null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, valorMostrar: OP_KAM ? titleCase(OP_KAM) : null }]);
+  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
@@ -369,16 +372,16 @@ async function loadGapDiscos() {
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
-  activarBarraFiltros(el, { opkam: () => { OP_KAM = ''; document.getElementById('opKam').value=''; loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
+  activarBarraFiltros(el, { opkam: (v) => { OP_KAM = (OP_KAM||[]).filter(x=>x!==v); poblarFiltroOportunidades(); loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
 }
 
 async function loadGapLiquidos() {
   await poblarFiltroOportunidades();
   const el = document.getElementById('view-gapliquidos');
   el.innerHTML = '<div class="loading">Cargando gap de líquidos...</div>';
-  const r = await rpc('dash_gap_liquidos', { p_token: TOKEN, p_kam: OP_KAM || null });
+  const r = await rpc('dash_gap_liquidos', { p_token: TOKEN, p_kam: (OP_KAM&&OP_KAM.length)?OP_KAM:null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, valorMostrar: OP_KAM ? titleCase(OP_KAM) : null }]);
+  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal) — meta: 1 juego pastas : 0.5 unid. líquido</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Líquidos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
@@ -386,16 +389,16 @@ async function loadGapLiquidos() {
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
-  activarBarraFiltros(el, { opkam: () => { OP_KAM = ''; document.getElementById('opKam').value=''; loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
+  activarBarraFiltros(el, { opkam: (v) => { OP_KAM = (OP_KAM||[]).filter(x=>x!==v); poblarFiltroOportunidades(); loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
 }
 
 async function loadGapCilindros() {
   await poblarFiltroOportunidades();
   const el = document.getElementById('view-gapcilindros');
   el.innerHTML = '<div class="loading">Cargando gap de cilindros...</div>';
-  const r = await rpc('dash_gap_cilindros', { p_token: TOKEN, p_kam: OP_KAM || null });
+  const r = await rpc('dash_gap_cilindros', { p_token: TOKEN, p_kam: (OP_KAM&&OP_KAM.length)?OP_KAM:null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
-  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, valorMostrar: OP_KAM ? titleCase(OP_KAM) : null }]);
+  let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de cilindros (últimos 180 días, por sucursal) — meta: 1 juego zapatas : 0.3 unid. cilindros</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Zapatas (unid.)</th><th class="num">Cilindros (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
@@ -403,7 +406,7 @@ async function loadGapCilindros() {
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
-  activarBarraFiltros(el, { opkam: () => { OP_KAM = ''; document.getElementById('opKam').value=''; loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
+  activarBarraFiltros(el, { opkam: (v) => { OP_KAM = (OP_KAM||[]).filter(x=>x!==v); poblarFiltroOportunidades(); loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
 }
 
 let TIPOA_FILTROS_HTML_LISTO = false;
@@ -584,12 +587,12 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   }, () => loadTipoA([], [], [], []));
 }
 let SEGMENTACION_DATA = [];
-let SEGMENTACION_FILTRO = null;
-let SEGMENTACION_KAM = '';
+let SEGMENTACION_FILTRO = [];
+let SEGMENTACION_KAM = [];
 
 function renderSegmentacionTabla() {
   const el = document.getElementById('view-segmentacion');
-  const baseData = SEGMENTACION_KAM ? SEGMENTACION_DATA.filter(c => c.vendedor === SEGMENTACION_KAM) : SEGMENTACION_DATA;
+  const baseData = (SEGMENTACION_KAM && SEGMENTACION_KAM.length) ? SEGMENTACION_DATA.filter(c => SEGMENTACION_KAM.includes(c.vendedor)) : SEGMENTACION_DATA;
   const resumen = {};
   baseData.forEach(c => {
     resumen[c.segmento] = resumen[c.segmento] || { n: 0, total: 0 };
@@ -598,13 +601,14 @@ function renderSegmentacionTabla() {
   });
 
   const kams = [...new Set(SEGMENTACION_DATA.map(c => c.vendedor))].sort();
-  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+  const opcionesKam = kams.map(k => ({ value: k, label: titleCase(k) }));
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
     <span style="font-size:12px;color:var(--text-dim);">KAM:</span>
-    <select id="segKam" class="estado"><option value="">Todos</option>${kams.map(k => `<option value="${k}" ${k===SEGMENTACION_KAM?'selected':''}>${titleCase(k)}</option>`).join('')}</select>
+    <div id="ms-wrap-segKam-holder">${renderMultiSelect('segKam', opcionesKam, SEGMENTACION_KAM, 'Todos')}</div>
   </div>`;
 
   html += renderBarraFiltros([
-    { id: 'kam', label: 'KAM', valor: SEGMENTACION_KAM, valorMostrar: SEGMENTACION_KAM ? titleCase(SEGMENTACION_KAM) : null },
+    { id: 'kam', label: 'KAM', valor: SEGMENTACION_KAM, etiquetaDe: v => titleCase(v) },
     { id: 'segmento', label: 'Segmento', valor: SEGMENTACION_FILTRO }
   ]);
 
@@ -612,7 +616,7 @@ function renderSegmentacionTabla() {
 
   html += '<div class="kpis">';
   Object.keys(resumen).sort().forEach(seg => {
-    const activo = SEGMENTACION_FILTRO === seg;
+    const activo = (SEGMENTACION_FILTRO||[]).includes(seg);
     const pctSeg = totalGeneral ? Math.round((resumen[seg].total/totalGeneral)*1000)/10 : 0;
     html += `<div class="kpi seg-card" data-seg="${seg}" style="cursor:pointer;${activo ? 'border-color:var(--neon);border-width:2px;' : ''}">
       <div class="label">${seg}</div><div class="value">${resumen[seg].n}</div><div class="value-sub">${money(resumen[seg].total)}</div><div class="value-sub" style="color:var(--neon);">${pctSeg}% del total</div>
@@ -620,7 +624,7 @@ function renderSegmentacionTabla() {
   });
   html += '</div>';
 
-  const filtrados = SEGMENTACION_FILTRO ? baseData.filter(c => c.segmento === SEGMENTACION_FILTRO) : baseData;
+  const filtrados = (SEGMENTACION_FILTRO && SEGMENTACION_FILTRO.length) ? baseData.filter(c => SEGMENTACION_FILTRO.includes(c.segmento)) : baseData;
   html += `<div class="card"><h2>Detalle por sucursal</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">% del total</th><th class="num">Días sin comprar</th></tr>`;
   filtrados.forEach(c => {
@@ -631,22 +635,24 @@ function renderSegmentacionTabla() {
   el.innerHTML = html;
   habilitarOrdenTablas(el);
   autoFitKpis();
-  ocultarFiltroKamSiColaborador(['segKam']);
 
-  document.getElementById('segKam').addEventListener('change', (e) => {
-    SEGMENTACION_KAM = e.target.value;
-    renderSegmentacionTabla();
-  });
+  activarMultiSelect('segKam', (vals) => { SEGMENTACION_KAM = vals; renderSegmentacionTabla(); });
+  if (ROL === 'colaborador') {
+    const wrap = document.getElementById('ms-wrap-segKam');
+    if (wrap) wrap.style.display = 'none';
+  }
+
   el.querySelectorAll('.seg-card').forEach(card => {
     card.addEventListener('click', () => {
-      SEGMENTACION_FILTRO = (SEGMENTACION_FILTRO === card.dataset.seg) ? null : card.dataset.seg;
+      SEGMENTACION_FILTRO = SEGMENTACION_FILTRO || [];
+      SEGMENTACION_FILTRO = SEGMENTACION_FILTRO.includes(card.dataset.seg) ? SEGMENTACION_FILTRO.filter(s=>s!==card.dataset.seg) : [...SEGMENTACION_FILTRO, card.dataset.seg];
       renderSegmentacionTabla();
     });
   });
   activarBarraFiltros(el, {
-    kam: () => { SEGMENTACION_KAM = null; renderSegmentacionTabla(); },
-    segmento: () => { SEGMENTACION_FILTRO = null; renderSegmentacionTabla(); }
-  }, () => { SEGMENTACION_KAM = null; SEGMENTACION_FILTRO = null; renderSegmentacionTabla(); });
+    kam: (v) => { SEGMENTACION_KAM = (SEGMENTACION_KAM||[]).filter(x=>x!==v); renderSegmentacionTabla(); },
+    segmento: (v) => { SEGMENTACION_FILTRO = (SEGMENTACION_FILTRO||[]).filter(x=>x!==v); renderSegmentacionTabla(); }
+  }, () => { SEGMENTACION_KAM = []; SEGMENTACION_FILTRO = []; renderSegmentacionTabla(); });
 }
 
 async function loadSegmentacion() {
@@ -909,7 +915,8 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   }, () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio([], [], [], []); });
 }
 
-let RECUP_KAM_HTML = '';
+let RECUP_KAM_HTML_LISTO = false;
+let RECUP_KAM = [];
 function mesRelativo(offset) {
   const idx = (new Date().getMonth() - offset + 12) % 12;
   return MESES[idx];
@@ -917,22 +924,23 @@ function mesRelativo(offset) {
 
 async function loadPerdidos(kam) {
   const el = document.getElementById('view-perdidos');
-  if (!RECUP_KAM_HTML) el.innerHTML = '<div class="loading">Analizando caídas y clientes inactivos...</div>';
-  const r = await rpc('dash_recuperacion', { p_token: TOKEN, p_kam: kam || null });
+  if (!RECUP_KAM_HTML_LISTO) el.innerHTML = '<div class="loading">Analizando caídas y clientes inactivos...</div>';
+  RECUP_KAM = kam !== undefined ? kam : RECUP_KAM;
+  const r = await rpc('dash_recuperacion', { p_token: TOKEN, p_kam: (RECUP_KAM && RECUP_KAM.length) ? RECUP_KAM : null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
-  if (!RECUP_KAM_HTML) {
-    const kams = [...new Set([...(r.cayendo||[]), ...(r.sin_compra_60d||[])].map(c => c.vendedor))].filter(Boolean).sort();
-    RECUP_KAM_HTML = `<div class="card" style="padding:10px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
-      <span style="font-size:12px;color:var(--text-dim);">KAM:</span>
-      <select id="recKam" class="estado"><option value="">Todos</option>${kams.map(k=>`<option value="${k}">${titleCase(k)}</option>`).join('')}</select>
-    </div>`;
-  }
+  const kams = [...new Set([...(r.cayendo||[]), ...(r.sin_compra_60d||[])].map(c => c.vendedor))].filter(Boolean).sort();
+  const opcionesKam = kams.map(k => ({ value: k, label: titleCase(k) }));
+  RECUP_KAM_HTML_LISTO = true;
+  let html = `<div class="card card-filtros" style="padding:10px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:12px;color:var(--text-dim);">KAM:</span>
+    <div id="ms-wrap-recKam-holder">${renderMultiSelect('recKam', opcionesKam, RECUP_KAM, 'Todos')}</div>
+  </div>`;
 
   const cayendo = (r.cayendo || []).slice().sort((a,b) => b.caida_total - a.caida_total);
   const sinCompra = r.sin_compra_60d || [];
 
-  let html = RECUP_KAM_HTML + renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: kam, valorMostrar: kam ? titleCase(kam) : null }]);
+  html += renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: RECUP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += `<div class="card"><h2>Cayendo vs. promedio de los 2 meses anteriores (mismo tramo de días) — ${cayendo.length} sucursales</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">${mesRelativo(2)}</th><th class="num">${mesRelativo(1)}</th><th class="num">Promedio 2m</th><th class="num">Mes actual</th><th class="num">Caída</th><th>Detalle por categoría</th></tr>`;
   cayendo.forEach(c => {
@@ -956,14 +964,17 @@ async function loadPerdidos(kam) {
 
   el.innerHTML = html;
   habilitarOrdenTablas(el);
-  document.getElementById('recKam').value = kam || '';
-  ocultarFiltroKamSiColaborador(['recKam']);
-  document.getElementById('recKam').addEventListener('change', (e) => loadPerdidos(e.target.value));
-  activarBarraFiltros(el, { kam: () => loadPerdidos('') });
+
+  activarMultiSelect('recKam', (vals) => loadPerdidos(vals));
+  if (ROL === 'colaborador') {
+    const wrap = document.getElementById('ms-wrap-recKam');
+    if (wrap) wrap.style.display = 'none';
+  }
+  activarBarraFiltros(el, { kam: (v) => loadPerdidos((RECUP_KAM||[]).filter(x=>x!==v)) }, () => loadPerdidos([]));
 }
 
-let PLANES_TIPO_SEL = null;
-let PLANES_KAM_SEL = null;
+let PLANES_TIPO_SEL = [];
+let PLANES_KAM_SEL = [];
 let PLANES_DATA = null;
 
 async function loadPlanes() {
@@ -978,22 +989,22 @@ async function loadPlanes() {
 function renderPlanes() {
   const el = document.getElementById('view-planes');
   const datos = PLANES_DATA.filter(p =>
-    (!PLANES_TIPO_SEL || p.tipo_plan === PLANES_TIPO_SEL) &&
-    (!PLANES_KAM_SEL || p.vendedor === PLANES_KAM_SEL)
+    (!PLANES_TIPO_SEL || !PLANES_TIPO_SEL.length || PLANES_TIPO_SEL.includes(p.tipo_plan)) &&
+    (!PLANES_KAM_SEL || !PLANES_KAM_SEL.length || PLANES_KAM_SEL.includes(p.vendedor))
   );
 
   let html = renderBarraFiltros([
     { id: 'tipo', label: 'Tipo', valor: PLANES_TIPO_SEL },
-    { id: 'kam', label: 'Vendedor', valor: PLANES_KAM_SEL, valorMostrar: PLANES_KAM_SEL ? titleCase(PLANES_KAM_SEL) : null }
+    { id: 'kam', label: 'Vendedor', valor: PLANES_KAM_SEL, etiquetaDe: v => titleCase(v) }
   ]);
   html += '<div class="card"><h2>Planes de acción</h2><p style="font-size:12px;color:var(--text-dim);margin:-8px 0 16px;">"Potencial/mes" = venta mensual estimada que se ganaría si el cliente llega al comportamiento esperado (ratio de cross-sell o recompra de su categoría). Es una proyección, no una venta garantizada.</p>';
   if (!datos || datos.length === 0) {
     html += '<p style="color:var(--text-dim);font-size:13px;">Aún no hay planes para este filtro.</p>';
   } else {
-    html += '<table><tr><th>Cliente</th><th>Sucursal</th><th>Tipo (clic para filtrar)</th><th>Vendedor (clic para filtrar)</th><th class="num">Potencial/mes</th><th>Estado</th></tr>';
+    html += '<table><tr><th>Cliente</th><th>Sucursal</th><th>Tipo (clic para filtrar, varios a la vez)</th><th>Vendedor (clic para filtrar, varios a la vez)</th><th class="num">Potencial/mes</th><th>Estado</th></tr>';
     datos.forEach(p => {
-      const activoTipo = PLANES_TIPO_SEL === p.tipo_plan;
-      const activoKam = PLANES_KAM_SEL === p.vendedor;
+      const activoTipo = (PLANES_TIPO_SEL||[]).includes(p.tipo_plan);
+      const activoKam = (PLANES_KAM_SEL||[]).includes(p.vendedor);
       html += `<tr><td>${esc(p.cliente)}</td><td>${esc(p.sucursal||'')}</td>
         <td class="fila-plan-tipo" data-tipo="${esc(p.tipo_plan)}" style="cursor:pointer;${activoTipo?'background:#2a2e24;':''}">${esc(p.tipo_plan)}</td>
         <td class="fila-plan-kam" data-kam="${esc(p.vendedor||'')}" style="cursor:pointer;${activoKam?'background:#2a2e24;':''}">${esc(titleCase(p.vendedor||''))}</td>
@@ -1018,15 +1029,23 @@ function renderPlanes() {
     });
   });
   el.querySelectorAll('.fila-plan-tipo').forEach(fila => {
-    fila.addEventListener('click', () => { PLANES_TIPO_SEL = (PLANES_TIPO_SEL === fila.dataset.tipo) ? null : fila.dataset.tipo; renderPlanes(); });
+    fila.addEventListener('click', () => {
+      const actuales = PLANES_TIPO_SEL || [];
+      PLANES_TIPO_SEL = actuales.includes(fila.dataset.tipo) ? actuales.filter(v=>v!==fila.dataset.tipo) : [...actuales, fila.dataset.tipo];
+      renderPlanes();
+    });
   });
   el.querySelectorAll('.fila-plan-kam').forEach(fila => {
-    fila.addEventListener('click', () => { PLANES_KAM_SEL = (PLANES_KAM_SEL === fila.dataset.kam) ? null : fila.dataset.kam; renderPlanes(); });
+    fila.addEventListener('click', () => {
+      const actuales = PLANES_KAM_SEL || [];
+      PLANES_KAM_SEL = actuales.includes(fila.dataset.kam) ? actuales.filter(v=>v!==fila.dataset.kam) : [...actuales, fila.dataset.kam];
+      renderPlanes();
+    });
   });
   activarBarraFiltros(el, {
-    tipo: () => { PLANES_TIPO_SEL = null; renderPlanes(); },
-    kam: () => { PLANES_KAM_SEL = null; renderPlanes(); }
-  }, () => { PLANES_TIPO_SEL = null; PLANES_KAM_SEL = null; renderPlanes(); });
+    tipo: (v) => { PLANES_TIPO_SEL = (PLANES_TIPO_SEL||[]).filter(x=>x!==v); renderPlanes(); },
+    kam: (v) => { PLANES_KAM_SEL = (PLANES_KAM_SEL||[]).filter(x=>x!==v); renderPlanes(); }
+  }, () => { PLANES_TIPO_SEL = []; PLANES_KAM_SEL = []; renderPlanes(); });
 }
 
 function autoFitKpis() {
@@ -1254,7 +1273,7 @@ const FUENTES_DATA = {
 };
 
 let REMISIONES_DATA = null;
-let REMISIONES_KAM_SEL = null;
+let REMISIONES_KAM_SEL = [];
 
 async function loadRemisiones() {
   const el = document.getElementById('view-remisiones');
@@ -1272,7 +1291,7 @@ function renderRemisiones() {
   const filas = r.filas || [];
   const meses = [...new Set(filas.map(f => f.mes))].sort((a,b) => a-b);
 
-  const filasFiltradas = REMISIONES_KAM_SEL ? filas.filter(f => f.vendedor === REMISIONES_KAM_SEL) : filas;
+  const filasFiltradas = (REMISIONES_KAM_SEL && REMISIONES_KAM_SEL.length) ? filas.filter(f => REMISIONES_KAM_SEL.includes(f.vendedor)) : filas;
 
   const grupos = {};
   filasFiltradas.forEach(f => {
@@ -1281,7 +1300,7 @@ function renderRemisiones() {
     grupos[f.vendedor][f.sucursal_factura][f.mes] = (grupos[f.vendedor][f.sucursal_factura][f.mes]||0) + f.valor;
   });
 
-  let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: REMISIONES_KAM_SEL, valorMostrar: REMISIONES_KAM_SEL ? titleCase(REMISIONES_KAM_SEL) : null }]) +
+  let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: REMISIONES_KAM_SEL, etiquetaDe: v => titleCase(v) }]) +
   `<div class="kpis">
     <div class="kpi"><div class="label">Valor Remisiones</div><div class="value">${money(r.valor_total)}</div></div>
     <div class="kpi"><div class="label"># Remisiones</div><div class="value">${r.num_remisiones||0}</div></div>
@@ -1290,9 +1309,9 @@ function renderRemisiones() {
   const totalesPorKam = {};
   filas.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor]||0) + f.valor; });
   const kamOrdenados = Object.keys(totalesPorKam).sort((a,b) => totalesPorKam[b]-totalesPorKam[a]);
-  html += `<div class="card"><h2>Totales por KAM (clic para filtrar)</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>`;
+  html += `<div class="card"><h2>Totales por KAM (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>`;
   kamOrdenados.forEach(k => {
-    const activo = REMISIONES_KAM_SEL === k;
+    const activo = (REMISIONES_KAM_SEL||[]).includes(k);
     html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
   });
   html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td></tr>`;
@@ -1313,11 +1332,12 @@ function renderRemisiones() {
 
   el.querySelectorAll('.fila-kam-rem').forEach(fila => {
     fila.addEventListener('click', () => {
-      REMISIONES_KAM_SEL = (REMISIONES_KAM_SEL === fila.dataset.kam) ? null : fila.dataset.kam;
+      const actuales = REMISIONES_KAM_SEL || [];
+      REMISIONES_KAM_SEL = actuales.includes(fila.dataset.kam) ? actuales.filter(v=>v!==fila.dataset.kam) : [...actuales, fila.dataset.kam];
       renderRemisiones();
     });
   });
-  activarBarraFiltros(el, { kam: () => { REMISIONES_KAM_SEL = null; renderRemisiones(); } });
+  activarBarraFiltros(el, { kam: (v) => { REMISIONES_KAM_SEL = (REMISIONES_KAM_SEL||[]).filter(x=>x!==v); renderRemisiones(); } }, () => { REMISIONES_KAM_SEL = []; renderRemisiones(); });
 }
 
 function colorKpiCartera(pct) {
@@ -1334,7 +1354,7 @@ function colorDiasVencido(dias) {
 }
 
 let CARTERA_DATA = null;
-let CARTERA_KAM_SEL = null;
+let CARTERA_KAM_SEL = [];
 
 async function loadCartera() {
   const el = document.getElementById('view-cartera');
@@ -1352,22 +1372,22 @@ function renderCartera() {
   const g = r.general || {};
   const colorGeneral = colorKpiCartera(g.kpi_pct);
 
-  let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: CARTERA_KAM_SEL, valorMostrar: CARTERA_KAM_SEL ? titleCase(CARTERA_KAM_SEL) : null }]) +
+  let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: CARTERA_KAM_SEL, etiquetaDe: v => titleCase(v) }]) +
   `<div class="kpis">
     <div class="kpi"><div class="label">Cartera Total</div><div class="value">${money(g.total)}</div></div>
     <div class="kpi"><div class="label">Cartera &gt; 60 días</div><div class="value">${money(g.vencido_60)}</div></div>
     <div class="kpi"><div class="label">KPI (meta &lt; 2.5%)</div><div class="value" style="color:${colorGeneral};">${g.kpi_pct}%</div></div>
   </div>`;
 
-  html += `<div class="card"><h2>KPI por KAM (meta &lt; 2.5%) (clic para filtrar)</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>`;
+  html += `<div class="card"><h2>KPI por KAM (meta &lt; 2.5%) (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>`;
   (r.por_kam || []).forEach(k => {
     const color = colorKpiCartera(k.kpi_pct);
-    const activo = CARTERA_KAM_SEL === k.vendedor;
+    const activo = (CARTERA_KAM_SEL||[]).includes(k.vendedor);
     html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
 
-  const detalleFiltrado = CARTERA_KAM_SEL ? (r.detalle||[]).filter(d => d.vendedor === CARTERA_KAM_SEL) : (r.detalle||[]);
+  const detalleFiltrado = (CARTERA_KAM_SEL && CARTERA_KAM_SEL.length) ? (r.detalle||[]).filter(d => CARTERA_KAM_SEL.includes(d.vendedor)) : (r.detalle||[]);
   html += '<div class="card"><h2>Detalle por sucursal (clic en una fila para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
   detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorKpi = colorKpiCartera(d.kpi_pct);
@@ -1382,11 +1402,12 @@ function renderCartera() {
 
   el.querySelectorAll('.fila-kam-cartera').forEach(fila => {
     fila.addEventListener('click', () => {
-      CARTERA_KAM_SEL = (CARTERA_KAM_SEL === fila.dataset.kam) ? null : fila.dataset.kam;
+      const actuales = CARTERA_KAM_SEL || [];
+      CARTERA_KAM_SEL = actuales.includes(fila.dataset.kam) ? actuales.filter(v=>v!==fila.dataset.kam) : [...actuales, fila.dataset.kam];
       renderCartera();
     });
   });
-  activarBarraFiltros(el, { kam: () => { CARTERA_KAM_SEL = null; renderCartera(); } });
+  activarBarraFiltros(el, { kam: (v) => { CARTERA_KAM_SEL = (CARTERA_KAM_SEL||[]).filter(x=>x!==v); renderCartera(); } }, () => { CARTERA_KAM_SEL = []; renderCartera(); });
 
   el.querySelectorAll('.fila-cartera').forEach(fila => {
     fila.addEventListener('click', () => mostrarFacturasCartera(fila.dataset.vendedor, fila.dataset.sucursal));
