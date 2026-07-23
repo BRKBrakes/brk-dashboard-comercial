@@ -1322,14 +1322,18 @@ function renderRemisiones() {
   </div>`;
 
   const totalesPorKam = {};
-  filas.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor]||0) + f.valor; });
+  const conteosPorKam = {};
+  filas.forEach(f => {
+    totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor]||0) + f.valor;
+    conteosPorKam[f.vendedor] = (conteosPorKam[f.vendedor]||0) + (f.num_docs||0);
+  });
   const kamOrdenados = Object.keys(totalesPorKam).sort((a,b) => totalesPorKam[b]-totalesPorKam[a]);
-  html += `<div class="card"><h2>Totales por KAM (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th></tr>`;
+  html += `<div class="card"><h2>Totales por KAM (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th><th class="num">#</th></tr>`;
   kamOrdenados.forEach(k => {
     const activo = (REMISIONES_KAM_SEL||[]).includes(k);
-    html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
+    html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td><td class="num">${(conteosPorKam[k]||0).toLocaleString('es-CO')}</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td></tr>`;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td><td class="num">${(r.num_remisiones||0).toLocaleString('es-CO')}</td></tr>`;
   html += '</table></div>';
 
   html += `<div class="card"><h2>Remisiones por vendedor y sucursal</h2><table><tr><th>Vendedor</th><th>Sucursal</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
