@@ -406,16 +406,22 @@ async function loadGapCilindros() {
   activarBarraFiltros(el, { opkam: () => { OP_KAM = ''; document.getElementById('opKam').value=''; loadTab(document.querySelector('#sub-oportunidades .tab.active').dataset.subtab); } });
 }
 
-let TIPOA_FILTROS_HTML = '';
+let TIPOA_FILTROS_HTML_LISTO = false;
+let TA_KAM = [];
+let TA_CLIENTE = [];
+let TA_SUCURSAL = [];
+let TA_MES = [];
+let TIPOA_CLIENTE_SEL = [];
+
 function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick, seleccionActual) {
   const maxV = Math.max(...items.map(i => i[valueKey]), 1);
   const totalGrupo = items.reduce((s,i) => s + (i[valueKey]||0), 0);
   const filaAltura = 26;
   let filas = '';
-  items.forEach((it, i) => {
+  items.forEach((it) => {
     const anchoBarra = Math.max(2, (it[valueKey] / maxV) * 62);
     const pct = totalGrupo ? Math.round((it[valueKey]/totalGrupo)*1000)/10 : 0;
-    const activo = seleccionActual && seleccionActual === it[labelKey];
+    const activo = Array.isArray(seleccionActual) ? seleccionActual.includes(it[labelKey]) : seleccionActual === it[labelKey];
     filas += `<div class="${claseClick}" data-key="${esc(it[labelKey]||'')}" style="display:flex;align-items:center;gap:6px;height:${filaAltura}px;cursor:pointer;padding:0 4px;border-radius:4px;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
       <div style="width:130px;font-size:11px;color:${activo?'var(--neon)':'var(--text)'};font-weight:${activo?'700':'400'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;" title="${esc(it[labelKey]||'')}">${esc(it[labelKey]||'')}</div>
       <div style="flex:1;background:#333630;border-radius:3px;height:14px;position:relative;">
@@ -427,18 +433,17 @@ function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick, sel
   return `<div>${filas}</div>`;
 }
 
-let TIPOA_CLIENTE_SEL = null;
-
 async function cargarTipoAExtra(data, kam, cliente, sucursal) {
   const el = document.getElementById('tipoa-graficas');
   el.innerHTML = '<div class="loading">Cargando gráficas...</div>';
-  TIPOA_CLIENTE_SEL = null;
+  TIPOA_CLIENTE_SEL = [];
 
   renderTipoAGraficas(data);
 
+  const paramsBase = { p_token: TOKEN, p_kam: (kam&&kam.length)?kam:null, p_cliente: (cliente&&cliente.length)?cliente:null, p_sucursal: (sucursal&&sucursal.length)?sucursal:null };
   const [r, rCliente] = await Promise.all([
-    rpc('dash_top_tipo_a_comparativo', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null }),
-    rpc('dash_top_tipo_a_comparativo_cliente', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null })
+    rpc('dash_top_tipo_a_comparativo', paramsBase),
+    rpc('dash_top_tipo_a_comparativo_cliente', paramsBase)
   ]);
 
   const tablaCard = document.getElementById('tipoa-tabla-comparativa');
@@ -485,13 +490,13 @@ function renderTipoAGraficas(data) {
   data.forEach(c => { porCliente[c.cliente] = (porCliente[c.cliente]||0) + (c.total||0); });
   const clientesOrdenados = Object.keys(porCliente).map(k => ({ cliente: k, total: porCliente[k] })).sort((a,b) => b.total - a.total);
 
-  const dataSucursales = TIPOA_CLIENTE_SEL ? data.filter(c => c.cliente === TIPOA_CLIENTE_SEL) : data;
+  const dataSucursales = (TIPOA_CLIENTE_SEL && TIPOA_CLIENTE_SEL.length) ? data.filter(c => TIPOA_CLIENTE_SEL.includes(c.cliente)) : data;
   const sucursalesOrdenadas = dataSucursales.slice().sort((a,b) => (b.total||0) - (a.total||0));
 
   const html = renderBarraFiltros([{ id: 'cliente', label: 'Cliente', valor: TIPOA_CLIENTE_SEL }]) +
   `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">
-    <div class="card"><h2>Razón Social vs Total 2026 (clic para filtrar)</h2>${barrasHorizontales(clientesOrdenados, 'cliente', 'total', '#F1FE34', 'ta-bar-cliente', TIPOA_CLIENTE_SEL)}</div>
-    <div class="card"><h2>Sucursal vs Total 2026 ${TIPOA_CLIENTE_SEL ? '— ' + esc(TIPOA_CLIENTE_SEL) : ''}</h2>${barrasHorizontales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43', '')}</div>
+    <div class="card"><h2>Razón Social vs Total 2026 (clic para filtrar, varios a la vez)</h2>${barrasHorizontales(clientesOrdenados, 'cliente', 'total', '#F1FE34', 'ta-bar-cliente', TIPOA_CLIENTE_SEL)}</div>
+    <div class="card"><h2>Sucursal vs Total 2026 ${(TIPOA_CLIENTE_SEL&&TIPOA_CLIENTE_SEL.length) ? '— ' + TIPOA_CLIENTE_SEL.map(c=>esc(c)).join(', ') : ''}</h2>${barrasHorizontales(sucursalesOrdenadas, 'sucursal_despacho', 'total', '#ff9f43', '')}</div>
   </div>
   <div class="card" id="tipoa-tabla-comparativa"><div class="loading">Cargando comparativo...</div></div>
   <div class="card" id="tipoa-tabla-comparativa-cliente"><div class="loading">Cargando comparativo...</div></div>`;
@@ -500,34 +505,56 @@ function renderTipoAGraficas(data) {
 
   el.querySelectorAll('.ta-bar-cliente').forEach(row => {
     row.addEventListener('click', () => {
-      TIPOA_CLIENTE_SEL = (TIPOA_CLIENTE_SEL === row.dataset.key) ? null : row.dataset.key;
+      const actuales = TIPOA_CLIENTE_SEL || [];
+      TIPOA_CLIENTE_SEL = actuales.includes(row.dataset.key) ? actuales.filter(v=>v!==row.dataset.key) : [...actuales, row.dataset.key];
       renderTipoAGraficas(data);
     });
   });
-  activarBarraFiltros(el, { cliente: () => { TIPOA_CLIENTE_SEL = null; renderTipoAGraficas(data); } });
+  activarBarraFiltros(el, { cliente: (v) => { TIPOA_CLIENTE_SEL = (TIPOA_CLIENTE_SEL||[]).filter(x=>x!==v); renderTipoAGraficas(data); } }, () => { TIPOA_CLIENTE_SEL = []; renderTipoAGraficas(data); });
 }
 
 async function loadTipoA(kam, cliente, sucursal, mes) {
   const el = document.getElementById('view-tipoa');
-  if (!TIPOA_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando aliados tipo A...</div>';
-  const r = await rpc('dash_top_tipo_a', { p_token: TOKEN, p_kam: kam || null, p_cliente: cliente || null, p_sucursal: sucursal || null, p_mes: mes ? parseInt(mes) : null });
-  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  if (!TIPOA_FILTROS_HTML_LISTO) el.innerHTML = '<div class="loading">Cargando aliados tipo A...</div>';
+  TA_KAM = kam !== undefined ? kam : TA_KAM;
+  TA_CLIENTE = cliente !== undefined ? cliente : TA_CLIENTE;
+  TA_SUCURSAL = sucursal !== undefined ? sucursal : TA_SUCURSAL;
+  TA_MES = mes !== undefined ? mes : TA_MES;
 
-  if (!TIPOA_FILTROS_HTML) {
-    const f = r.filtros || {};
-    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
-    TIPOA_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
-      <select id="taMes" class="estado">${optMeses(mes)}</select>
-      <select id="taKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
-      <select id="taCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
-      <select id="taSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
-      <button id="taFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
-    </div>`;
-  }
+  const r = await rpc('dash_top_tipo_a', {
+    p_token: TOKEN,
+    p_kam: (TA_KAM && TA_KAM.length) ? TA_KAM : null,
+    p_cliente: (TA_CLIENTE && TA_CLIENTE.length) ? TA_CLIENTE : null,
+    p_sucursal: (TA_SUCURSAL && TA_SUCURSAL.length) ? TA_SUCURSAL : null,
+    p_mes: (TA_MES && TA_MES.length) ? TA_MES.map(m=>parseInt(m)) : null
+  });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   const data = r.data || [];
   const total = data.reduce((s,c) => s + (c.total||0), 0);
-  let html = TIPOA_FILTROS_HTML + '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
+
+  const fFiltros = r.filtros || {};
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
+  const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
+  const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
+
+  TIPOA_FILTROS_HTML_LISTO = true;
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    ${renderMultiSelect('taMes', opcionesMeses, TA_MES, 'Todos los meses')}
+    <div id="ms-wrap-taKam-holder">${renderMultiSelect('taKam', opcionesKam, TA_KAM, 'Todos los KAM')}</div>
+    ${renderMultiSelect('taCliente', opcionesCliente, TA_CLIENTE, 'Todos los clientes')}
+    ${renderMultiSelect('taSucursal', opcionesSucursal, TA_SUCURSAL, 'Todas las sucursales')}
+  </div>`;
+
+  html += renderBarraFiltros([
+    { id: 'mes', label: 'Mes', valor: TA_MES, etiquetaDe: v => MESES[parseInt(v)-1] },
+    { id: 'kam', label: 'KAM', valor: TA_KAM, etiquetaDe: v => titleCase(v) },
+    { id: 'cliente', label: 'Cliente', valor: TA_CLIENTE, etiquetaDe: v => titleCase(v) },
+    { id: 'sucursal', label: 'Sucursal', valor: TA_SUCURSAL }
+  ]);
+
+  html += '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
   data.forEach(c => {
     const pctFila = total ? Math.round(((c.total||0)/total)*1000)/10 : 0;
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td></tr>`;
@@ -537,18 +564,25 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   html += '<div id="tipoa-graficas"></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
-  cargarTipoAExtra(data, kam, cliente, sucursal);
+  cargarTipoAExtra(data, TA_KAM, TA_CLIENTE, TA_SUCURSAL);
 
-  document.getElementById('taMes').value = mes || '';
-  document.getElementById('taKam').value = kam || '';
-  ocultarFiltroKamSiColaborador(['taKam']);
-  document.getElementById('taCliente').value = cliente || '';
-  document.getElementById('taSucursal').value = sucursal || '';
-  document.getElementById('taFiltrar').addEventListener('click', () => {
-    loadTipoA(document.getElementById('taKam').value, document.getElementById('taCliente').value, document.getElementById('taSucursal').value, document.getElementById('taMes').value);
-  });
+  activarMultiSelect('taMes', (vals) => loadTipoA(TA_KAM, TA_CLIENTE, TA_SUCURSAL, vals));
+  activarMultiSelect('taKam', (vals) => loadTipoA(vals, TA_CLIENTE, TA_SUCURSAL, TA_MES));
+  activarMultiSelect('taCliente', (vals) => loadTipoA(TA_KAM, vals, TA_SUCURSAL, TA_MES));
+  activarMultiSelect('taSucursal', (vals) => loadTipoA(TA_KAM, TA_CLIENTE, vals, TA_MES));
+
+  if (ROL === 'colaborador') {
+    const wrap = document.getElementById('ms-wrap-taKam');
+    if (wrap) wrap.style.display = 'none';
+  }
+
+  activarBarraFiltros(el, {
+    mes: (v) => loadTipoA(TA_KAM, TA_CLIENTE, TA_SUCURSAL, (TA_MES||[]).filter(x=>String(x)!==String(v))),
+    kam: (v) => loadTipoA((TA_KAM||[]).filter(x=>x!==v), TA_CLIENTE, TA_SUCURSAL, TA_MES),
+    cliente: (v) => loadTipoA(TA_KAM, (TA_CLIENTE||[]).filter(x=>x!==v), TA_SUCURSAL, TA_MES),
+    sucursal: (v) => loadTipoA(TA_KAM, TA_CLIENTE, (TA_SUCURSAL||[]).filter(x=>x!==v), TA_MES)
+  }, () => loadTipoA([], [], [], []));
 }
-
 let SEGMENTACION_DATA = [];
 let SEGMENTACION_FILTRO = null;
 let SEGMENTACION_KAM = '';
@@ -624,7 +658,6 @@ async function loadSegmentacion() {
   renderSegmentacionTabla();
 }
 
-let TICKET_FILTROS_HTML = '';
 const MESES_DISPONIBLES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function optMeses(mesSel) {
   const mesActualReal = new Date().getMonth() + 1;
@@ -634,33 +667,58 @@ function optMeses(mesSel) {
 }
 
 let TICKET_FAMILIA_SEL = null;
+let TICKET_FILTROS_HTML_LISTO = false;
+let TK_KAM = [];
+let TK_CLIENTE = [];
+let TK_SUCURSAL = [];
+let TK_MES = [];
 
 async function loadTicket(kam, cliente, sucursal, mes) {
   const el = document.getElementById('view-ticket');
-  if (!TICKET_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando ticket promedio...</div>';
-  const mesInt = mes ? parseInt(mes) : null;
-  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt });
+  if (!TICKET_FILTROS_HTML_LISTO) el.innerHTML = '<div class="loading">Cargando ticket promedio...</div>';
+  TK_KAM = kam !== undefined ? kam : TK_KAM;
+  TK_CLIENTE = cliente !== undefined ? cliente : TK_CLIENTE;
+  TK_SUCURSAL = sucursal !== undefined ? sucursal : TK_SUCURSAL;
+  TK_MES = mes !== undefined ? mes : TK_MES;
+
+  const r = await rpc('dash_ticket_promedio', {
+    p_token: TOKEN,
+    p_kam: (TK_KAM && TK_KAM.length) ? TK_KAM : null,
+    p_cliente: (TK_CLIENTE && TK_CLIENTE.length) ? TK_CLIENTE : null,
+    p_sucursal: (TK_SUCURSAL && TK_SUCURSAL.length) ? TK_SUCURSAL : null,
+    p_mes: (TK_MES && TK_MES.length) ? TK_MES.map(m=>parseInt(m)) : null
+  });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   let prod = null;
   if (TICKET_FAMILIA_SEL) {
-    prod = await rpc('dash_ticket_productos', { p_token: TOKEN, p_familia: TICKET_FAMILIA_SEL, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt });
+    prod = await rpc('dash_ticket_productos', { p_token: TOKEN, p_familia: TICKET_FAMILIA_SEL, p_kam: (TK_KAM&&TK_KAM.length)?TK_KAM:null, p_cliente: (TK_CLIENTE&&TK_CLIENTE.length)?TK_CLIENTE:null, p_sucursal: (TK_SUCURSAL&&TK_SUCURSAL.length)?TK_SUCURSAL:null, p_mes: (TK_MES&&TK_MES.length)?TK_MES.map(m=>parseInt(m)):null });
   }
 
-  if (!TICKET_FILTROS_HTML) {
-    const f = r.filtros || {};
-    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
-    TICKET_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
-      <select id="tkMes" class="estado">${optMeses(mes)}</select>
-      <select id="tkKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
-      <select id="tkCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
-      <select id="tkSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
-      <button id="tkFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
-    </div>`;
-  }
+  const fFiltros = r.filtros || {};
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
+  const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
+  const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
+
+  TICKET_FILTROS_HTML_LISTO = true;
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    ${renderMultiSelect('tkMes', opcionesMeses, TK_MES, 'Todos los meses')}
+    <div id="ms-wrap-tkKam-holder">${renderMultiSelect('tkKam', opcionesKam, TK_KAM, 'Todos los KAM')}</div>
+    ${renderMultiSelect('tkCliente', opcionesCliente, TK_CLIENTE, 'Todos los clientes')}
+    ${renderMultiSelect('tkSucursal', opcionesSucursal, TK_SUCURSAL, 'Todas las sucursales')}
+  </div>`;
+
+  html += renderBarraFiltros([
+    { id: 'mes', label: 'Mes', valor: TK_MES, etiquetaDe: v => MESES[parseInt(v)-1] },
+    { id: 'kam', label: 'KAM', valor: TK_KAM, etiquetaDe: v => titleCase(v) },
+    { id: 'cliente', label: 'Cliente', valor: TK_CLIENTE, etiquetaDe: v => titleCase(v) },
+    { id: 'sucursal', label: 'Sucursal', valor: TK_SUCURSAL },
+    { id: 'familia', label: 'Familia', valor: TICKET_FAMILIA_SEL }
+  ]);
 
   const g = r.general || {};
-  let html = TICKET_FILTROS_HTML + renderBarraFiltros([{ id: 'familia', label: 'Familia', valor: TICKET_FAMILIA_SEL }]) + `<div class="kpis">
+  html += `<div class="kpis">
     <div class="kpi"><div class="label">Venta Total</div><div class="value">${money(g.venta_total)}</div></div>
     <div class="kpi"><div class="label">Ticket Promedio</div><div class="value">${money(g.ticket_promedio)}</div></div>
     <div class="kpi"><div class="label">Unidades Vendidas</div><div class="value">${Math.round(g.unidades||0).toLocaleString('es-CO')}</div></div>
@@ -686,48 +744,81 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   habilitarOrdenTablas(el);
   autoFitKpis();
 
-  document.getElementById('tkMes').value = mes||'';
-  document.getElementById('tkKam').value = kam||'';
-  ocultarFiltroKamSiColaborador(['tkKam']);
-  document.getElementById('tkCliente').value = cliente||'';
-  document.getElementById('tkSucursal').value = sucursal||'';
-  document.getElementById('tkFiltrar').addEventListener('click', () => {
-    loadTicket(document.getElementById('tkKam').value, document.getElementById('tkCliente').value, document.getElementById('tkSucursal').value, document.getElementById('tkMes').value);
-  });
+  activarMultiSelect('tkMes', (vals) => loadTicket(TK_KAM, TK_CLIENTE, TK_SUCURSAL, vals));
+  activarMultiSelect('tkKam', (vals) => loadTicket(vals, TK_CLIENTE, TK_SUCURSAL, TK_MES));
+  activarMultiSelect('tkCliente', (vals) => loadTicket(TK_KAM, vals, TK_SUCURSAL, TK_MES));
+  activarMultiSelect('tkSucursal', (vals) => loadTicket(TK_KAM, TK_CLIENTE, vals, TK_MES));
+
+  if (ROL === 'colaborador') {
+    const wrap = document.getElementById('ms-wrap-tkKam');
+    if (wrap) wrap.style.display = 'none';
+  }
+
   el.querySelectorAll('.fam-row-ticket').forEach(row => {
     row.addEventListener('click', () => {
       TICKET_FAMILIA_SEL = (TICKET_FAMILIA_SEL === row.dataset.familia) ? null : row.dataset.familia;
-      loadTicket(kam, cliente, sucursal, mes);
+      loadTicket(TK_KAM, TK_CLIENTE, TK_SUCURSAL, TK_MES);
     });
   });
-  activarBarraFiltros(el, { familia: () => { TICKET_FAMILIA_SEL = null; loadTicket(kam, cliente, sucursal, mes); } });
+  activarBarraFiltros(el, {
+    mes: (v) => loadTicket(TK_KAM, TK_CLIENTE, TK_SUCURSAL, (TK_MES||[]).filter(x=>String(x)!==String(v))),
+    kam: (v) => loadTicket((TK_KAM||[]).filter(x=>x!==v), TK_CLIENTE, TK_SUCURSAL, TK_MES),
+    cliente: (v) => loadTicket(TK_KAM, (TK_CLIENTE||[]).filter(x=>x!==v), TK_SUCURSAL, TK_MES),
+    sucursal: (v) => loadTicket(TK_KAM, TK_CLIENTE, (TK_SUCURSAL||[]).filter(x=>x!==v), TK_MES),
+    familia: () => { TICKET_FAMILIA_SEL = null; loadTicket(TK_KAM, TK_CLIENTE, TK_SUCURSAL, TK_MES); }
+  }, () => { TICKET_FAMILIA_SEL = null; loadTicket([], [], [], []); });
 }
-
 const COLORES_FAMILIA = ['#F1FE34','#596B63','#9A979F','#414930','#ff9f43','#4ade80','#ff6b6b','#8b5cf6','#06b6d4'];
-let PORTAFOLIO_FILTROS_HTML = '';
 let PORTAFOLIO_FAMILIA_SEL = null;
+let PORTAFOLIO_FILTROS_HTML_LISTO = false;
+let PF_KAM = [];
+let PF_CLIENTE = [];
+let PF_SUCURSAL = [];
+let PF_MES = [];
 
 async function loadPortafolio(kam, cliente, sucursal, mes) {
   const el = document.getElementById('view-portafolio');
-  if (!PORTAFOLIO_FILTROS_HTML) el.innerHTML = '<div class="loading">Cargando portafolio...</div>';
-  const mesInt = mes ? parseInt(mes) : null;
-  const r = await rpc('dash_portafolio', { p_token: TOKEN, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt });
+  if (!PORTAFOLIO_FILTROS_HTML_LISTO) el.innerHTML = '<div class="loading">Cargando portafolio...</div>';
+  PF_KAM = kam !== undefined ? kam : PF_KAM;
+  PF_CLIENTE = cliente !== undefined ? cliente : PF_CLIENTE;
+  PF_SUCURSAL = sucursal !== undefined ? sucursal : PF_SUCURSAL;
+  PF_MES = mes !== undefined ? mes : PF_MES;
+
+  const paramsBase = {
+    p_token: TOKEN,
+    p_kam: (PF_KAM && PF_KAM.length) ? PF_KAM : null,
+    p_cliente: (PF_CLIENTE && PF_CLIENTE.length) ? PF_CLIENTE : null,
+    p_sucursal: (PF_SUCURSAL && PF_SUCURSAL.length) ? PF_SUCURSAL : null,
+    p_mes: (PF_MES && PF_MES.length) ? PF_MES.map(m=>parseInt(m)) : null
+  };
+
+  const r = await rpc('dash_portafolio', paramsBase);
   const prod = PORTAFOLIO_FAMILIA_SEL
-    ? await rpc('dash_portafolio_productos', { p_token: TOKEN, p_familia: PORTAFOLIO_FAMILIA_SEL, p_kam: kam||null, p_cliente: cliente||null, p_sucursal: sucursal||null, p_mes: mesInt })
+    ? await rpc('dash_portafolio_productos', Object.assign({ p_familia: PORTAFOLIO_FAMILIA_SEL }, paramsBase))
     : null;
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
-  if (!PORTAFOLIO_FILTROS_HTML) {
-    const f = r.filtros || {};
-    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
-    PORTAFOLIO_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
-      <select id="pfMes" class="estado">${optMeses(mes)}</select>
-      <select id="pfKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
-      <select id="pfCliente" class="estado"><option value="">Todos los clientes</option>${opt(f.clientes)}</select>
-      <select id="pfSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
-      <button id="pfFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
-    </div>`;
-  }
+  const fFiltros = r.filtros || {};
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
+  const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
+  const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
+
+  PORTAFOLIO_FILTROS_HTML_LISTO = true;
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    ${renderMultiSelect('pfMes', opcionesMeses, PF_MES, 'Todos los meses')}
+    <div id="ms-wrap-pfKam-holder">${renderMultiSelect('pfKam', opcionesKam, PF_KAM, 'Todos los KAM')}</div>
+    ${renderMultiSelect('pfCliente', opcionesCliente, PF_CLIENTE, 'Todos los clientes')}
+    ${renderMultiSelect('pfSucursal', opcionesSucursal, PF_SUCURSAL, 'Todas las sucursales')}
+  </div>`;
+
+  html += renderBarraFiltros([
+    { id: 'mes', label: 'Mes', valor: PF_MES, etiquetaDe: v => MESES[parseInt(v)-1] },
+    { id: 'kam', label: 'KAM', valor: PF_KAM, etiquetaDe: v => titleCase(v) },
+    { id: 'cliente', label: 'Cliente', valor: PF_CLIENTE, etiquetaDe: v => titleCase(v) },
+    { id: 'sucursal', label: 'Sucursal', valor: PF_SUCURSAL },
+    { id: 'familia', label: 'Familia', valor: PORTAFOLIO_FAMILIA_SEL }
+  ]);
 
   const data = r.data || [];
   const total = data.reduce((s,d) => s + d.venta, 0);
@@ -746,13 +837,13 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}" class="fam-slice" data-familia="${esc(d.familia)}" style="cursor:pointer;"/>`;
   });
 
-  let html = PORTAFOLIO_FILTROS_HTML + renderBarraFiltros([{ id: 'familia', label: 'Familia', valor: PORTAFOLIO_FAMILIA_SEL }]) + '<div class="card"><h2>Participación de portafolio por familia (top 12, clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
+  html += '<div class="card"><h2>Participación de portafolio por familia (top 12, clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
   html += `<svg width="200" height="200" viewBox="0 0 200 200">${paths}</svg>`;
   html += '<div style="flex:1;min-width:220px;">';
   data.forEach((d, i) => {
     const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
     const activo = PORTAFOLIO_FAMILIA_SEL === d.familia;
-    html += `<div class="fam-leyenda" data-familia="${esc(d.familia)}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;padding:3px 6px;border-radius:4px;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
+    html += `<div class="fam-leyenda" data-familia="${d.familia}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;padding:3px 6px;border-radius:4px;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
       <span style="width:12px;height:12px;background:${color};border-radius:2px;flex-shrink:0;"></span>
       <span style="flex:1;">${esc(d.familia)}</span>
       <span style="color:var(--text-dim);">${d.pct}%</span>
@@ -792,23 +883,30 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   el.innerHTML = html;
   habilitarOrdenTablas(el);
 
-  document.getElementById('pfMes').value = mes||'';
-  document.getElementById('pfKam').value = kam||'';
-  ocultarFiltroKamSiColaborador(['pfKam']);
-  document.getElementById('pfCliente').value = cliente||'';
-  document.getElementById('pfSucursal').value = sucursal||'';
-  document.getElementById('pfFiltrar').addEventListener('click', () => {
-    loadPortafolio(document.getElementById('pfKam').value, document.getElementById('pfCliente').value, document.getElementById('pfSucursal').value, document.getElementById('pfMes').value);
-  });
+  activarMultiSelect('pfMes', (vals) => loadPortafolio(PF_KAM, PF_CLIENTE, PF_SUCURSAL, vals));
+  activarMultiSelect('pfKam', (vals) => loadPortafolio(vals, PF_CLIENTE, PF_SUCURSAL, PF_MES));
+  activarMultiSelect('pfCliente', (vals) => loadPortafolio(PF_KAM, vals, PF_SUCURSAL, PF_MES));
+  activarMultiSelect('pfSucursal', (vals) => loadPortafolio(PF_KAM, PF_CLIENTE, vals, PF_MES));
 
-  const seleccionarFamilia = (fam) => {
+  if (ROL === 'colaborador') {
+    const wrap = document.getElementById('ms-wrap-pfKam');
+    if (wrap) wrap.style.display = 'none';
+  }
+
+  function seleccionarFamilia(fam) {
     PORTAFOLIO_FAMILIA_SEL = (PORTAFOLIO_FAMILIA_SEL === fam) ? null : fam;
-    loadPortafolio(kam, cliente, sucursal, mes);
-  };
+    loadPortafolio(PF_KAM, PF_CLIENTE, PF_SUCURSAL, PF_MES);
+  }
   el.querySelectorAll('.fam-slice, .fam-leyenda').forEach(node => {
     node.addEventListener('click', () => seleccionarFamilia(node.dataset.familia));
   });
-  activarBarraFiltros(el, { familia: () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio(kam, cliente, sucursal, mes); } });
+  activarBarraFiltros(el, {
+    mes: (v) => loadPortafolio(PF_KAM, PF_CLIENTE, PF_SUCURSAL, (PF_MES||[]).filter(x=>String(x)!==String(v))),
+    kam: (v) => loadPortafolio((PF_KAM||[]).filter(x=>x!==v), PF_CLIENTE, PF_SUCURSAL, PF_MES),
+    cliente: (v) => loadPortafolio(PF_KAM, (PF_CLIENTE||[]).filter(x=>x!==v), PF_SUCURSAL, PF_MES),
+    sucursal: (v) => loadPortafolio(PF_KAM, PF_CLIENTE, (PF_SUCURSAL||[]).filter(x=>x!==v), PF_MES),
+    familia: () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio(PF_KAM, PF_CLIENTE, PF_SUCURSAL, PF_MES); }
+  }, () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio([], [], [], []); });
 }
 
 let RECUP_KAM_HTML = '';
