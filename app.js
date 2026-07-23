@@ -1589,14 +1589,14 @@ function abrirEditorUsuario(userId, usuarios) {
   });
 }
 
-let FACILITADORES_MES = null;
-let FACILITADORES_CLIENTE = null;
-let FACILITADORES_TIPO = null;
-let FACILITADORES_KAM = null;
-let FACILITADORES_FACILITADOR = null;
-let FACILITADORES_DIA_SEMANA = null;
-let FACILITADORES_HORA = null;
-let FACILITADORES_FECHA = null;
+let FACILITADORES_MES = [];
+let FACILITADORES_CLIENTE = [];
+let FACILITADORES_TIPO = [];
+let FACILITADORES_KAM = [];
+let FACILITADORES_FACILITADOR = [];
+let FACILITADORES_DIA_SEMANA = [];
+let FACILITADORES_HORA = [];
+let FACILITADORES_FECHA = [];
 let FACILITADORES_FILTROS_HTML = '';
 
 async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana, hora, fecha) {
@@ -1613,44 +1613,37 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
 
   const r = await rpc('dash_facilitadores_resumen', {
     p_token: TOKEN,
-    p_mes: FACILITADORES_MES ? parseInt(FACILITADORES_MES) : null,
-    p_cliente: FACILITADORES_CLIENTE || null,
-    p_tipo: FACILITADORES_TIPO || null,
-    p_kam: FACILITADORES_KAM || null,
-    p_facilitador: FACILITADORES_FACILITADOR || null,
-    p_dia_semana: FACILITADORES_DIA_SEMANA ? parseInt(FACILITADORES_DIA_SEMANA) : null,
-    p_hora: (FACILITADORES_HORA !== null && FACILITADORES_HORA !== undefined && FACILITADORES_HORA !== '') ? parseInt(FACILITADORES_HORA) : null,
-    p_fecha: FACILITADORES_FECHA || null
+    p_mes: (FACILITADORES_MES && FACILITADORES_MES.length) ? FACILITADORES_MES.map(m=>parseInt(m)) : null,
+    p_cliente: (FACILITADORES_CLIENTE && FACILITADORES_CLIENTE.length) ? FACILITADORES_CLIENTE : null,
+    p_tipo: (FACILITADORES_TIPO && FACILITADORES_TIPO.length) ? FACILITADORES_TIPO : null,
+    p_kam: (FACILITADORES_KAM && FACILITADORES_KAM.length) ? FACILITADORES_KAM : null,
+    p_facilitador: (FACILITADORES_FACILITADOR && FACILITADORES_FACILITADOR.length) ? FACILITADORES_FACILITADOR : null,
+    p_dia_semana: (FACILITADORES_DIA_SEMANA && FACILITADORES_DIA_SEMANA.length) ? FACILITADORES_DIA_SEMANA.map(d=>parseInt(d)) : null,
+    p_hora: (FACILITADORES_HORA && FACILITADORES_HORA.length) ? FACILITADORES_HORA.map(h=>parseInt(h)) : null,
+    p_fecha: (FACILITADORES_FECHA && FACILITADORES_FECHA.length) ? FACILITADORES_FECHA : null
   });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
-  if (!FACILITADORES_FILTROS_HTML) {
-    const f = r.filtros || {};
-    const optSimple = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    FACILITADORES_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
-      <select id="fzMes" class="estado"><option value="">Todos los meses</option>
-        <option value="1">Ene</option><option value="2">Feb</option><option value="3">Mar</option>
-        <option value="4">Abr</option><option value="5">May</option><option value="6">Jun</option><option value="7">Jul</option>
-      </select>
-      <select id="fzCliente" class="estado"><option value="">Todos los clientes</option>${optSimple(f.clientes)}</select>
-      <select id="fzTipo" class="estado"><option value="">Todos los tipos</option>${optSimple(f.tipos)}</select>
-      <button id="fzFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
-      <button id="fzLimpiar" style="width:auto;padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">Quitar todos los filtros</button>
-    </div>`;
-  }
+  const f = r.filtros || {};
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: c }));
+  const opcionesTipo = (f.tipos||[]).slice().sort().map(t => ({ value: t, label: t }));
 
-  let html = FACILITADORES_FILTROS_HTML;
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    ${renderMultiSelect('fzMes', opcionesMeses, FACILITADORES_MES, 'Todos los meses')}
+    ${renderMultiSelect('fzCliente', opcionesCliente, FACILITADORES_CLIENTE, 'Todos los clientes')}
+    ${renderMultiSelect('fzTipo', opcionesTipo, FACILITADORES_TIPO, 'Todos los tipos')}
+  </div>`;
 
-  // Barra de filtros activos (chips con "x")
   const NOMBRES_DIA_SEMANA = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo'};
   html += renderBarraFiltros([
-    { id: 'mes', label: 'Mes', valor: FACILITADORES_MES, valorMostrar: FACILITADORES_MES ? MESES[parseInt(FACILITADORES_MES)-1] : null },
+    { id: 'mes', label: 'Mes', valor: FACILITADORES_MES, etiquetaDe: v => MESES[parseInt(v)-1] },
     { id: 'cliente', label: 'Cliente', valor: FACILITADORES_CLIENTE },
     { id: 'tipo', label: 'Tipo', valor: FACILITADORES_TIPO },
-    { id: 'kam', label: 'KAM', valor: FACILITADORES_KAM, valorMostrar: FACILITADORES_KAM ? titleCase(FACILITADORES_KAM) : null },
-    { id: 'facilitador', label: 'Facilitador', valor: FACILITADORES_FACILITADOR, valorMostrar: FACILITADORES_FACILITADOR ? titleCase(FACILITADORES_FACILITADOR) : null },
-    { id: 'diasemana', label: 'Día', valor: FACILITADORES_DIA_SEMANA, valorMostrar: NOMBRES_DIA_SEMANA[FACILITADORES_DIA_SEMANA] },
-    { id: 'hora', label: 'Hora', valor: (FACILITADORES_HORA !== null && FACILITADORES_HORA !== undefined) ? FACILITADORES_HORA : null, valorMostrar: (FACILITADORES_HORA !== null && FACILITADORES_HORA !== undefined) ? String(FACILITADORES_HORA).padStart(2,'0') + ':00' : null },
+    { id: 'kam', label: 'KAM', valor: FACILITADORES_KAM, etiquetaDe: v => titleCase(v) },
+    { id: 'facilitador', label: 'Facilitador', valor: FACILITADORES_FACILITADOR, etiquetaDe: v => titleCase(v) },
+    { id: 'diasemana', label: 'Día', valor: FACILITADORES_DIA_SEMANA, etiquetaDe: v => NOMBRES_DIA_SEMANA[parseInt(v)] },
+    { id: 'hora', label: 'Hora', valor: FACILITADORES_HORA, etiquetaDe: v => String(v).padStart(2,'0') + ':00' },
     { id: 'fecha', label: 'Fecha', valor: FACILITADORES_FECHA }
   ]);
 
@@ -1662,40 +1655,21 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
     <div class="kpi"><div class="label">Servicios x KAM x Día</div><div class="value">${r.servicios_por_kam_por_dia_habil||0}</div></div>
   </div>`;
 
-  // Por KAM (3 comerciales de Medellín) — clicable
-  html += `<div class="card"><h2>Servicios por Comercial (Medellín) (clic para filtrar)</h2><table><tr><th>KAM</th><th class="num">Servicios</th><th class="num">Servicios/Día</th></tr>`;
+  html += `<div class="card"><h2>Servicios por Comercial (Medellín) (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Servicios</th><th class="num">Servicios/Día</th></tr>`;
   (r.por_kam || []).forEach(k => {
     const esKam = !k.kam.includes('Sin identificar');
-    const activo = FACILITADORES_KAM === k.kam;
+    const activo = (FACILITADORES_KAM||[]).includes(k.kam);
     html += `<tr class="fila-fz-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esKam ? titleCase(k.kam) : esc(k.kam)}</td><td class="num">${k.total}</td><td class="num">${k.promedio_dia}</td></tr>`;
   });
   html += '</table></div>';
 
-  // Por facilitador (capacidad real) — clicable
-  html += `<div class="card"><h2>Servicios por Facilitador — ¿nos sobra o nos falta gente? (clic para filtrar)</h2><table><tr><th>Facilitador</th><th class="num">Total</th><th class="num">Días activos</th><th class="num">Promedio/día</th><th class="num">Máximo en 1 día</th></tr>`;
+  html += `<div class="card"><h2>Servicios por Facilitador — ¿nos sobra o nos falta gente? (clic para filtrar, varios a la vez)</h2><table><tr><th>Facilitador</th><th class="num">Total</th><th class="num">Días activos</th><th class="num">Promedio/día</th><th class="num">Máximo en 1 día</th></tr>`;
   (r.por_facilitador || []).forEach(fac => {
-    const activo = FACILITADORES_FACILITADOR === fac.facilitador;
+    const activo = (FACILITADORES_FACILITADOR||[]).includes(fac.facilitador);
     html += `<tr class="fila-fz-facilitador" data-facilitador="${esc(fac.facilitador)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(fac.facilitador))}</td><td class="num">${fac.total}</td><td class="num">${fac.dias_activos}</td><td class="num">${fac.promedio_dia_habil}</td><td class="num">${fac.maximo_en_un_dia}</td></tr>`;
   });
   html += '</table></div>';
 
-  // Por tipo de servicio — clicable
-  html += `<div class="card"><h2>Servicios por Tipo (clic para filtrar)</h2><table><tr><th>Tipo</th><th class="num">Servicios</th></tr>`;
-  (r.por_tipo || []).forEach(t => {
-    const activo = FACILITADORES_TIPO === t.tipo_servicio;
-    html += `<tr class="fila-fz-tipo" data-tipo="${esc(t.tipo_servicio)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(t.tipo_servicio)}</td><td class="num">${t.n}</td></tr>`;
-  });
-  html += '</table></div>';
-
-  // Clientes que más piden en un solo día — clicable
-  html += `<div class="card"><h2>Clientes con más servicios en un mismo día (top 15) (clic para filtrar)</h2><table><tr><th>Cliente</th><th class="num">Máximo en 1 día</th><th class="num">Total en el periodo</th></tr>`;
-  (r.top_clientes_dia || []).forEach(c => {
-    const activo = FACILITADORES_CLIENTE === c.cliente;
-    html += `<tr class="fila-fz-cliente" data-cliente="${esc(c.cliente)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num">${c.max_dia}</td><td class="num">${c.total_periodo}</td></tr>`;
-  });
-  html += '</table></div>';
-
-  // Tiempo de respuesta (solo disponible desde julio, cuando Logística empezó a registrar hora de finalización)
   const tr = r.tiempo_respuesta || {};
   if (tr.con_dato) {
     html += `<div class="kpis">
@@ -1707,13 +1681,13 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">';
     html += `<div class="card"><h2>Tiempo de respuesta por Tipo (clic para filtrar)</h2><table><tr><th>Tipo</th><th class="num">Servicios</th><th class="num">Promedio (min)</th></tr>`;
     (r.tiempo_respuesta_por_tipo || []).forEach(t => {
-      const activo = FACILITADORES_TIPO === t.tipo_servicio;
+      const activo = (FACILITADORES_TIPO||[]).includes(t.tipo_servicio);
       html += `<tr class="fila-fz-tipo" data-tipo="${esc(t.tipo_servicio)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(t.tipo_servicio)}</td><td class="num">${t.n}</td><td class="num">${t.promedio_minutos}</td></tr>`;
     });
     html += '</table></div>';
     html += `<div class="card"><h2>Tiempo de respuesta por Facilitador (clic para filtrar)</h2><table><tr><th>Facilitador</th><th class="num">Servicios</th><th class="num">Promedio (min)</th></tr>`;
     (r.tiempo_respuesta_por_facilitador || []).forEach(t => {
-      const activo = FACILITADORES_FACILITADOR === t.facilitador;
+      const activo = (FACILITADORES_FACILITADOR||[]).includes(t.facilitador);
       html += `<tr class="fila-fz-facilitador" data-facilitador="${esc(t.facilitador)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(t.facilitador))}</td><td class="num">${t.n}</td><td class="num">${t.promedio_minutos}</td></tr>`;
     });
     html += '</table></div></div>';
@@ -1721,103 +1695,80 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
     html += '<div class="card"><p style="color:var(--text-dim);font-size:12px;">Tiempo de respuesta: aún no hay datos con fecha de finalización en el periodo seleccionado (disponible desde julio 2026 en adelante).</p></div>';
   }
 
-  // Patrón por día de la semana y hora del día — para programar turnos (clicables)
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px;">';
-  html += `<div class="card"><h2>Servicios por Día de la Semana (clic para filtrar)</h2><table><tr><th>Día</th><th class="num">Servicios</th></tr>`;
+  html += `<div class="card"><h2>Servicios por Día de la Semana (clic para filtrar, varios a la vez)</h2><table><tr><th>Día</th><th class="num">Servicios</th></tr>`;
   (r.por_dia_semana || []).forEach(d => {
-    const activo = FACILITADORES_DIA_SEMANA === String(d.isodow);
+    const activo = (FACILITADORES_DIA_SEMANA||[]).includes(String(d.isodow));
     html += `<tr class="fila-fz-diasemana" data-diasemana="${d.isodow}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${d.dia_semana}</td><td class="num">${d.total}</td></tr>`;
   });
   html += '</table></div>';
-  html += `<div class="card"><h2>Servicios por Hora del Día (clic para filtrar)</h2><table><tr><th>Hora</th><th class="num">Servicios</th></tr>`;
+  html += `<div class="card"><h2>Servicios por Hora del Día (clic para filtrar, varios a la vez)</h2><table><tr><th>Hora</th><th class="num">Servicios</th></tr>`;
   (r.por_hora || []).forEach(h => {
-    const activo = FACILITADORES_HORA === String(h.hora);
+    const activo = (FACILITADORES_HORA||[]).includes(String(h.hora));
     html += `<tr class="fila-fz-hora" data-hora="${h.hora}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${String(h.hora).padStart(2,'0')}:00</td><td class="num">${h.total}</td></tr>`;
   });
   html += '</table></div></div>';
 
-  // Servicios por día (tendencia) — clicable por fecha específica
-  html += `<div class="card"><h2>Servicios por día (clic para filtrar)</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Servicios/KAM</th><th class="num">Facilitadores activos</th></tr>`;
+  html += `<div class="card"><h2>Servicios por día (clic para filtrar, varios a la vez)</h2><table><tr><th>Día</th><th class="num">Servicios</th><th class="num">Servicios/KAM</th><th class="num">Facilitadores activos</th></tr>`;
   (r.por_dia || []).forEach(d => {
-    const activo = FACILITADORES_FECHA === d.dia;
+    const activo = (FACILITADORES_FECHA||[]).includes(d.dia);
     html += `<tr class="fila-fz-fecha" data-fecha="${d.dia}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${d.dia}</td><td class="num">${d.total}</td><td class="num">${Math.round((d.total/3)*10)/10}</td><td class="num">${d.facilitadores_activos}</td></tr>`;
   });
   html += '</table></div>';
 
+  // Clientes con más servicios en un mismo día (top 15)
+  html += `<div class="card"><h2>Clientes con más servicios en un mismo día (top 15) (clic para filtrar, varios a la vez)</h2><table><tr><th>Cliente</th><th class="num">Máximo en 1 día</th><th class="num">Total en el periodo</th></tr>`;
+  (r.top_clientes_dia || []).forEach(c => {
+    const activo = (FACILITADORES_CLIENTE||[]).includes(c.cliente);
+    html += `<tr class="fila-fz-cliente" data-cliente="${esc(c.cliente)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num">${c.max_dia}</td><td class="num">${c.total_periodo}</td></tr>`;
+  });
+  html += '</table></div>';
+
   el.innerHTML = html;
-  autoFitKpis();
   habilitarOrdenTablas(el);
 
-  document.getElementById('fzMes').value = FACILITADORES_MES || '';
-  document.getElementById('fzCliente').value = FACILITADORES_CLIENTE || '';
-  document.getElementById('fzTipo').value = FACILITADORES_TIPO || '';
-  document.getElementById('fzFiltrar').addEventListener('click', () => {
-    loadFacilitadores(
-      document.getElementById('fzMes').value,
-      document.getElementById('fzCliente').value,
-      document.getElementById('fzTipo').value,
-      FACILITADORES_KAM,
-      FACILITADORES_FACILITADOR,
-      FACILITADORES_DIA_SEMANA,
-      FACILITADORES_HORA,
-      FACILITADORES_FECHA
-    );
-  });
-  document.getElementById('fzLimpiar').addEventListener('click', () => {
-    loadFacilitadores(null, null, null, null, null, null, null, null);
-  });
+  activarMultiSelect('fzMes', (vals) => loadFacilitadores(vals, undefined, undefined, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('fzCliente', (vals) => loadFacilitadores(undefined, vals, undefined, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('fzTipo', (vals) => loadFacilitadores(undefined, undefined, vals, undefined, undefined, undefined, undefined, undefined));
+
+  function toggle(arr, val) {
+    arr = arr || [];
+    return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
+  }
 
   el.querySelectorAll('.fila-fz-kam').forEach(fila => {
-    fila.addEventListener('click', () => {
-      loadFacilitadores(undefined, undefined, undefined, FACILITADORES_KAM === fila.dataset.kam ? null : fila.dataset.kam, undefined);
-    });
+    fila.addEventListener('click', () => loadFacilitadores(undefined, undefined, undefined, toggle(FACILITADORES_KAM, fila.dataset.kam), undefined));
   });
   el.querySelectorAll('.fila-fz-facilitador').forEach(fila => {
-    fila.addEventListener('click', () => {
-      loadFacilitadores(undefined, undefined, undefined, undefined, FACILITADORES_FACILITADOR === fila.dataset.facilitador ? null : fila.dataset.facilitador);
-    });
+    fila.addEventListener('click', () => loadFacilitadores(undefined, undefined, undefined, undefined, toggle(FACILITADORES_FACILITADOR, fila.dataset.facilitador)));
   });
   el.querySelectorAll('.fila-fz-tipo').forEach(fila => {
-    fila.addEventListener('click', () => {
-      loadFacilitadores(undefined, undefined, FACILITADORES_TIPO === fila.dataset.tipo ? null : fila.dataset.tipo, undefined, undefined);
-    });
+    fila.addEventListener('click', () => loadFacilitadores(undefined, undefined, toggle(FACILITADORES_TIPO, fila.dataset.tipo), undefined, undefined));
   });
   el.querySelectorAll('.fila-fz-cliente').forEach(fila => {
-    fila.addEventListener('click', () => {
-      loadFacilitadores(undefined, FACILITADORES_CLIENTE === fila.dataset.cliente ? null : fila.dataset.cliente, undefined, undefined, undefined);
-    });
+    fila.addEventListener('click', () => loadFacilitadores(undefined, toggle(FACILITADORES_CLIENTE, fila.dataset.cliente), undefined, undefined, undefined));
   });
   el.querySelectorAll('.fila-fz-diasemana').forEach(fila => {
-    fila.addEventListener('click', () => {
-      const nuevo = FACILITADORES_DIA_SEMANA === fila.dataset.diasemana ? null : fila.dataset.diasemana;
-      loadFacilitadores(undefined, undefined, undefined, undefined, undefined, nuevo, undefined, undefined);
-    });
+    fila.addEventListener('click', () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, toggle(FACILITADORES_DIA_SEMANA, fila.dataset.diasemana), undefined, undefined));
   });
   el.querySelectorAll('.fila-fz-hora').forEach(fila => {
-    fila.addEventListener('click', () => {
-      const nuevo = FACILITADORES_HORA === fila.dataset.hora ? null : fila.dataset.hora;
-      loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, nuevo, undefined);
-    });
+    fila.addEventListener('click', () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, toggle(FACILITADORES_HORA, fila.dataset.hora), undefined));
   });
   el.querySelectorAll('.fila-fz-fecha').forEach(fila => {
-    fila.addEventListener('click', () => {
-      const nuevo = FACILITADORES_FECHA === fila.dataset.fecha ? null : fila.dataset.fecha;
-      loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, undefined, nuevo);
-    });
+    fila.addEventListener('click', () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, undefined, toggle(FACILITADORES_FECHA, fila.dataset.fecha)));
   });
 
   activarBarraFiltros(el, {
-    mes: () => loadFacilitadores(null, undefined, undefined, undefined, undefined),
-    cliente: () => loadFacilitadores(undefined, null, undefined, undefined, undefined),
-    tipo: () => loadFacilitadores(undefined, undefined, null, undefined, undefined),
-    kam: () => loadFacilitadores(undefined, undefined, undefined, null, undefined),
-    facilitador: () => loadFacilitadores(undefined, undefined, undefined, undefined, null),
-    diasemana: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, null, undefined, undefined),
-    hora: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, null, undefined),
-    fecha: () => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, undefined, null)
-  }, () => loadFacilitadores(null, null, null, null, null, null, null, null));
+    mes: (v) => loadFacilitadores((FACILITADORES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined),
+    cliente: (v) => loadFacilitadores(undefined, (FACILITADORES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined),
+    tipo: (v) => loadFacilitadores(undefined, undefined, (FACILITADORES_TIPO||[]).filter(x=>x!==v), undefined, undefined),
+    kam: (v) => loadFacilitadores(undefined, undefined, undefined, (FACILITADORES_KAM||[]).filter(x=>x!==v), undefined),
+    facilitador: (v) => loadFacilitadores(undefined, undefined, undefined, undefined, (FACILITADORES_FACILITADOR||[]).filter(x=>x!==v)),
+    diasemana: (v) => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, (FACILITADORES_DIA_SEMANA||[]).filter(x=>String(x)!==String(v)), undefined, undefined),
+    hora: (v) => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, (FACILITADORES_HORA||[]).filter(x=>String(x)!==String(v)), undefined),
+    fecha: (v) => loadFacilitadores(undefined, undefined, undefined, undefined, undefined, undefined, undefined, (FACILITADORES_FECHA||[]).filter(x=>x!==v))
+  }, () => loadFacilitadores([], [], [], [], [], [], [], []));
 }
-
 // ---- Helper genérico: agrupa filas {mes, valorField} en pivote por mes ----
 function pivotarPorMes(filas, obtenerClave, valorField) {
   const grupos = {};
