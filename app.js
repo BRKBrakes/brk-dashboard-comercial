@@ -1830,10 +1830,10 @@ function pivotarPorMes(filas, obtenerClave, valorField) {
   return Object.values(grupos).sort((a, b) => b.total - a.total);
 }
 
-let CLIENTES_MES = null;
-let CLIENTES_KAM = null;
-let CLIENTES_CLIENTE = null;
-let CLIENTES_SUCURSAL = null;
+let CLIENTES_MES = [];
+let CLIENTES_KAM = [];
+let CLIENTES_CLIENTE = [];
+let CLIENTES_SUCURSAL = [];
 let CLIENTES_REFERENCIA = null;
 let CLIENTES_NRO_DOCUMENTO = null;
 let CLIENTES_FILTROS_HTML = '';
@@ -1850,37 +1850,37 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
 
   const r = await rpc('dash_clientes_resumen', {
     p_token: TOKEN,
-    p_mes: CLIENTES_MES ? parseInt(CLIENTES_MES) : null,
-    p_kam: CLIENTES_KAM || null,
-    p_cliente: CLIENTES_CLIENTE || null,
-    p_sucursal: CLIENTES_SUCURSAL || null,
+    p_mes: (CLIENTES_MES && CLIENTES_MES.length) ? CLIENTES_MES.map(m=>parseInt(m)) : null,
+    p_kam: (CLIENTES_KAM && CLIENTES_KAM.length) ? CLIENTES_KAM : null,
+    p_cliente: (CLIENTES_CLIENTE && CLIENTES_CLIENTE.length) ? CLIENTES_CLIENTE : null,
+    p_sucursal: (CLIENTES_SUCURSAL && CLIENTES_SUCURSAL.length) ? CLIENTES_SUCURSAL : null,
     p_referencia: CLIENTES_REFERENCIA || null,
     p_nro_documento: CLIENTES_NRO_DOCUMENTO || null
   });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
-  if (!CLIENTES_FILTROS_HTML) {
-    const f = r.filtros || {};
-    const opt = (arr) => (arr||[]).sort().map(v => `<option value="${esc(v)}">${esc(titleCase(v))}</option>`).join('');
-    CLIENTES_FILTROS_HTML = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
-      <select id="clMes" class="estado">${optMeses(mes)}</select>
-      <select id="clKam" class="estado"><option value="">Todos los KAM</option>${opt(f.kams)}</select>
-      <select id="clCliente" class="estado"><option value="">Todos los aliados</option>${opt(f.clientes)}</select>
-      <select id="clSucursal" class="estado"><option value="">Todas las sucursales</option>${opt(f.sucursales)}</select>
-      <button id="clFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Filtrar</button>
-    </div>`;
-  }
+  const f = r.filtros || {};
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesKam = (f.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
+  const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
+  const opcionesSucursal = (f.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
 
   const meses = [...new Set([
     ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
     ...(r.facturas||[]).map(x=>x.mes)
   ])].sort((a,b)=>a-b);
 
-  let html = CLIENTES_FILTROS_HTML;
+  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    ${renderMultiSelect('clMes', opcionesMeses, CLIENTES_MES, 'Todos los meses')}
+    <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
+    ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
+    ${renderMultiSelect('clSucursal', opcionesSucursal, CLIENTES_SUCURSAL, 'Todas las sucursales')}
+  </div>`;
+
   html += renderBarraFiltros([
-    { id: 'mes', label: 'Mes', valor: CLIENTES_MES, valorMostrar: CLIENTES_MES ? MESES[parseInt(CLIENTES_MES)-1] : null },
-    { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, valorMostrar: CLIENTES_KAM ? titleCase(CLIENTES_KAM) : null },
-    { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, valorMostrar: CLIENTES_CLIENTE ? titleCase(CLIENTES_CLIENTE) : null },
+    { id: 'mes', label: 'Mes', valor: CLIENTES_MES, etiquetaDe: v => MESES[parseInt(v)-1] },
+    { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, etiquetaDe: v => titleCase(v) },
+    { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
     { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
     { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO }
@@ -1890,7 +1890,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
   html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   topClientes.forEach(c => {
-    const activo = CLIENTES_SUCURSAL === c.sucursal_despacho;
+    const activo = (CLIENTES_SUCURSAL||[]).includes(c.sucursal_despacho);
     html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}<td class="num money">${money(c.total)}</td></tr>`;
   });
   html += '</table></div></div>';
@@ -1926,25 +1926,21 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   el.innerHTML = html;
   habilitarOrdenTablas(el);
 
-  document.getElementById('clMes').value = CLIENTES_MES || '';
-  document.getElementById('clKam').value = CLIENTES_KAM || '';
-  ocultarFiltroKamSiColaborador(['clKam']);
-  document.getElementById('clCliente').value = CLIENTES_CLIENTE || '';
-  document.getElementById('clSucursal').value = CLIENTES_SUCURSAL || '';
-  document.getElementById('clFiltrar').addEventListener('click', () => {
-    loadClientes(
-      document.getElementById('clMes').value,
-      document.getElementById('clKam').value,
-      document.getElementById('clCliente').value,
-      document.getElementById('clSucursal').value,
-      CLIENTES_REFERENCIA,
-      CLIENTES_NRO_DOCUMENTO
-    );
-  });
+  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined));
+  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined));
+
+  if (ROL === 'colaborador') {
+    const wrap = document.getElementById('ms-wrap-clKam');
+    if (wrap) wrap.style.display = 'none';
+  }
 
   el.querySelectorAll('.fila-cl-sucursal').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, CLIENTES_SUCURSAL === fila.dataset.sucursal ? null : fila.dataset.sucursal, undefined, undefined);
+      const actuales = CLIENTES_SUCURSAL || [];
+      const nuevo = actuales.includes(fila.dataset.sucursal) ? actuales.filter(v=>v!==fila.dataset.sucursal) : [...actuales, fila.dataset.sucursal];
+      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-referencia').forEach(fila => {
@@ -1959,13 +1955,13 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   });
 
   activarBarraFiltros(el, {
-    mes: () => loadClientes(null, undefined, undefined, undefined, undefined, undefined),
-    kam: () => loadClientes(undefined, null, undefined, undefined, undefined, undefined),
-    cliente: () => loadClientes(undefined, undefined, null, undefined, undefined, undefined),
-    sucursal: () => loadClientes(undefined, undefined, undefined, null, undefined, undefined),
+    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined),
+    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
+    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined),
+    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined),
     referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined),
     nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null)
-  }, () => loadClientes(null, null, null, null, null, null));
+  }, () => loadClientes([], [], [], [], null, null));
 }
 
 function loadCargarVentas() {
@@ -2107,30 +2103,89 @@ function esc(s) {
 // ---- Barra de filtros activos (chips con "x" removible) — reutilizable en toda la app ----
 // chips: [{ id, label, valor }]
 function renderBarraFiltros(chips) {
-  const activos = (chips || []).filter(c => c.valor !== null && c.valor !== undefined && c.valor !== '');
-  if (!activos.length) return '';
+  // Expande cada filtro: si c.valor es un array con 2+ elementos, genera un chip por cada valor (removible individualmente).
+  // Si es un solo valor (string/number) o array de 1, se comporta como chip único (compatibilidad con vistas ya existentes).
+  const piezas = [];
+  (chips || []).forEach(c => {
+    if (Array.isArray(c.valor)) {
+      if (c.valor.length === 0) return;
+      c.valor.forEach(v => {
+        const etiqueta = (c.etiquetaDe ? c.etiquetaDe(v) : v);
+        piezas.push({ id: c.id, subId: v, label: c.label, valorMostrar: etiqueta, multi: true });
+      });
+    } else {
+      if (c.valor === null || c.valor === undefined || c.valor === '') return;
+      piezas.push({ id: c.id, subId: null, label: c.label, valorMostrar: c.valorMostrar || c.valor, multi: false });
+    }
+  });
+  if (!piezas.length) return '';
   return `<div class="card barra-filtros-activos" style="padding:10px 20px;margin-bottom:16px;border-color:var(--neon);display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <span style="font-size:11px;color:var(--text-dim);">Filtros activos:</span>
-    ${activos.map(c => `<span class="chip-filtro" data-clear-id="${esc(c.id)}" style="background:#2a2e24;border:1px solid var(--neon);border-radius:14px;padding:3px 6px 3px 12px;font-size:12px;display:inline-flex;align-items:center;gap:8px;">
-      ${esc(c.label)}: <b style="color:var(--neon);">${esc(c.valorMostrar || c.valor)}</b>
-      <span class="btn-quitar-chip" data-clear-id="${esc(c.id)}" style="cursor:pointer;color:#ff6b6b;font-weight:700;padding:0 4px;">✕</span>
+    ${piezas.map(p => `<span class="chip-filtro" style="background:#2a2e24;border:1px solid var(--neon);border-radius:14px;padding:3px 6px 3px 12px;font-size:12px;display:inline-flex;align-items:center;gap:8px;">
+      ${esc(p.label)}: <b style="color:var(--neon);">${esc(p.valorMostrar)}</b>
+      <span class="btn-quitar-chip" data-clear-id="${esc(p.id)}" ${p.subId!==null?`data-clear-sub="${esc(p.subId)}"`:''} style="cursor:pointer;color:#ff6b6b;font-weight:700;padding:0 4px;">✕</span>
     </span>`).join('')}
-    ${activos.length > 1 ? `<span class="chip-filtro-limpiar-todo" style="cursor:pointer;color:var(--text-dim);font-size:11px;text-decoration:underline;margin-left:6px;">Quitar todos</span>` : ''}
+    ${piezas.length > 1 ? `<span class="chip-filtro-limpiar-todo" style="cursor:pointer;color:var(--text-dim);font-size:11px;text-decoration:underline;margin-left:6px;">Quitar todos</span>` : ''}
   </div>`;
 }
 
-// handlers: { [id]: fn } — se llama al hacer clic en la "x" de ese chip. limpiarTodoFn: función opcional para "Quitar todos".
+// handlers: { [id]: fn(valorSub) } — fn recibe el valor específico a quitar (o undefined si el chip era single-value).
 function activarBarraFiltros(el, handlers, limpiarTodoFn) {
   el.querySelectorAll('.btn-quitar-chip').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const id = btn.dataset.clearId;
-      if (handlers && handlers[id]) handlers[id]();
+      const sub = btn.dataset.clearSub;
+      if (handlers && handlers[id]) handlers[id](sub);
     });
   });
   const btnTodo = el.querySelector('.chip-filtro-limpiar-todo');
   if (btnTodo && limpiarTodoFn) btnTodo.addEventListener('click', (e) => { e.stopPropagation(); limpiarTodoFn(); });
 }
+
+// ---- Selector de selección múltiple reutilizable (checkboxes con resumen) ----
+// opciones: [{value, label}]. seleccionados: array de values ya elegidos.
+function renderMultiSelect(idBase, opciones, seleccionados, placeholder) {
+  seleccionados = seleccionados || [];
+  const resumen = seleccionados.length === 0 ? (placeholder || 'Todos')
+    : seleccionados.length === 1 ? (opciones.find(o => String(o.value) === String(seleccionados[0]))?.label || seleccionados[0])
+    : `${seleccionados.length} seleccionados`;
+  return `<div class="ms-wrap" id="ms-wrap-${idBase}">
+    <button type="button" class="ms-btn" id="ms-btn-${idBase}">${esc(resumen)}</button>
+    <div class="ms-panel hidden" id="ms-panel-${idBase}">
+      ${opciones.map(o => `<label><input type="checkbox" value="${esc(o.value)}" ${seleccionados.map(String).includes(String(o.value))?'checked':''}> ${esc(o.label)}</label>`).join('')}
+      <div class="ms-actions"><span data-accion="todos">Todos</span><span data-accion="ninguno">Ninguno</span></div>
+    </div>
+  </div>`;
+}
+
+// Activa apertura/cierre + checkboxes. onChange(nuevoArrayDeValues) se llama en cada cambio.
+function activarMultiSelect(idBase, onChange) {
+  const btn = document.getElementById(`ms-btn-${idBase}`);
+  const panel = document.getElementById(`ms-panel-${idBase}`);
+  if (!btn || !panel) return;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.ms-panel').forEach(p => { if (p !== panel) p.classList.add('hidden'); });
+    panel.classList.toggle('hidden');
+  });
+  panel.addEventListener('click', (e) => e.stopPropagation());
+  const leerSeleccion = () => Array.from(panel.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+  panel.querySelectorAll('input[type="checkbox"]').forEach(chk => {
+    chk.addEventListener('change', () => onChange(leerSeleccion()));
+  });
+  panel.querySelectorAll('.ms-actions span').forEach(span => {
+    span.addEventListener('click', () => {
+      const marcar = span.dataset.accion === 'todos';
+      panel.querySelectorAll('input[type="checkbox"]').forEach(chk => { chk.checked = marcar; });
+      onChange(leerSeleccion());
+    });
+  });
+}
+// Cierra cualquier panel abierto al hacer clic fuera
+document.addEventListener('click', () => {
+  document.querySelectorAll('.ms-panel').forEach(p => p.classList.add('hidden'));
+});
 
 function titleCase(s) {
   return (s||'').toLowerCase().split(' ').map(palabra =>
