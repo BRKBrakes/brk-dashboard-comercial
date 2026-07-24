@@ -119,6 +119,7 @@ async function showApp() {
 }
 
 const TABS_SIN_ACCESO_GERENCIA = ['oportunidades','segmentacion','perdidos','planes'];
+const TABS_LOGISTICA = ['ejecutivo','facilitadores']; // solo estos 2 son visibles para logistica
 
 function aplicarRestriccionesRol() {
   const btnUsuarios = document.getElementById('usuariosBtn');
@@ -127,7 +128,9 @@ function aplicarRestriccionesRol() {
   if (btnData) btnData.classList.toggle('hidden', ROL !== 'admin');
 
   document.querySelectorAll('#app > main > .tabs > .tab').forEach(tab => {
-    const oculto = ROL === 'gerencia' && TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
+    let oculto = false;
+    if (ROL === 'gerencia') oculto = TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
+    if (ROL === 'logistica') oculto = !TABS_LOGISTICA.includes(tab.dataset.tab);
     tab.classList.toggle('hidden', oculto);
   });
 }
@@ -1617,6 +1620,7 @@ async function loadUsuarios() {
       <select id="nuRol" class="estado">
         <option value="colaborador">Colaborador</option>
         <option value="gerencia">Gerencia General</option>
+        <option value="logistica">Logística</option>
         <option value="admin">Administrador</option>
       </select>
     </div>
@@ -1673,6 +1677,7 @@ function abrirEditorUsuario(userId, usuarios) {
         <select id="edRol" class="estado" ${esSuperAdmin?'disabled':''}>
           <option value="colaborador" ${u.rol==='colaborador'?'selected':''}>Colaborador</option>
           <option value="gerencia" ${u.rol==='gerencia'?'selected':''}>Gerencia General</option>
+          <option value="logistica" ${u.rol==='logistica'?'selected':''}>Logística</option>
           <option value="admin" ${u.rol==='admin'?'selected':''}>Administrador</option>
         </select>
       </div>
