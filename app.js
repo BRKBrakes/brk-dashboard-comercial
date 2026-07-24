@@ -1484,7 +1484,8 @@ async function cargarExcluidas() {
 
 async function guardarExcluidas(arr) {
   TABLERO_EXCLUIDAS_CACHE = arr;
-  await rpc('dash_exclusiones_guardar', { p_token: TOKEN, p_excluidas: arr });
+  const r = await rpc('dash_exclusiones_guardar', { p_token: TOKEN, p_excluidas: arr });
+  console.log('EXCLUSIONES:', JSON.stringify(r), '| docs:', arr);
 }
 
 async function loadTableroControl(mesParam) {
