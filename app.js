@@ -1,9 +1,9 @@
 const SUPABASE_URL = 'https://ytgziytuldsqhymqjyig.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0Z3ppeXR1bGRzcWh5bXFqeWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjA4ODAsImV4cCI6MjA5Nzc5Njg4MH0.z4KapPX5bGEXRmS-Ntky0XmYZz45s5j1DpBuPgE_PIU';
 
-let TOKEN = localStorage.getItem('brk_token') || null;
-let ROL = localStorage.getItem('brk_rol') || null;
-let KAM_ASIGNADOS = JSON.parse(localStorage.getItem('brk_kam_asignados') || '[]');
+let TOKEN = sessionStorage.getItem('brk_token') || null;
+let ROL = sessionStorage.getItem('brk_rol') || null;
+let KAM_ASIGNADOS = JSON.parse(sessionStorage.getItem('brk_kam_asignados') || '[]');
 
 async function rpc(fn, params = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -17,7 +17,7 @@ async function rpc(fn, params = {}) {
   });
   const data = await res.json();
   if (data && data.ok === false && data.error === 'Sesión inválida') {
-    localStorage.removeItem('brk_token');
+    sessionStorage.removeItem('brk_token');
     TOKEN = null;
     document.getElementById('app').classList.add('hidden');
     document.getElementById('login').classList.remove('hidden');
@@ -48,9 +48,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     TOKEN = r.token;
     ROL = r.rol || 'admin';
     KAM_ASIGNADOS = r.kam_asignados || [];
-    localStorage.setItem('brk_token', TOKEN);
-    localStorage.setItem('brk_rol', ROL);
-    localStorage.setItem('brk_kam_asignados', JSON.stringify(KAM_ASIGNADOS));
+    sessionStorage.setItem('brk_token', TOKEN);
+    sessionStorage.setItem('brk_rol', ROL);
+    sessionStorage.setItem('brk_kam_asignados', JSON.stringify(KAM_ASIGNADOS));
     showApp();
   } else {
     errEl.textContent = r.error || 'Error al iniciar sesión';
@@ -76,9 +76,9 @@ document.getElementById('cargarVentasBtn').addEventListener('click', () => {
 });
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
-  localStorage.removeItem('brk_token');
-  localStorage.removeItem('brk_rol');
-  localStorage.removeItem('brk_kam_asignados');
+  sessionStorage.removeItem('brk_token');
+  sessionStorage.removeItem('brk_rol');
+  sessionStorage.removeItem('brk_kam_asignados');
   TOKEN = null; ROL = null; KAM_ASIGNADOS = [];
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login').classList.remove('hidden');
