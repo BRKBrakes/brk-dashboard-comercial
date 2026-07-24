@@ -158,7 +158,7 @@ async function loadTab(tab) {
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
   if (tab === 'remisiones') return loadRemisiones();
-  if (tab === 'tablerocontrol') return loadTableroControl();
+  if (tab === 'tablerocontrol') { TABLERO_EXCLUIDAS_CACHE = null; return loadTableroControl(); }
   if (tab === 'cartera') return loadCartera();
   if (tab === 'facilitadores') return loadFacilitadores();
   if (tab === 'cargar') return loadCargarVentas();
@@ -1473,14 +1473,18 @@ function barraSigno(items, labelKey, valueKey) {
 }
 
 let TABLERO_MES = null;
-let TABLERO_EXCLUIDAS_CACHE = {};
+let TABLERO_EXCLUIDAS_CACHE = null; // null = no cargado aún; [] = sin exclusiones
 
-function cargarExcluidasStorage(mes) {
-  try { return JSON.parse(localStorage.getItem('brk_remisiones_excluidas_mes_' + mes) || '[]'); }
-  catch(e) { return []; }
+async function cargarExcluidas() {
+  if (TABLERO_EXCLUIDAS_CACHE !== null) return TABLERO_EXCLUIDAS_CACHE;
+  const r = await rpc('dash_exclusiones_leer', { p_token: TOKEN });
+  TABLERO_EXCLUIDAS_CACHE = (r.ok && Array.isArray(r.excluidas)) ? r.excluidas : [];
+  return TABLERO_EXCLUIDAS_CACHE;
 }
-function guardarExcluidasStorage(mes, arr) {
-  localStorage.setItem('brk_remisiones_excluidas_mes_' + mes, JSON.stringify(arr));
+
+async function guardarExcluidas(arr) {
+  TABLERO_EXCLUIDAS_CACHE = arr;
+  await rpc('dash_exclusiones_guardar', { p_token: TOKEN, p_excluidas: arr });
 }
 
 async function loadTableroControl(mesParam) {
@@ -1489,7 +1493,7 @@ async function loadTableroControl(mesParam) {
   TABLERO_MES = mes;
   el.innerHTML = '<div class="loading">Cargando tablero de control...</div>';
 
-  const excluidas = cargarExcluidasStorage(mes);
+  const excluidas = await cargarExcluidas();
   const r = await rpc('dash_tablero_control', { p_token: TOKEN, p_mes: parseInt(mes), p_anio: 2026, p_remisiones_excluidas: excluidas });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
@@ -1575,22 +1579,22 @@ async function loadTableroControl(mesParam) {
   });
 
   el.querySelectorAll('.chk-remision-grupo').forEach(chk => {
-    chk.addEventListener('change', () => {
+    chk.addEventListener('change', async () => {
       const grupo = gruposRemArr[parseInt(chk.dataset.idx)];
-      const excluidasActuales = cargarExcluidasStorage(mes);
+      const excluidasActuales = (TABLERO_EXCLUIDAS_CACHE || []).slice();
       grupo.docs.forEach(doc => {
         const idx = excluidasActuales.indexOf(doc);
         if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
         if (!chk.checked && idx < 0) excluidasActuales.push(doc);
       });
-      guardarExcluidasStorage(mes, excluidasActuales);
+      await guardarExcluidas(excluidasActuales);
       loadTableroControl(mes);
     });
   });
   const btnMarcar = document.getElementById('tcMarcarTodas');
-  if (btnMarcar) btnMarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, []); loadTableroControl(mes); });
+  if (btnMarcar) btnMarcar.addEventListener('click', async () => { await guardarExcluidas([]); loadTableroControl(mes); });
   const btnDesmarcar = document.getElementById('tcDesmarcarTodas');
-  if (btnDesmarcar) btnDesmarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
+  if (btnDesmarcar) btnDesmarcar.addEventListener('click', async () => { await guardarExcluidas(remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
 }
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
