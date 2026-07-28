@@ -358,7 +358,7 @@ async function loadEjecutivo() {
       let tot23=0,tot24=0,tot25=0,tot26=0;
       porMesAnio.forEach(m => {
         tot23+=m.v2023||0; tot24+=m.v2024||0; tot25+=m.v2025||0; tot26+=m.v2026||0;
-        html += `<tr><td>${MESES_TODOS[m.mes-1]}</td><td class="num money">${m.v2023?money(m.v2023):'—'}</td><td class="num money">${m.v2024?money(m.v2024):'—'}</td><td class="num money">${m.v2025?money(m.v2025):'—'}</td><td class="num money">${m.v2026?money(m.v2026):'—'}</td></tr>`;
+        html += `<tr><td>${MESES_TODOS[(m.mes_num||m.mes)-1]}</td><td class="num money">${m.v2023?money(m.v2023):'—'}</td><td class="num money">${m.v2024?money(m.v2024):'—'}</td><td class="num money">${m.v2025?money(m.v2025):'—'}</td><td class="num money">${m.v2026?money(m.v2026):'—'}</td></tr>`;
       });
       html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(tot23)}</td><td class="num money">${money(tot24)}</td><td class="num money">${money(tot25)}</td><td class="num money">${money(tot26)}</td></tr>`;
       html += '</table></div>';
