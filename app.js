@@ -314,7 +314,7 @@ async function loadEjecutivo() {
   html += '</table></div>';
 
   // Crecimiento año contra año
-  const crec = await rpc('dash_crecimiento_anual', { p_token: TOKEN });
+  console.log('CREC:', JSON.stringify(crec));
   if (crec.ok) {
     const anios = crec.por_anio || [];
     const anio2026 = anios.find(a => a.anio === 2026);
