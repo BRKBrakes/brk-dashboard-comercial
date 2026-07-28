@@ -292,7 +292,7 @@ async function loadEjecutivo() {
   }
   html += '</table></div>';
 
-  html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table><tr><th>Mes</th><th class="num">Facturado</th><th class="num">Presupuesto</th><th class="num">Faltante</th><th class="num">%</th></tr>';
+  html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table data-no-sort><tr><th>Mes</th><th class="num">Facturado</th><th class="num">Presupuesto</th><th class="num">Faltante</th><th class="num">%</th></tr>';
   (kpi.por_mes || []).forEach(m => {
     const pct = m.presupuesto ? Math.round((m.venta_real/m.presupuesto)*100) : 0;
     const faltante = (m.venta_real||0) - (m.presupuesto||0);
@@ -353,7 +353,7 @@ async function loadEjecutivo() {
     // 3. Facturado por mes y año (2023-2026)
     const porMesAnio = crec.por_mes_anio || [];
     if (porMesAnio.length) {
-      html += `<div class="card"><h2>Facturado por mes · 2023 – 2026</h2><table><tr><th>Mes</th><th class="num">2023</th><th class="num">2024</th><th class="num">2025</th><th class="num">2026</th></tr>`;
+      html += `<div class="card"><h2>Facturado por mes · 2023 – 2026</h2><table data-no-sort><tr><th>Mes</th><th class="num">2023</th><th class="num">2024</th><th class="num">2025</th><th class="num">2026</th></tr>`;
       const MESES_TODOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
       let tot23=0,tot24=0,tot25=0,tot26=0;
       porMesAnio.forEach(m => {
@@ -1146,6 +1146,7 @@ function idTabla(table, indice) {
 function habilitarOrdenTablas(root) {
   const tablas = (root || document).querySelectorAll('table');
   tablas.forEach((table, indice) => {
+    if (table.dataset.noSort !== undefined) return;
     const headerRow = table.querySelector('tr');
     if (!headerRow) return;
     const ths = headerRow.querySelectorAll('th');
