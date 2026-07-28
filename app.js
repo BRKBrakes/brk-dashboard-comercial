@@ -279,7 +279,7 @@ async function loadEjecutivo() {
     if (pct >= 100) color = '#4ade80';
     else if (pct >= 80) color = '#ff9f43';
     const colorFalt = faltante >= 0 ? '#4ade80' : '#ff6b6b';
-    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money" data-val="${k.venta_real}">${money(k.venta_real)}</td><td class="num money" data-val="${k.presupuesto_periodo}">${money(k.presupuesto_periodo)}</td><td class="num money" data-val="${faltante}" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" data-val="${pct}" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.venta_real||0),0);
@@ -300,7 +300,7 @@ async function loadEjecutivo() {
     let colorPct = '#ff6b6b';
     if (pct >= 100) colorPct = '#4ade80';
     else if (pct >= 80) colorPct = '#ff9f43';
-    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money">${money(m.venta_real)}</td><td class="num money">${money(m.presupuesto)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${colorPct};font-weight:700;">${pct}%</td></tr>`;
+    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money" data-val="${m.venta_real}">${money(m.venta_real)}</td><td class="num money" data-val="${m.presupuesto}">${money(m.presupuesto)}</td><td class="num money" data-val="${faltante}" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" data-val="${pct}" style="color:${colorPct};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (kpi.por_mes||[]).reduce((s,m)=>s+(m.venta_real||0),0);
@@ -1117,8 +1117,16 @@ function ordenarTabla(table, colIdx, dir) {
   const totales = dataRows.filter(r => /TOTAL|EQUIPO BRK/i.test(r.textContent));
   const normales = dataRows.filter(r => !totales.includes(r));
   normales.sort((a, b) => {
-    const va = parseCeldaValor(a.children[colIdx]?.textContent);
-    const vb = parseCeldaValor(b.children[colIdx]?.textContent);
+    const celdaA = a.children[colIdx];
+    const celdaB = b.children[colIdx];
+    const rawA = celdaA?.dataset?.val;
+    const rawB = celdaB?.dataset?.val;
+    if (rawA !== undefined && rawB !== undefined) {
+      const na = parseFloat(rawA), nb = parseFloat(rawB);
+      if (!isNaN(na) && !isNaN(nb)) return dir === 'asc' ? na - nb : nb - na;
+    }
+    const va = parseCeldaValor(celdaA?.textContent);
+    const vb = parseCeldaValor(celdaB?.textContent);
     if (typeof va === 'string' || typeof vb === 'string') {
       return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     }
