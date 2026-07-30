@@ -2002,9 +2002,10 @@ let CLIENTES_CLIENTE = [];
 let CLIENTES_SUCURSAL = [];
 let CLIENTES_REFERENCIA = null;
 let CLIENTES_NRO_DOCUMENTO = null;
+let CLIENTES_FAMILIA = [];
 let CLIENTES_FILTROS_HTML = '';
 
-async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento) {
+async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento, familia) {
   const el = document.getElementById('view-clientes');
   el.innerHTML = '<div class="loading">Cargando clientes...</div>';
   CLIENTES_MES = mes !== undefined ? mes : CLIENTES_MES;
@@ -2013,6 +2014,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   CLIENTES_SUCURSAL = sucursal !== undefined ? sucursal : CLIENTES_SUCURSAL;
   CLIENTES_REFERENCIA = referencia !== undefined ? referencia : CLIENTES_REFERENCIA;
   CLIENTES_NRO_DOCUMENTO = nroDocumento !== undefined ? nroDocumento : CLIENTES_NRO_DOCUMENTO;
+  CLIENTES_FAMILIA = familia !== undefined ? familia : CLIENTES_FAMILIA;
 
   const r = await rpc('dash_clientes_resumen', {
     p_token: TOKEN,
@@ -2021,7 +2023,8 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     p_cliente: (CLIENTES_CLIENTE && CLIENTES_CLIENTE.length) ? CLIENTES_CLIENTE : null,
     p_sucursal: (CLIENTES_SUCURSAL && CLIENTES_SUCURSAL.length) ? CLIENTES_SUCURSAL : null,
     p_referencia: CLIENTES_REFERENCIA || null,
-    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null
+    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null,
+    p_familia: (CLIENTES_FAMILIA && CLIENTES_FAMILIA.length) ? CLIENTES_FAMILIA : null
   });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
@@ -2030,6 +2033,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   const opcionesKam = (f.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (f.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
+  const opcionesFamilia = (f.familias||[]).slice().sort().map(fam => ({ value: fam, label: fam }));
 
   const meses = [...new Set([
     ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
@@ -2041,6 +2045,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
     ${renderMultiSelect('clSucursal', opcionesSucursal, CLIENTES_SUCURSAL, 'Todas las sucursales')}
+    ${renderMultiSelect('clFamilia', opcionesFamilia, CLIENTES_FAMILIA, 'Todas las familias')}
   </div>`;
 
   html += renderBarraFiltros([
@@ -2048,6 +2053,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, etiquetaDe: v => titleCase(v) },
     { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
+    { id: 'familia', label: 'Familia', valor: CLIENTES_FAMILIA },
     { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
     { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO }
   ]);
@@ -2105,10 +2111,11 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   el.innerHTML = html;
   habilitarOrdenTablas(el);
 
-  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined));
-  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined));
+  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined, undefined));
+  activarMultiSelect('clFamilia', (vals) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, vals));
 
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-clKam');
@@ -2119,28 +2126,29 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     fila.addEventListener('click', () => {
       const actuales = CLIENTES_SUCURSAL || [];
       const nuevo = actuales.includes(fila.dataset.sucursal) ? actuales.filter(v=>v!==fila.dataset.sucursal) : [...actuales, fila.dataset.sucursal];
-      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined);
+      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-referencia').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined);
+      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-factura').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc);
+      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc, undefined);
     });
   });
 
   activarBarraFiltros(el, {
-    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined),
-    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
-    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined),
-    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined),
-    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined),
-    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null)
-  }, () => loadClientes([], [], [], [], null, null));
+    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined, undefined),
+    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined),
+    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
+    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined, undefined),
+    familia: (v) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, (CLIENTES_FAMILIA||[]).filter(x=>x!==v)),
+    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined, undefined),
+    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null, undefined)
+  }, () => loadClientes([], [], [], [], null, null, []));
 }
 
 function loadCargarVentas() {
