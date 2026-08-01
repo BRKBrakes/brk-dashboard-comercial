@@ -314,7 +314,7 @@ async function loadEjecutivo() {
   html += '</table></div>';
 
   // Crecimiento año contra año
-  const crec = await rpc('dash_crecimiento_anual', { p_token: TOKEN });
+  const crec = await rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta });
   if (crec.ok) {
     const anios = crec.por_anio || [];
     const anio2026 = anios.find(a => a.anio === 2026);
@@ -469,14 +469,18 @@ function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick, sel
   return `<div>${filas}</div>`;
 }
 
-async function cargarTipoAExtra(data, kam, cliente, sucursal) {
+async function cargarTipoAExtra(data, kam, cliente, sucursal, mes) {
   const el = document.getElementById('tipoa-graficas');
   el.innerHTML = '<div class="loading">Cargando gráficas...</div>';
   TIPOA_CLIENTE_SEL = [];
 
   renderTipoAGraficas(data);
 
-  const paramsBase = { p_token: TOKEN, p_kam: (kam&&kam.length)?kam:null, p_cliente: (cliente&&cliente.length)?cliente:null, p_sucursal: (sucursal&&sucursal.length)?sucursal:null };
+  const mesSorted = (mes && mes.length) ? mes.map(m=>parseInt(m)).sort((a,b)=>a-b) : null;
+  const pMesDesde = mesSorted ? mesSorted[0] : 1;
+  const pMesHasta = mesSorted ? mesSorted[mesSorted.length-1] : null;
+
+  const paramsBase = { p_token: TOKEN, p_kam: (kam&&kam.length)?kam:null, p_cliente: (cliente&&cliente.length)?cliente:null, p_sucursal: (sucursal&&sucursal.length)?sucursal:null, p_mes_desde: pMesDesde, p_mes_hasta: pMesHasta };
   const [r, rCliente] = await Promise.all([
     rpc('dash_top_tipo_a_comparativo', paramsBase),
     rpc('dash_top_tipo_a_comparativo_cliente', paramsBase)
@@ -612,7 +616,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   html += '<div id="tipoa-graficas"></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
-  cargarTipoAExtra(data, TA_KAM, TA_CLIENTE, TA_SUCURSAL);
+  cargarTipoAExtra(data, TA_KAM, TA_CLIENTE, TA_SUCURSAL, TA_MES);
 
   activarMultiSelect('taMes', (vals) => loadTipoA(TA_KAM, TA_CLIENTE, TA_SUCURSAL, vals));
   activarMultiSelect('taKam', (vals) => loadTipoA(vals, TA_CLIENTE, TA_SUCURSAL, TA_MES));
