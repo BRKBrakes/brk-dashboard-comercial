@@ -2255,7 +2255,11 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     estado.textContent = `Leyendo ${archivo.name}...`;
     const buffer = await archivo.arrayBuffer();
     const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-    const hoja = wb.Sheets[wb.SheetNames[0]];
+    // Usar hoja activa si el workbook la indica, sino la primera
+    const nombreHoja = (wb.Workbook?.WBView?.[0]?.activeTab !== undefined)
+      ? wb.SheetNames[wb.Workbook.WBView[0].activeTab]
+      : wb.SheetNames[0];
+    const hoja = wb.Sheets[nombreHoja];
     const filas = XLSX.utils.sheet_to_json(hoja, { defval: null });
 
     if (!filas.length) { estado.textContent = 'El archivo no tiene datos.'; progreso.style.display = 'none'; return; }
