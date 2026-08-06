@@ -1882,7 +1882,11 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   html += '</table></div>';
 
   // Tipos de servicio: cantidad, promedio/día, valor total y valor/día
-  const TARIFA = { 'metrofrenos cerca': 10588, 'Metrofrenos lejos': 16688 };
+  const TARIFA = {
+    'metrofrenos cerca': 10588, 'Metrofrenos lejos': 16688,
+    'Servicio cerca metrofrenos': 10588, 'Servicio Lejos  metrofrenos': 16688,
+    'Servicio Lejos metrofrenos': 16688
+  };
   html += `<div class="card"><h2>Servicios por Tipo (clic para filtrar, varios a la vez)</h2>
     <table><tr><th>Tipo</th><th class="num">Total servicios</th><th class="num">Servicios/día</th><th class="num">Valor total</th><th class="num">Valor/día</th></tr>`;
   (r.por_tipo || []).forEach(t => {
