@@ -2092,6 +2092,12 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const prom = promedioCeldas(c.meses, mesesFinalizados, true);
     html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${c.total}">${money(c.total)}</td></tr>`;
   });
+  {
+    const totMes = {}; meses.forEach(m => { totMes[m] = topClientes.reduce((s,c) => s+(c.meses[m]||0),0); });
+    const totGeneral = topClientes.reduce((s,c) => s+c.total, 0);
+    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
+  }
   html += '</table></div></div>';
 
   // Productos más vendidos [$] y [#] — lado a lado
@@ -2105,6 +2111,12 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const prom = promedioCeldas(p.meses, mesesFinalizados, true);
     html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${p.total}">${money(p.total)}</td></tr>`;
   });
+  {
+    const totMes = {}; meses.forEach(m => { totMes[m] = prodValor.reduce((s,p) => s+(p.meses[m]||0),0); });
+    const totGeneral = prodValor.reduce((s,p) => s+p.total, 0);
+    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
+  }
   html += '</table></div></div>';
 
   html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
@@ -2113,6 +2125,12 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const prom = promedioCeldas(p.meses, mesesFinalizados, false);
     html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${prom}</td>`:''}<td class="num">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
   });
+  {
+    const totMes = {}; meses.forEach(m => { totMes[m] = prodUnidades.reduce((s,p) => s+(p.meses[m]||0),0); });
+    const totGeneral = prodUnidades.reduce((s,p) => s+p.total, 0);
+    const promTot = promedioCeldas(totMes, mesesFinalizados, false);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num" data-val="${totMes[m]}">${totMes[m]?Math.round(totMes[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${promTot}</td>`:''}<td class="num" data-val="${totGeneral}">${Math.round(totGeneral).toLocaleString('es-CO')}</td></tr>`;
+  }
   html += '</table></div></div></div>';
 
   // Facturas — pivote por nro_documento
