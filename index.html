@@ -8,9 +8,7 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#363636">
-<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BRK Dashboard">
@@ -41,6 +39,7 @@
   </header>
   <main>
     <div class="tabs tabs-fila1">
+      <div class="tab" data-tab="okr">OKR</div>
       <div class="tab active" data-tab="ejecutivo">Directivo</div>
       <div class="tab" data-tab="tablerocontrol">Tablero de Control</div>
       <div class="tab" data-tab="remisiones">Remisiones</div>
@@ -67,6 +66,7 @@
       <div id="opKam-holder"></div>
     </div>
 
+    <div id="view-okr" class="hidden"></div>
     <div id="view-ejecutivo">
       <div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>

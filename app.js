@@ -118,7 +118,7 @@ async function showApp() {
   setTimeout(ajustarStickyResponsive, 50);
 }
 
-const TABS_SIN_ACCESO_GERENCIA = ['oportunidades','segmentacion','perdidos','planes'];
+const TABS_SIN_ACCESO_GERENCIA = ['okr','oportunidades','segmentacion','perdidos','planes'];
 const TABS_LOGISTICA = ['ejecutivo','facilitadores']; // solo estos 2 son visibles para logistica
 
 function aplicarRestriccionesRol() {
@@ -131,6 +131,7 @@ function aplicarRestriccionesRol() {
     let oculto = false;
     if (ROL === 'gerencia') oculto = TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
     if (ROL === 'logistica') oculto = !TABS_LOGISTICA.includes(tab.dataset.tab);
+    if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr';
     tab.classList.toggle('hidden', oculto);
   });
 }
@@ -146,6 +147,7 @@ function ocultarFiltroKamSiColaborador(idsSelectYBoton) {
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 async function loadTab(tab) {
+  if (tab === 'okr') return loadOkr();
   if (tab === 'ejecutivo') return loadEjecutivo();
   if (tab === 'oportunidades' || tab === 'gapdiscos') return loadGapDiscos();
   if (tab === 'gapliquidos') return loadGapLiquidos();
@@ -158,7 +160,7 @@ async function loadTab(tab) {
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
   if (tab === 'remisiones') return loadRemisiones();
-  if (tab === 'tablerocontrol') { TABLERO_EXCLUIDAS_CACHE = null; return loadTableroControl(); }
+  if (tab === 'tablerocontrol') return loadTableroControl();
   if (tab === 'cartera') return loadCartera();
   if (tab === 'facilitadores') return loadFacilitadores();
   if (tab === 'cargar') return loadCargarVentas();
@@ -199,7 +201,7 @@ async function loadTopKam() {
   if (!r.ok || !r.data || !r.data.length) { el.innerHTML = ''; return; }
 
   // Para cada KAM, traer sus sucursales más afectadas (cayendo o sin compra)
-  const detalles = await Promise.all(r.data.map(k => rpc('dash_recuperacion', { p_token: TOKEN, p_kam: [k.nombre] })));
+  const detalles = await Promise.all(r.data.map(k => rpc('dash_recuperacion', { p_token: TOKEN, p_kam: k.nombre })));
 
   let html = '<div class="card" style="border:1px solid var(--neon);height:100%;"><h2 style="color:var(--neon);">Top 5 · KAM con más oportunidad por cumplimiento</h2>';
   r.data.forEach((k, i) => {
@@ -238,6 +240,394 @@ async function loadTopAliados() {
   habilitarOrdenTablas(el);
 }
 
+// ============================================================
+// OKR — solo admin
+// ============================================================
+let OKR_MES = [];
+let OKR_DATOS = null;
+
+async function loadOkr() {
+  const el = document.getElementById('view-okr');
+  el.innerHTML = '<div class="loading">Cargando OKR...</div>';
+
+  const mesActual = new Date().getMonth() + 1;
+  const opcionesMeses = MESES.slice(0, mesActual).map((m, i) => ({ value: String(i + 1), label: m }));
+
+  // Cargar datos en paralelo
+  const [rOkr, rKpi, rCrec] = await Promise.all([
+    rpc('dash_okr_leer', { p_token: TOKEN }),
+    rpc('dash_tablero_control', { p_token: TOKEN, p_mes: mesActual, p_anio: 2026, p_remisiones_excluidas: [] }),
+    rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: 1, p_mes_hasta: mesActual })
+  ]);
+
+  OKR_DATOS = { okr: rOkr, kpi: rKpi, crec: rCrec };
+
+  renderOkr(el, opcionesMeses, mesActual);
+}
+
+function renderOkr(el, opcionesMeses, mesActual) {
+  const mesFiltro = OKR_MES.length ? OKR_MES.map(m => parseInt(m)) : null;
+  const mesesAct = mesFiltro || Array.from({ length: mesActual }, (_, i) => i + 1);
+  const label = mesesAct.length === mesActual && !mesFiltro
+    ? `Ene-${MESES[mesActual - 1]}`
+    : mesesAct.map(m => MESES[m - 1]).join(', ');
+
+  const okr = OKR_DATOS.okr;
+  const crec = OKR_DATOS.crec;
+  const kpis = okr.ok ? (okr.kpis || []) : [];
+  const obj = okr.ok ? (okr.objetivos || {}) : {};
+
+  // Filtrar kpis por meses seleccionados
+  const kpisFiltro = kpis.filter(k => mesesAct.includes(k.mes));
+
+  // Ventas Cristian Arismendy filtradas por mes
+  const KAM_CRISTIAN = 'ARISMENDY CRUZ CRISTIAN YONARDO';
+  const porKam = crec.ok ? (crec.por_kam || []) : [];
+  const cristian = porKam.find(k => k.kam_norm && k.kam_norm.toUpperCase().includes('ARISMENDY'));
+
+  let html = `
+  <!-- FILTRO DE MESES -->
+  <div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
+    ${renderMultiSelect('okrMes', opcionesMeses, OKR_MES, 'Todos los meses')}
+    <span style="font-size:12px;color:var(--text-dim);margin-left:8px;">${label}</span>
+  </div>`;
+
+  html += renderBarraFiltros([{ id: 'mes', label: 'Mes', valor: OKR_MES, etiquetaDe: v => MESES[parseInt(v) - 1] }]);
+
+  // ── SECCIÓN 1: GAME CHANGER ──────────────────────────────
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">🚀 Game Changer · Cristian Arismendy (${label})</h2>`;
+
+  // Obtener ventas de Cristian por mes desde dash_ventas — usamos crec.por_anio como base
+  // Para el detalle por mes necesitamos el RPC de crecimiento con kam
+  const v2025c = cristian ? cristian.v2025 : 0;
+  const v2026c = cristian ? cristian.v2026 : 0;
+  const deltaC = v2026c - v2025c;
+  const pctC = v2025c ? Math.round((deltaC / v2025c) * 100) : 0;
+  const colorC = deltaC >= 0 ? '#4ade80' : '#ff6b6b';
+
+  // Presupuesto Cristian
+  const porKamKpi = OKR_DATOS.kpi.ok ? (OKR_DATOS.kpi.por_kam || []) : [];
+  const presC = porKamKpi.find(k => k.vendedor && k.vendedor.includes('ARISMENDY'));
+  const presupC = presC ? presC.presupuesto : 0;
+  const cumplPctC = presupC ? Math.round((v2026c / presupC) * 100) : null;
+
+  html += `<div class="kpis" style="margin-bottom:16px;">
+    <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(v2026c)}</div></div>
+    <div class="kpi"><div class="label">% Cumplimiento 2026</div><div class="value" style="color:${cumplPctC >= 100 ? '#4ade80' : '#ff9f43'};">${cumplPctC !== null ? cumplPctC + '%' : '—'}</div></div>
+    <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorC};">${deltaC >= 0 ? '+' : ''}${money(deltaC)}</div></div>
+    <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorC};">${deltaC >= 0 ? '+' : ''}${pctC}%</div></div>
+  </div>`;
+
+  // Gráfica barras 2025 vs 2026 por mes — Cristian
+  html += okrGraficaBarras('gc_cristian', 'Ventas Cristian Arismendy 2025 vs 2026', crec, KAM_CRISTIAN, mesesAct);
+  html += '</div>';
+
+  // ── SECCIÓN 2: COMERCIAL ─────────────────────────────────
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">📊 Comercial · Equipo BRK (${label})</h2>`;
+
+  // KPIs equipo
+  const anios = crec.ok ? (crec.por_anio || []) : [];
+  const a2026 = anios.find(a => a.anio === 2026) || {};
+  const a2025 = anios.find(a => a.anio === 2025) || {};
+  const ventaEq = a2026.venta || 0;
+  const venta25Eq = a2025.venta || 0;
+  const deltaEq = ventaEq - venta25Eq;
+  const pctEq = venta25Eq ? Math.round((deltaEq / venta25Eq) * 100) : 0;
+  const colorEq = deltaEq >= 0 ? '#4ade80' : '#ff6b6b';
+
+  // Presupuesto equipo (suma de por_kam del tablero)
+  const presupEq = porKamKpi.reduce((s, k) => s + (k.presupuesto || 0), 0);
+  const cumplEq = presupEq ? Math.round((ventaEq / presupEq) * 100) : null;
+  const faltanteEq = presupEq - ventaEq;
+
+  html += `<div class="kpis" style="margin-bottom:16px;">
+    <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(ventaEq)}</div></div>
+    <div class="kpi"><div class="label">% Cumplimiento</div><div class="value" style="color:${cumplEq >= 100 ? '#4ade80' : '#ff9f43'};">${cumplEq !== null ? cumplEq + '%' : '—'}</div></div>
+    <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorEq};">${deltaEq >= 0 ? '+' : ''}${money(deltaEq)}</div></div>
+    <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorEq};">${pctEq >= 0 ? '+' : ''}${pctEq}%</div></div>
+    <div class="kpi"><div class="label">${faltanteEq <= 0 ? 'Sobre-cumplimiento' : 'Faltante'}</div><div class="value" style="color:${faltanteEq <= 0 ? '#4ade80' : '#ff6b6b'};">${faltanteEq <= 0 ? '+' : ''}${money(Math.abs(faltanteEq))}</div></div>
+  </div>`;
+
+  // Gráfica ventas vs presupuesto por mes
+  html += okrGraficaVentasVsPresupuesto('com_ventas', 'Ventas vs Presupuesto por mes', crec, OKR_DATOS.kpi, mesesAct);
+
+  // EBITDA Directo
+  html += okrGraficaEbitda('com_ebitda_d', 'EBITDA Directo', kpisFiltro, 'directo', obj);
+  // EBITDA Neto
+  html += okrGraficaEbitda('com_ebitda_n', 'EBITDA Neto', kpisFiltro, 'neto', obj);
+
+  // Tablas de KAM (igual que Directivo)
+  html += okrTablaKam(crec, OKR_DATOS.kpi, mesesAct, label);
+  html += '</div>';
+
+  // ── SECCIÓN 3: FINANCIERO ────────────────────────────────
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">💰 Financiero (${label})</h2>`;
+  html += okrGraficaCxc('fin_cxc', 'CXC · Cartera >60 días', kpisFiltro, obj);
+  html += okrGraficaDso('fin_dso', 'DSO · Días de cartera', kpisFiltro, obj);
+  html += '</div>';
+
+  // ── TABLA EDITABLE KPIs ──────────────────────────────────
+  html += okrTablaEditable(kpis, obj, mesActual);
+
+  el.innerHTML = html;
+
+  activarMultiSelect('okrMes', (vals) => {
+    OKR_MES = vals;
+    renderOkr(el, opcionesMeses, mesActual);
+  });
+  activarBarraFiltros(el, {
+    mes: (v) => { OKR_MES = OKR_MES.filter(x => String(x) !== String(v)); renderOkr(el, opcionesMeses, mesActual); }
+  }, () => { OKR_MES = []; renderOkr(el, opcionesMeses, mesActual); });
+
+  // Handlers guardar KPI
+  el.querySelectorAll('.btn-okr-guardar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mes = parseInt(btn.dataset.mes);
+      const row = el.querySelector(`.okr-row[data-mes="${mes}"]`);
+      const val = (id) => { const i = row.querySelector(`[data-field="${id}"]`); return i && i.value !== '' ? parseFloat(i.value.replace(/[^0-9.\-]/g, '')) : null; };
+      const valI = (id) => { const i = row.querySelector(`[data-field="${id}"]`); return i && i.value !== '' ? parseInt(i.value) : null; };
+      btn.textContent = '...';
+      const r = await rpc('dash_okr_guardar_kpi', {
+        p_token: TOKEN, p_anio: 2026, p_mes: mes,
+        p_ebitda_directo_real: val('ebitda_directo_real'),
+        p_ebitda_directo_obj_pct: val('ebitda_directo_obj_pct'),
+        p_ebitda_directo_obj_pesos: val('ebitda_directo_obj_pesos'),
+        p_ebitda_neto_real: val('ebitda_neto_real'),
+        p_ebitda_neto_obj_pct: val('ebitda_neto_obj_pct'),
+        p_ebitda_neto_obj_pesos: val('ebitda_neto_obj_pesos'),
+        p_cxc_real_pct: val('cxc_real_pct'),
+        p_dso_real_dias: valI('dso_real_dias')
+      });
+      btn.textContent = r.ok ? '✅' : '❌';
+      if (r.ok) { const rOkr = await rpc('dash_okr_leer', { p_token: TOKEN }); OKR_DATOS.okr = rOkr; renderOkr(el, opcionesMeses, mesActual); }
+    });
+  });
+
+  habilitarOrdenTablas(el);
+}
+
+function okrGraficaBarras(id, titulo, crec, kamNorm, meses) {
+  const porMesAnio = crec.por_mes_anio || [];
+  const datos = meses.map(m => {
+    const fila = porMesAnio.find(f => f.mes_num === m) || {};
+    return { mes: m, v2025: fila.v2025 || 0, v2026: fila.v2026 || 0 };
+  });
+  const maxVal = Math.max(...datos.flatMap(d => [d.v2025, d.v2026]), 1);
+  const ancho = Math.max(60, Math.floor(520 / Math.max(datos.length, 1)));
+  let bars = datos.map(d => {
+    const h25 = Math.round((d.v2025 / maxVal) * 120);
+    const h26 = Math.round((d.v2026 / maxVal) * 120);
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:${ancho}px;">
+      <div style="display:flex;align-items:flex-end;gap:3px;height:130px;">
+        <div style="width:${ancho/2-4}px;height:${h25}px;background:#596B63;border-radius:3px 3px 0 0;" title="2025: ${money(d.v2025)}"></div>
+        <div style="width:${ancho/2-4}px;height:${h26}px;background:var(--neon);border-radius:3px 3px 0 0;" title="2026: ${money(d.v2026)}"></div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo}</div>
+    <div style="display:flex;gap:16px;margin-bottom:6px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>2025</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>2026</span>
+    </div>
+    <div style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaVentasVsPresupuesto(id, titulo, crec, kpiTablero, meses) {
+  const porMes = crec.por_mes_anio || [];
+  const porKamMes = kpiTablero.ok ? (kpiTablero.por_mes || []) : [];
+  const datos = meses.map(m => {
+    const fila = porMes.find(f => f.mes_num === m) || {};
+    const km = porKamMes.find(f => f.mes === m) || {};
+    return { mes: m, real: fila.v2026 || 0, presup: km.presupuesto || 0 };
+  });
+  const maxVal = Math.max(...datos.flatMap(d => [d.real, d.presup]), 1);
+  const ancho = Math.max(60, Math.floor(520 / Math.max(datos.length, 1)));
+  let bars = datos.map(d => {
+    const hR = Math.round((d.real / maxVal) * 120);
+    const hP = Math.round((d.presup / maxVal) * 120);
+    const pct = d.presup ? Math.round((d.real / d.presup) * 100) : null;
+    const color = pct === null ? 'var(--neon)' : pct >= 100 ? '#4ade80' : pct >= 80 ? '#ff9f43' : '#ff6b6b';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:${ancho}px;">
+      ${pct !== null ? `<span style="font-size:10px;color:${color};font-weight:700;">${pct}%</span>` : ''}
+      <div style="display:flex;align-items:flex-end;gap:3px;height:130px;">
+        <div style="width:${ancho/2-4}px;height:${hP}px;background:#596B63;border-radius:3px 3px 0 0;" title="Presup: ${money(d.presup)}"></div>
+        <div style="width:${ancho/2-4}px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;" title="Real: ${money(d.real)}"></div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo}</div>
+    <div style="display:flex;gap:16px;margin-bottom:6px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>Presupuesto</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>Real</span>
+    </div>
+    <div style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaEbitda(id, titulo, kpis, tipo, obj) {
+  if (!kpis.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
+  const datos = kpis.filter(k => k[`ebitda_${tipo}_real`] !== null);
+  if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
+  const totalReal = datos.reduce((s, k) => s + (k[`ebitda_${tipo}_real`] || 0), 0);
+  const totalObjP = datos.reduce((s, k) => s + (k[`ebitda_${tipo}_obj_pesos`] || 0), 0);
+  const cumplPct = totalObjP ? Math.round((totalReal / totalObjP) * 100) : null;
+  const color = cumplPct === null ? 'var(--neon)' : cumplPct >= 100 ? '#4ade80' : '#ff9f43';
+  const maxVal = Math.max(...datos.flatMap(d => [d[`ebitda_${tipo}_real`] || 0, d[`ebitda_${tipo}_obj_pesos`] || 0]), 1);
+  const ancho = Math.max(60, Math.floor(520 / Math.max(datos.length, 1)));
+  let bars = datos.map(d => {
+    const real = d[`ebitda_${tipo}_real`] || 0;
+    const objP = d[`ebitda_${tipo}_obj_pesos`] || 0;
+    const objPct = d[`ebitda_${tipo}_obj_pct`];
+    const hR = Math.round((real / maxVal) * 120);
+    const hO = Math.round((objP / maxVal) * 120);
+    const pct = objP ? Math.round((real / objP) * 100) : null;
+    const col = pct === null ? 'var(--neon)' : pct >= 100 ? '#4ade80' : '#ff9f43';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:${ancho}px;">
+      ${pct !== null ? `<span style="font-size:10px;color:${col};font-weight:700;">${pct}%</span>` : ''}
+      <div style="display:flex;align-items:flex-end;gap:3px;height:130px;">
+        ${objP ? `<div style="width:${ancho/2-4}px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj $: ${money(objP)}${objPct?` / Obj%: ${objPct}%`:''}"></div>` : ''}
+        <div style="width:${ancho/2-4}px;height:${hR}px;background:${col};border-radius:3px 3px 0 0;" title="Real: ${money(real)}"></div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo}</div>
+    <div class="kpis" style="margin-bottom:10px;">
+      <div class="kpi"><div class="label">${titulo} $</div><div class="value" style="font-size:18px;">${money(totalReal)}</div></div>
+      <div class="kpi"><div class="label">${titulo} % Cumpl</div><div class="value" style="color:${color};">${cumplPct !== null ? cumplPct + '%' : '—'}</div></div>
+    </div>
+    <div style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaCxc(id, titulo, kpis, obj) {
+  const cxcObj = obj.cxc_obj_pct || 2.8;
+  const datos = kpis.filter(k => k.cxc_real_pct !== null);
+  if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
+  const maxVal = Math.max(...datos.map(d => d.cxc_real_pct), cxcObj, 1);
+  const ancho = Math.max(60, Math.floor(520 / Math.max(datos.length, 1)));
+  let bars = datos.map(d => {
+    const real = d.cxc_real_pct;
+    const hR = Math.round((real / maxVal) * 120);
+    const hO = Math.round((cxcObj / maxVal) * 120);
+    const color = real <= cxcObj ? '#4ade80' : '#ff6b6b';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:${ancho}px;">
+      <span style="font-size:10px;color:${color};font-weight:700;">${real}%</span>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:130px;">
+        <div style="width:${ancho/2-4}px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${cxcObj}%"></div>
+        <div style="width:${ancho/2-4}px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;" title="Real: ${real}%"></div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo} · Objetivo ${cxcObj}%</div>
+    <div style="display:flex;gap:16px;margin-bottom:6px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>Objetivo</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>Real</span>
+    </div>
+    <div style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaDso(id, titulo, kpis, obj) {
+  const dsoObj = obj.dso_obj_dias || 60;
+  const datos = kpis.filter(k => k.dso_real_dias !== null);
+  if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
+  const maxVal = Math.max(...datos.map(d => d.dso_real_dias), dsoObj, 1);
+  const ancho = Math.max(60, Math.floor(520 / Math.max(datos.length, 1)));
+  let bars = datos.map(d => {
+    const real = d.dso_real_dias;
+    const hR = Math.round((real / maxVal) * 120);
+    const hO = Math.round((dsoObj / maxVal) * 120);
+    const color = real <= dsoObj ? '#4ade80' : '#ff6b6b';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:${ancho}px;">
+      <span style="font-size:10px;color:${color};font-weight:700;">${real}d</span>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:130px;">
+        <div style="width:${ancho/2-4}px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${dsoObj}d"></div>
+        <div style="width:${ancho/2-4}px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;" title="Real: ${real}d"></div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo} · Objetivo ${dsoObj} días</div>
+    <div style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;">${bars}</div>
+  </div>`;
+}
+
+function okrTablaKam(crec, kpiTablero, meses, label) {
+  const porKam = crec.ok ? (crec.por_kam || []) : [];
+  const porKamKpi = kpiTablero.ok ? (kpiTablero.por_kam || []) : [];
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-top:16px;">`;
+
+  // Tabla Cumplimiento KAM
+  html += `<div><table data-no-sort><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Presupuesto</th><th class="num">% Cumpl</th></tr>`;
+  porKamKpi.forEach(k => {
+    const pct = k.presupuesto ? Math.round(((k.fact_remas || 0) / k.presupuesto) * 100) : null;
+    const color = pct === null ? 'var(--text-dim)' : pct >= 100 ? '#4ade80' : pct >= 80 ? '#ff9f43' : '#ff6b6b';
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money" data-val="${k.fact_remas||0}">${money(k.fact_remas||0)}</td><td class="num money" data-val="${k.presupuesto||0}">${money(k.presupuesto||0)}</td><td class="num" data-val="${pct||0}" style="color:${color};font-weight:700;">${pct !== null ? pct+'%' : '—'}</td></tr>`;
+  });
+  html += `</table></div>`;
+
+  // Tabla Crecimiento KAM
+  html += `<div><table data-no-sort><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ%</th></tr>`;
+  porKam.sort((a, b) => b.crecimiento_pesos - a.crecimiento_pesos).forEach(k => {
+    const color = k.crecimiento_pct >= 0 ? '#4ade80' : '#ff6b6b';
+    const pct = Math.round(Number(k.crecimiento_pct));
+    html += `<tr><td>${esc(titleCase(k.kam_norm))}</td><td class="num money" data-val="${k.v2025}">${money(k.v2025)}</td><td class="num money" data-val="${k.v2026}">${money(k.v2026)}</td><td class="num" data-val="${pct}" style="color:${color};font-weight:700;">${pct>=0?'+':''}${pct}%</td></tr>`;
+  });
+  html += `</table></div></div>`;
+  return html;
+}
+
+function okrTablaEditable(kpis, obj, mesActual) {
+  const mesesDisp = Array.from({ length: mesActual }, (_, i) => i + 1);
+  const kpiMap = {};
+  kpis.forEach(k => { kpiMap[k.mes] = k; });
+
+  let html = `<div class="card"><h2>📝 Ingresar / Editar KPIs mensuales</h2>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Completa los datos reales de cada mes. Los campos vacíos no sobreescriben valores existentes.</p>
+  <div style="overflow-x:auto;"><table data-no-sort style="min-width:900px;">
+    <tr>
+      <th>Mes</th>
+      <th class="num">EBITDA Dir Real $</th><th class="num">EBITDA Dir Obj %</th><th class="num">EBITDA Dir Obj $</th>
+      <th class="num">EBITDA Neto Real $</th><th class="num">EBITDA Neto Obj %</th><th class="num">EBITDA Neto Obj $</th>
+      <th class="num">CXC %</th><th class="num">DSO días</th><th></th>
+    </tr>`;
+
+  mesesDisp.forEach(m => {
+    const k = kpiMap[m] || {};
+    const inp = (field, val, placeholder) =>
+      `<input type="number" data-field="${field}" value="${val !== null && val !== undefined ? val : ''}" placeholder="${placeholder}" style="width:90px;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:11px;">`;
+    html += `<tr class="okr-row" data-mes="${m}">
+      <td><b>${MESES[m-1]}</b></td>
+      <td class="num">${inp('ebitda_directo_real', k.ebitda_directo_real, 'Real $')}</td>
+      <td class="num">${inp('ebitda_directo_obj_pct', k.ebitda_directo_obj_pct, 'Obj %')}</td>
+      <td class="num">${inp('ebitda_directo_obj_pesos', k.ebitda_directo_obj_pesos, 'Obj $')}</td>
+      <td class="num">${inp('ebitda_neto_real', k.ebitda_neto_real, 'Real $')}</td>
+      <td class="num">${inp('ebitda_neto_obj_pct', k.ebitda_neto_obj_pct, 'Obj %')}</td>
+      <td class="num">${inp('ebitda_neto_obj_pesos', k.ebitda_neto_obj_pesos, 'Obj $')}</td>
+      <td class="num">${inp('cxc_real_pct', k.cxc_real_pct, 'Ej: 5.43')}</td>
+      <td class="num">${inp('dso_real_dias', k.dso_real_dias, 'Días')}</td>
+      <td><button class="btn-okr-guardar" data-mes="${m}" style="width:auto;padding:5px 10px;font-size:11px;">Guardar</button></td>
+    </tr>`;
+  });
+  html += `</table></div></div>`;
+  return html;
+}
+
 async function loadEjecutivo() {
   poblarSelectMeses();
   loadTopKam();
@@ -271,7 +661,7 @@ async function loadEjecutivo() {
 
   // Cuadro de cumplimiento por KAM en el periodo seleccionado, semaforizado
   html += `<div class="card"><h2>Cumplimiento por KAM · ${MESES[mesDesde-1]} a ${MESES[mesHasta-1]} 2026</h2>
-    <table><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Presupuesto</th><th class="num">Faltante</th><th class="num">% Cumplimiento</th></tr>`;
+    <table><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Debería llevar</th><th class="num">Faltante</th><th class="num">% Cumplimiento</th></tr>`;
   (cumplPeriodo.data || []).forEach(k => {
     const pct = k.presupuesto_periodo ? Math.round((k.venta_real / k.presupuesto_periodo) * 100) : 0;
     const faltante = (k.venta_real || 0) - (k.presupuesto_periodo || 0);
@@ -279,7 +669,7 @@ async function loadEjecutivo() {
     if (pct >= 100) color = '#4ade80';
     else if (pct >= 80) color = '#ff9f43';
     const colorFalt = faltante >= 0 ? '#4ade80' : '#ff6b6b';
-    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money" data-val="${k.venta_real}">${money(k.venta_real)}</td><td class="num money" data-val="${k.presupuesto_periodo}">${money(k.presupuesto_periodo)}</td><td class="num money" data-val="${faltante}" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" data-val="${pct}" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.venta_real||0),0);
@@ -288,11 +678,11 @@ async function loadEjecutivo() {
     const totFalt = totReal - totPpto;
     const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
     let color = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money" data-val="${totReal}">${money(totReal)}</td><td class="num money" data-val="${totPpto}">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${color};">${totPct}%</td></tr>`;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${color};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
-  html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table data-no-sort><tr><th>Mes</th><th class="num">Facturado</th><th class="num">Presupuesto</th><th class="num">Faltante</th><th class="num">%</th></tr>';
+  html += '<div class="card"><h2>Venta real vs presupuesto por mes</h2><table><tr><th>Mes</th><th class="num">Real</th><th class="num">Presupuesto</th><th class="num">Faltante</th><th class="num">%</th></tr>';
   (kpi.por_mes || []).forEach(m => {
     const pct = m.presupuesto ? Math.round((m.venta_real/m.presupuesto)*100) : 0;
     const faltante = (m.venta_real||0) - (m.presupuesto||0);
@@ -300,7 +690,7 @@ async function loadEjecutivo() {
     let colorPct = '#ff6b6b';
     if (pct >= 100) colorPct = '#4ade80';
     else if (pct >= 80) colorPct = '#ff9f43';
-    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money" data-val="${m.venta_real}">${money(m.venta_real)}</td><td class="num money" data-val="${m.presupuesto}">${money(m.presupuesto)}</td><td class="num money" data-val="${faltante}" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" data-val="${pct}" style="color:${colorPct};font-weight:700;">${pct}%</td></tr>`;
+    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money">${money(m.venta_real)}</td><td class="num money">${money(m.presupuesto)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${colorPct};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (kpi.por_mes||[]).reduce((s,m)=>s+(m.venta_real||0),0);
@@ -309,60 +699,45 @@ async function loadEjecutivo() {
     const totFalt = totReal - totPpto;
     const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
     let colorPct = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money" data-val="${totReal}">${money(totReal)}</td><td class="num money" data-val="${totPpto}">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${colorPct};">${totPct}%</td></tr>`;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${colorPct};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
   // Crecimiento año contra año
-  const crec = await rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta });
+  const crec = await rpc('dash_crecimiento_anual', { p_token: TOKEN });
   if (crec.ok) {
     const anios = crec.por_anio || [];
     const anio2026 = anios.find(a => a.anio === 2026);
 
-    // 1. Crecimiento por KAM (primero) — sin decimales en %, ordenable
-    html += `<div class="card"><h2>Crecimiento por KAM (${MESES[mesDesde-1]}-${MESES[mesHasta-1]} 2025 vs 2026)</h2><table><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ $</th><th class="num">Δ %</th></tr>`;
+    // 1. Crecimiento por KAM (primero)
+    html += '<div class="card"><h2>Crecimiento por KAM (Ene-' + MESES[crec.mes_corte-1] + ' 2025 vs 2026)</h2><table><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ $</th><th class="num">Δ %</th></tr>';
     (crec.por_kam || []).sort((a,b) => b.crecimiento_pesos - a.crecimiento_pesos).forEach(k => {
       const color = k.crecimiento_pct >= 0 ? '#4ade80' : '#ff6b6b';
-      const pct = Math.round(Number(k.crecimiento_pct));
-      html += `<tr><td>${titleCase(k.kam_norm)}</td><td class="num money" data-val="${k.v2025}">${money(k.v2025)}</td><td class="num money" data-val="${k.v2026}">${money(k.v2026)}</td><td class="num money" data-val="${k.crecimiento_pesos}" style="color:${color};">${k.crecimiento_pesos>=0?'+':''}${money(k.crecimiento_pesos)}</td><td class="num" data-val="${pct}" style="color:${color};font-weight:700;">${pct>=0?'+':''}${pct}%</td></tr>`;
+      html += `<tr><td>${titleCase(k.kam_norm)}</td><td class="num money">${money(k.v2025)}</td><td class="num money">${money(k.v2026)}</td><td class="num money" style="color:${color};">${k.crecimiento_pesos>=0?'+':''}${money(k.crecimiento_pesos)}</td><td class="num" style="color:${color};font-weight:700;">${k.crecimiento_pct>=0?'+':''}${k.crecimiento_pct}%</td></tr>`;
     });
     {
       const totV25 = (crec.por_kam||[]).reduce((s,k)=>s+(k.v2025||0),0);
       const totV26 = (crec.por_kam||[]).reduce((s,k)=>s+(k.v2026||0),0);
       const totPesos = totV26 - totV25;
-      const totPct = totV25 ? Math.round((totPesos/totV25)*100) : 0;
+      const totPct = totV25 ? Math.round((totPesos/totV25)*1000)/10 : 0;
       const color = totPct>=0?'#4ade80':'#ff6b6b';
-      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money" data-val="${totV25}">${money(totV25)}</td><td class="num money" data-val="${totV26}">${money(totV26)}</td><td class="num money" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
+      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totV25)}</td><td class="num money">${money(totV26)}</td><td class="num money" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
     }
     html += '</table></div>';
 
-    // 2. Venta acumulada por año
-    html += `<div class="card"><h2>Facturado acumulado ${MESES[mesDesde-1]}-${MESES[mesHasta-1]} por año</h2><table><tr><th>Año</th><th class="num">Facturado</th><th class="num">% vs. año anterior</th><th class="num">% vs. 2026</th></tr>`;
+    // 2. Venta acumulada por año (después de crecimiento KAM)
+    html += `<div class="card"><h2>Venta acumulada Ene-${MESES[crec.mes_corte-1]} por año</h2><table><tr><th>Año</th><th class="num">Venta</th><th class="num">% vs. año anterior</th><th class="num">% vs. 2026</th></tr>`;
     anios.forEach((a, i) => {
       const prev = anios[i-1];
       const vsAnterior = prev ? Math.round(((a.venta - prev.venta) / prev.venta) * 100) : null;
       const vs2026 = (anio2026 && a.anio !== 2026) ? Math.round(((anio2026.venta - a.venta) / a.venta) * 100) : null;
       const colorAnterior = vsAnterior === null ? 'var(--text-dim)' : (vsAnterior >= 0 ? '#4ade80' : '#ff6b6b');
       const colorVs2026 = vs2026 === null ? 'var(--text-dim)' : (vs2026 >= 0 ? '#4ade80' : '#ff6b6b');
-      html += `<tr><td>${a.anio}</td><td class="num money" data-val="${a.venta}">${money(a.venta)}</td>
+      html += `<tr><td>${a.anio}</td><td class="num money">${money(a.venta)}</td>
         <td class="num" style="color:${colorAnterior};font-weight:700;">${vsAnterior===null?'—':(vsAnterior>=0?'+':'')+vsAnterior+'%'}</td>
         <td class="num" style="color:${colorVs2026};font-weight:700;">${vs2026===null?'—':(vs2026>=0?'+':'')+vs2026+'%'}</td></tr>`;
     });
     html += '</table></div>';
-
-    // 3. Facturado por mes y año (2023-2026)
-    const porMesAnio = crec.por_mes_anio || [];
-    if (porMesAnio.length) {
-      html += `<div class="card"><h2>Facturado por mes · 2023 – 2026</h2><table data-no-sort><tr><th>Mes</th><th class="num">2023</th><th class="num">2024</th><th class="num">2025</th><th class="num">2026</th></tr>`;
-      const MESES_TODOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-      let tot23=0,tot24=0,tot25=0,tot26=0;
-      porMesAnio.forEach(m => {
-        tot23+=m.v2023||0; tot24+=m.v2024||0; tot25+=m.v2025||0; tot26+=m.v2026||0;
-        html += `<tr><td>${MESES_TODOS[(m.mes_num||m.mes)-1]}</td><td class="num money">${m.v2023?money(m.v2023):'—'}</td><td class="num money">${m.v2024?money(m.v2024):'—'}</td><td class="num money">${m.v2025?money(m.v2025):'—'}</td><td class="num money">${m.v2026?money(m.v2026):'—'}</td></tr>`;
-      });
-      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money" data-val="${tot23}">${money(tot23)}</td><td class="num money" data-val="${tot24}">${money(tot24)}</td><td class="num money" data-val="${tot25}">${money(tot25)}</td><td class="num money" data-val="${tot26}">${money(tot26)}</td></tr>`;
-      html += '</table></div>';
-    }
   }
 
   el.innerHTML = html;
@@ -400,7 +775,7 @@ async function loadGapDiscos() {
   let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money" data-val="${c.potencial_mes}">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -417,7 +792,7 @@ async function loadGapLiquidos() {
   let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal) — meta: 1 juego pastas : 0.5 unid. líquido</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Líquidos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money" data-val="${c.potencial_mes}">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -434,7 +809,7 @@ async function loadGapCilindros() {
   let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de cilindros (últimos 180 días, por sucursal) — meta: 1 juego zapatas : 0.3 unid. cilindros</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Zapatas (unid.)</th><th class="num">Cilindros (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money" data-val="${c.potencial_mes}">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -469,18 +844,14 @@ function barrasHorizontales(items, labelKey, valueKey, colorHex, claseClick, sel
   return `<div>${filas}</div>`;
 }
 
-async function cargarTipoAExtra(data, kam, cliente, sucursal, mes) {
+async function cargarTipoAExtra(data, kam, cliente, sucursal) {
   const el = document.getElementById('tipoa-graficas');
   el.innerHTML = '<div class="loading">Cargando gráficas...</div>';
   TIPOA_CLIENTE_SEL = [];
 
   renderTipoAGraficas(data);
 
-  const mesSorted = (mes && mes.length) ? mes.map(m=>parseInt(m)).sort((a,b)=>a-b) : null;
-  const pMesDesde = mesSorted ? mesSorted[0] : 1;
-  const pMesHasta = mesSorted ? mesSorted[mesSorted.length-1] : null;
-
-  const paramsBase = { p_token: TOKEN, p_kam: (kam&&kam.length)?kam:null, p_cliente: (cliente&&cliente.length)?cliente:null, p_sucursal: (sucursal&&sucursal.length)?sucursal:null, p_mes_desde: pMesDesde, p_mes_hasta: pMesHasta };
+  const paramsBase = { p_token: TOKEN, p_kam: (kam&&kam.length)?kam:null, p_cliente: (cliente&&cliente.length)?cliente:null, p_sucursal: (sucursal&&sucursal.length)?sucursal:null };
   const [r, rCliente] = await Promise.all([
     rpc('dash_top_tipo_a_comparativo', paramsBase),
     rpc('dash_top_tipo_a_comparativo_cliente', paramsBase)
@@ -490,12 +861,12 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal, mes) {
   if (r.ok && tablaCard) {
     const rows = r.data || [];
     const totalGrupo2026 = rows.reduce((s,c) => s + (c.venta2026||0), 0);
-    let html = `<h2>Comparativo ${tituloRangoMeses(TA_MES, r.mes_corte)} 2025 vs 2026 por sucursal</h2><table><tr><th>Sucursal</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">% del total 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
+    let html = `<h2>Comparativo Ene-${MESES[r.mes_corte-1]} 2025 vs 2026 por sucursal</h2><table><tr><th>Sucursal</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">% del total 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
     rows.forEach(c => {
       const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
       const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
       const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
-      html += `<tr><td>${esc(c.sucursal_despacho)}</td><td class="num money" data-val="${c.venta2025}">${money(c.venta2025)}</td><td class="num money" data-val="${c.venta2026}">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      html += `<tr><td>${esc(c.sucursal_despacho)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
     });
     html += '</table>';
     tablaCard.innerHTML = html;
@@ -508,12 +879,12 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal, mes) {
   if (rCliente.ok && tablaClienteCard) {
     const rows = rCliente.data || [];
     const totalGrupo2026 = rows.reduce((s,c) => s + (c.venta2026||0), 0);
-    let html = `<h2>Comparativo ${tituloRangoMeses(TA_MES, rCliente.mes_corte)} 2025 vs 2026 por razón social</h2><table><tr><th>Cliente</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">% del total 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
+    let html = `<h2>Comparativo Ene-${MESES[rCliente.mes_corte-1]} 2025 vs 2026 por razón social</h2><table><tr><th>Cliente</th><th class="num">Venta 2025</th><th class="num">Venta 2026</th><th class="num">% del total 2026</th><th class="num">Diferencia $</th><th class="num">Crecimiento %</th></tr>`;
     rows.forEach(c => {
       const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
       const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
       const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
-      html += `<tr><td>${esc(c.cliente)}</td><td class="num money" data-val="${c.venta2025}">${money(c.venta2025)}</td><td class="num money" data-val="${c.venta2026}">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      html += `<tr><td>${esc(c.cliente)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
     });
     html += '</table>';
     tablaClienteCard.innerHTML = html;
@@ -553,18 +924,6 @@ function renderTipoAGraficas(data) {
   activarBarraFiltros(el, { cliente: (v) => { TIPOA_CLIENTE_SEL = (TIPOA_CLIENTE_SEL||[]).filter(x=>x!==v); renderTipoAGraficas(data); } }, () => { TIPOA_CLIENTE_SEL = []; renderTipoAGraficas(data); });
 }
 
-
-// Helper: título de rango según filtro activo
-function tituloRangoMeses(mesesFiltro, mesCorteRpc) {
-  const mesActual = new Date().getMonth() + 1;
-  const mesCorte = mesCorteRpc || (mesActual - 1) || mesActual;
-  if (!mesesFiltro || !mesesFiltro.length) {
-    return `Ene-${MESES[mesCorte-1]}`;
-  }
-  const sorted = mesesFiltro.map(m=>parseInt(m)).sort((a,b)=>a-b);
-  if (sorted.length === 1) return MESES[sorted[0]-1];
-  return `${MESES[sorted[0]-1]}-${MESES[sorted[sorted.length-1]-1]}`;
-}
 async function loadTipoA(kam, cliente, sucursal, mes) {
   const el = document.getElementById('view-tipoa');
   if (!TIPOA_FILTROS_HTML_LISTO) el.innerHTML = '<div class="loading">Cargando aliados tipo A...</div>';
@@ -586,7 +945,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   const total = data.reduce((s,c) => s + (c.total||0), 0);
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -609,14 +968,14 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   html += '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
   data.forEach(c => {
     const pctFila = total ? Math.round(((c.total||0)/total)*1000)/10 : 0;
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money" data-val="${c.total}">${money(c.total)}</td><td class="num">${pctFila}%</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money" data-val="${total}">${money(total)}</td><td class="num">100%</td></tr>`;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num">100%</td></tr>`;
   html += '</table></div>';
   html += '<div id="tipoa-graficas"></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
-  cargarTipoAExtra(data, TA_KAM, TA_CLIENTE, TA_SUCURSAL, TA_MES);
+  cargarTipoAExtra(data, TA_KAM, TA_CLIENTE, TA_SUCURSAL);
 
   activarMultiSelect('taMes', (vals) => loadTipoA(TA_KAM, TA_CLIENTE, TA_SUCURSAL, vals));
   activarMultiSelect('taKam', (vals) => loadTipoA(vals, TA_CLIENTE, TA_SUCURSAL, TA_MES));
@@ -678,7 +1037,7 @@ function renderSegmentacionTabla() {
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">% del total</th><th class="num">Días sin comprar</th></tr>`;
   filtrados.forEach(c => {
     const pctFila = totalGeneral ? Math.round(((c.total||0)/totalGeneral)*1000)/10 : 0;
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${c.segmento}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num money" data-val="${c.total}">${money(c.total)}</td><td class="num">${pctFila}%</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${c.segmento}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -751,7 +1110,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -782,7 +1141,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   html += '<div class="card"><h2>Top 12 por familia (clic para ver descripciones)</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>';
   (r.por_familia || []).forEach(f => {
     const activo = TICKET_FAMILIA_SEL === f.familia;
-    html += `<tr class="fam-row-ticket" data-familia="${esc(f.familia)}" style="cursor:pointer;${activo?'background:#2a2e24;':''}"><td>${esc(f.familia)}</td><td class="num money" data-val="${f.venta}">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money" data-val="${f.ticket_promedio}">${money(f.ticket_promedio)}</td></tr>`;
+    html += `<tr class="fam-row-ticket" data-familia="${esc(f.familia)}" style="cursor:pointer;${activo?'background:#2a2e24;':''}"><td>${esc(f.familia)}</td><td class="num money">${money(f.venta)}</td><td class="num">${Math.round(f.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(f.ticket_promedio)}</td></tr>`;
   });
   html += '</table></div>';
 
@@ -790,7 +1149,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
     html += `<div class="card"><h2>Descripciones — ${esc(TICKET_FAMILIA_SEL)}</h2>
       <table><tr><th>Descripción</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Ticket Promedio</th></tr>`;
     (prod.data || []).forEach(p => {
-      html += `<tr><td>${esc(p.descripcion||'')}</td><td class="num money" data-val="${p.venta}">${money(p.venta)}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td><td class="num money" data-val="${p.ticket_promedio}">${money(p.ticket_promedio)}</td></tr>`;
+      html += `<tr><td>${esc(p.descripcion||'')}</td><td class="num money">${money(p.venta)}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td><td class="num money">${money(p.ticket_promedio)}</td></tr>`;
     });
     html += '</table></div>';
   }
@@ -854,7 +1213,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -912,7 +1271,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     html += `<div class="card"><h2>Top 12 por familia</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Familia</th><th class="num">Venta</th></tr>
-          ${porVentaFam.map(d => `<tr><td>${esc(d.familia)}</td><td class="num money" data-val="${d.venta}">${money(d.venta)}</td></tr>`).join('')}
+          ${porVentaFam.map(d => `<tr><td>${esc(d.familia)}</td><td class="num money">${money(d.venta)}</td></tr>`).join('')}
         </table></div>
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr><th>Familia</th><th class="num">Unidades</th></tr>
           ${porUnidFam.map(d => `<tr><td>${esc(d.familia)}</td><td class="num">${Math.round(d.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
@@ -927,7 +1286,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     html += `<div class="card"><h2>Top 25 referencias — ${esc(PORTAFOLIO_FAMILIA_SEL)}</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por $ (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Venta</th></tr>
-          ${porVenta.map(p => `<tr><td>${esc(p.referencia)}</td><td>${esc(p.descripcion||'')}</td><td class="num money" data-val="${p.venta}">${money(p.venta)}</td></tr>`).join('')}
+          ${porVenta.map(p => `<tr><td>${esc(p.referencia)}</td><td>${esc(p.descripcion||'')}</td><td class="num money">${money(p.venta)}</td></tr>`).join('')}
         </table></div>
         <div><h3 style="font-size:12px;color:var(--text-dim);margin:0 0 8px;">Por # unidades (mayor a menor)</h3><table><tr><th>Ref</th><th>Descripción</th><th class="num">Unidades</th></tr>
           ${porUnidades.map(p => `<tr><td>${esc(p.referencia)}</td><td>${esc(p.descripcion||'')}</td><td class="num">${Math.round(p.unidades).toLocaleString('es-CO')}</td></tr>`).join('')}
@@ -998,7 +1357,7 @@ async function loadPerdidos(kam) {
     if (c.delta_discos < 0) detalles.push(`Discos ${money(c.delta_discos)}`);
     if (c.delta_liquidos < 0) detalles.push(`Líquidos ${money(c.delta_liquidos)}`);
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td>
-      <td class="num money" data-val="${c.total_ant2}">${money(c.total_ant2)}</td><td class="num money" data-val="${c.total_ant1}">${money(c.total_ant1)}</td><td class="num money" data-val="${c.promedio_2m}">${money(c.promedio_2m)}</td><td class="num money" data-val="${c.total_act}">${money(c.total_act)}</td>
+      <td class="num money">${money(c.total_ant2)}</td><td class="num money">${money(c.total_ant1)}</td><td class="num money">${money(c.promedio_2m)}</td><td class="num money">${money(c.total_act)}</td>
       <td class="num" style="color:#ff6b6b;font-weight:700;">${money(c.caida_total)} (${c.caida_pct}%)</td>
       <td style="font-size:11px;color:var(--text-dim);">${detalles.join(' · ') || '—'}</td></tr>`;
   });
@@ -1007,7 +1366,7 @@ async function loadPerdidos(kam) {
   html += `<div class="card"><h2>Sin compras hace 60+ días — ${sinCompra.length} sucursales</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Venta 2026</th><th class="num">Días sin comprar</th></tr>`;
   sinCompra.forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td><td>${esc(c.ciudad||'')}</td><td class="num money" data-val="${c.total_2026}">${money(c.total_2026)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td><td>${esc(c.ciudad||'')}</td><td class="num money">${money(c.total_2026)}</td><td class="num">${c.dias_sin_compra}</td></tr>`;
   });
   html += '</table></div>';
 
@@ -1057,7 +1416,7 @@ function renderPlanes() {
       html += `<tr><td>${esc(p.cliente)}</td><td>${esc(p.sucursal||'')}</td>
         <td class="fila-plan-tipo" data-tipo="${esc(p.tipo_plan)}" style="cursor:pointer;${activoTipo?'background:#2a2e24;':''}">${esc(p.tipo_plan)}</td>
         <td class="fila-plan-kam" data-kam="${esc(p.vendedor||'')}" style="cursor:pointer;${activoKam?'background:#2a2e24;':''}">${esc(titleCase(p.vendedor||''))}</td>
-        <td class="num money" data-val="${p.potencial_mes}">${money(p.potencial_mes)}</td><td>
+        <td class="num money">${money(p.potencial_mes)}</td><td>
         <select class="estado" data-id="${p.id}">
           <option value="pendiente" ${p.estado==='pendiente'?'selected':''}>Pendiente</option>
           <option value="gestionado" ${p.estado==='gestionado'?'selected':''}>Gestionado</option>
@@ -1133,16 +1492,8 @@ function ordenarTabla(table, colIdx, dir) {
   const totales = dataRows.filter(r => /TOTAL|EQUIPO BRK/i.test(r.textContent));
   const normales = dataRows.filter(r => !totales.includes(r));
   normales.sort((a, b) => {
-    const celdaA = a.children[colIdx];
-    const celdaB = b.children[colIdx];
-    const rawA = celdaA?.dataset?.val;
-    const rawB = celdaB?.dataset?.val;
-    if (rawA !== undefined && rawB !== undefined) {
-      const na = parseFloat(rawA), nb = parseFloat(rawB);
-      if (!isNaN(na) && !isNaN(nb)) return dir === 'asc' ? na - nb : nb - na;
-    }
-    const va = parseCeldaValor(celdaA?.textContent);
-    const vb = parseCeldaValor(celdaB?.textContent);
+    const va = parseCeldaValor(a.children[colIdx]?.textContent);
+    const vb = parseCeldaValor(b.children[colIdx]?.textContent);
     if (typeof va === 'string' || typeof vb === 'string') {
       return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     }
@@ -1162,7 +1513,6 @@ function idTabla(table, indice) {
 function habilitarOrdenTablas(root) {
   const tablas = (root || document).querySelectorAll('table');
   tablas.forEach((table, indice) => {
-    if (table.dataset.noSort !== undefined) return;
     const headerRow = table.querySelector('tr');
     if (!headerRow) return;
     const ths = headerRow.querySelectorAll('th');
@@ -1374,9 +1724,9 @@ function renderRemisiones() {
   html += `<div class="card"><h2>Totales por KAM (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Valor en remisiones</th><th class="num">#</th></tr>`;
   kamOrdenados.forEach(k => {
     const activo = (REMISIONES_KAM_SEL||[]).includes(k);
-    html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money" data-val="${totalesPorKam[k]}">${money(totalesPorKam[k])}</td><td class="num">${(conteosPorKam[k]||0).toLocaleString('es-CO')}</td></tr>`;
+    html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td><td class="num">${(conteosPorKam[k]||0).toLocaleString('es-CO')}</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money" data-val="${r.valor_total}">${money(r.valor_total)}</td><td class="num">${(r.num_remisiones||0).toLocaleString('es-CO')}</td></tr>`;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td><td class="num">${(r.num_remisiones||0).toLocaleString('es-CO')}</td></tr>`;
   html += '</table></div>';
 
   html += `<div class="card"><h2>Remisiones por vendedor y sucursal</h2><table><tr><th>Vendedor</th><th>Sucursal</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
@@ -1385,7 +1735,7 @@ function renderRemisiones() {
     Object.keys(sucursales).sort().forEach(suc => {
       let totalFila = 0;
       const celdas = meses.map(m => { const v = sucursales[suc][m]||0; totalFila += v; return `<td class="num money">${v?money(v):''}</td>`; }).join('');
-      html += `<tr><td>${titleCase(vend)}</td><td>${suc}</td>${celdas}<td class="num money" data-val="${totalFila}">${money(totalFila)}</td></tr>`;
+      html += `<tr><td>${titleCase(vend)}</td><td>${suc}</td>${celdas}<td class="num money">${money(totalFila)}</td></tr>`;
     });
   });
   html += '</table></div>';
@@ -1445,7 +1795,7 @@ function renderCartera() {
   (r.por_kam || []).forEach(k => {
     const color = colorKpiCartera(k.kpi_pct);
     const activo = (CARTERA_KAM_SEL||[]).includes(k.vendedor);
-    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money" data-val="${k.total}">${money(k.total)}</td><td class="num money" data-val="${k.vencido_60}">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
 
@@ -1454,7 +1804,7 @@ function renderCartera() {
   detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorKpi = colorKpiCartera(d.kpi_pct);
     const colorDias = colorDiasVencido(d.dias_max);
-    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money" data-val="${d.total}">${money(d.total)}</td><td class="num money" data-val="${d.vencido_60}">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
@@ -1485,7 +1835,7 @@ async function mostrarFacturasCartera(vendedor, sucursal) {
   let html = `<div class="card"><h2>Facturas — ${sucursal} (${titleCase(vendedor)})</h2><table><tr><th>Nro. documento</th><th>Fecha factura</th><th>Fecha real vencimiento</th><th class="num">Valor</th><th class="num">Días vencido</th></tr>`;
   facturas.forEach(f => {
     const color = colorDiasVencido(f.dias_real_vencido);
-    html += `<tr><td>${esc(f.nro_documento_cruce||'')}</td><td>${f.fecha_docto_cruce||''}</td><td>${f.fecha_real_vencimiento||''}</td><td class="num money" data-val="${f.total_cop}">${money(f.total_cop)}</td><td class="num" style="color:${color};font-weight:700;">${f.dias_real_vencido}</td></tr>`;
+    html += `<tr><td>${esc(f.nro_documento_cruce||'')}</td><td>${f.fecha_docto_cruce||''}</td><td>${f.fecha_real_vencimiento||''}</td><td class="num money">${money(f.total_cop)}</td><td class="num" style="color:${color};font-weight:700;">${f.dias_real_vencido}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -1513,18 +1863,14 @@ function barraSigno(items, labelKey, valueKey) {
 }
 
 let TABLERO_MES = null;
-let TABLERO_EXCLUIDAS_CACHE = null; // null = no cargado aún; [] = sin exclusiones
+let TABLERO_EXCLUIDAS_CACHE = {};
 
-async function cargarExcluidas() {
-  if (TABLERO_EXCLUIDAS_CACHE !== null) return TABLERO_EXCLUIDAS_CACHE;
-  const r = await rpc('dash_exclusiones_leer', { p_token: TOKEN });
-  TABLERO_EXCLUIDAS_CACHE = (r.ok && Array.isArray(r.excluidas)) ? r.excluidas : [];
-  return TABLERO_EXCLUIDAS_CACHE;
+function cargarExcluidasStorage(mes) {
+  try { return JSON.parse(localStorage.getItem('brk_remisiones_excluidas_mes_' + mes) || '[]'); }
+  catch(e) { return []; }
 }
-
-async function guardarExcluidas(arr) {
-  TABLERO_EXCLUIDAS_CACHE = arr;
-  await rpc('dash_exclusiones_guardar', { p_token: TOKEN, p_excluidas: arr });
+function guardarExcluidasStorage(mes, arr) {
+  localStorage.setItem('brk_remisiones_excluidas_mes_' + mes, JSON.stringify(arr));
 }
 
 async function loadTableroControl(mesParam) {
@@ -1533,7 +1879,7 @@ async function loadTableroControl(mesParam) {
   TABLERO_MES = mes;
   el.innerHTML = '<div class="loading">Cargando tablero de control...</div>';
 
-  const excluidas = await cargarExcluidas();
+  const excluidas = cargarExcluidasStorage(mes);
   const r = await rpc('dash_tablero_control', { p_token: TOKEN, p_mes: parseInt(mes), p_anio: 2026, p_remisiones_excluidas: excluidas });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
@@ -1580,7 +1926,7 @@ async function loadTableroControl(mesParam) {
 
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:16px;">
     <div class="card"><h2>% Cumplimiento por KAM</h2><table><tr><th>KAM</th><th class="num">% Cumpl.</th></tr>
-      ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" data-val="${k.pct_cumpl}" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
+      ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
     </table></div>
     <div class="card"><h2>Faltante para 100% por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_100')}</div>
   </div>`;
@@ -1601,7 +1947,7 @@ async function loadTableroControl(mesParam) {
     <table><tr><th style="width:40px;"></th><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num"># Remisiones</th><th class="num">Valor total</th></tr>
     ${gruposRemArr.map((g, i) => {
       const marcado = g.docs.every(d => !excluidas.includes(d));
-      return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''} ${ROL!=='admin'?'disabled':''}></td><td>${esc(g.cliente)}</td><td>${esc(g.sucursal_factura||'')}</td><td>${esc(titleCase(g.vendedor||''))}</td><td class="num">${g.docs.length}</td><td class="num money" data-val="${g.total}">${money(g.total)}</td></tr>`;
+      return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''} ${ROL!=='admin'?'disabled':''}></td><td>${esc(g.cliente)}</td><td>${esc(g.sucursal_factura||'')}</td><td>${esc(titleCase(g.vendedor||''))}</td><td class="num">${g.docs.length}</td><td class="num money">${money(g.total)}</td></tr>`;
     }).join('')}
     </table></div>
     ${ROL==='admin' ? `<div style="margin-top:10px;display:flex;gap:10px;">
@@ -1619,22 +1965,22 @@ async function loadTableroControl(mesParam) {
   });
 
   el.querySelectorAll('.chk-remision-grupo').forEach(chk => {
-    chk.addEventListener('change', async () => {
+    chk.addEventListener('change', () => {
       const grupo = gruposRemArr[parseInt(chk.dataset.idx)];
-      const excluidasActuales = (TABLERO_EXCLUIDAS_CACHE || []).slice();
+      const excluidasActuales = cargarExcluidasStorage(mes);
       grupo.docs.forEach(doc => {
         const idx = excluidasActuales.indexOf(doc);
         if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
         if (!chk.checked && idx < 0) excluidasActuales.push(doc);
       });
-      await guardarExcluidas(excluidasActuales);
+      guardarExcluidasStorage(mes, excluidasActuales);
       loadTableroControl(mes);
     });
   });
   const btnMarcar = document.getElementById('tcMarcarTodas');
-  if (btnMarcar) btnMarcar.addEventListener('click', async () => { await guardarExcluidas([]); loadTableroControl(mes); });
+  if (btnMarcar) btnMarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, []); loadTableroControl(mes); });
   const btnDesmarcar = document.getElementById('tcDesmarcarTodas');
-  if (btnDesmarcar) btnDesmarcar.addEventListener('click', async () => { await guardarExcluidas(remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
+  if (btnDesmarcar) btnDesmarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
 }
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
@@ -1812,7 +2158,7 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: c }));
   const opcionesTipo = (f.tipos||[]).slice().sort().map(t => ({ value: t, label: t }));
 
@@ -1882,11 +2228,7 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   html += '</table></div>';
 
   // Tipos de servicio: cantidad, promedio/día, valor total y valor/día
-  const TARIFA = {
-    'metrofrenos cerca': 10588, 'Metrofrenos lejos': 16688,
-    'Servicio cerca metrofrenos': 10588, 'Servicio Lejos  metrofrenos': 16688,
-    'Servicio Lejos metrofrenos': 16688
-  };
+  const TARIFA = { 'metrofrenos cerca': 10588, 'Metrofrenos lejos': 16688 };
   html += `<div class="card"><h2>Servicios por Tipo (clic para filtrar, varios a la vez)</h2>
     <table><tr><th>Tipo</th><th class="num">Total servicios</th><th class="num">Servicios/día</th><th class="num">Valor total</th><th class="num">Valor/día</th></tr>`;
   (r.por_tipo || []).forEach(t => {
@@ -2022,10 +2364,9 @@ let CLIENTES_CLIENTE = [];
 let CLIENTES_SUCURSAL = [];
 let CLIENTES_REFERENCIA = null;
 let CLIENTES_NRO_DOCUMENTO = null;
-let CLIENTES_FAMILIA = [];
 let CLIENTES_FILTROS_HTML = '';
 
-async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento, familia) {
+async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento) {
   const el = document.getElementById('view-clientes');
   el.innerHTML = '<div class="loading">Cargando clientes...</div>';
   CLIENTES_MES = mes !== undefined ? mes : CLIENTES_MES;
@@ -2034,7 +2375,6 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   CLIENTES_SUCURSAL = sucursal !== undefined ? sucursal : CLIENTES_SUCURSAL;
   CLIENTES_REFERENCIA = referencia !== undefined ? referencia : CLIENTES_REFERENCIA;
   CLIENTES_NRO_DOCUMENTO = nroDocumento !== undefined ? nroDocumento : CLIENTES_NRO_DOCUMENTO;
-  CLIENTES_FAMILIA = familia !== undefined ? familia : CLIENTES_FAMILIA;
 
   const r = await rpc('dash_clientes_resumen', {
     p_token: TOKEN,
@@ -2043,17 +2383,15 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     p_cliente: (CLIENTES_CLIENTE && CLIENTES_CLIENTE.length) ? CLIENTES_CLIENTE : null,
     p_sucursal: (CLIENTES_SUCURSAL && CLIENTES_SUCURSAL.length) ? CLIENTES_SUCURSAL : null,
     p_referencia: CLIENTES_REFERENCIA || null,
-    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null,
-    p_familia: (CLIENTES_FAMILIA && CLIENTES_FAMILIA.length) ? CLIENTES_FAMILIA : null
+    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null
   });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (f.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (f.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
-  const opcionesFamilia = (f.familias||[]).slice().sort().map(fam => ({ value: fam, label: fam }));
 
   const meses = [...new Set([
     ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
@@ -2065,7 +2403,6 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
     ${renderMultiSelect('clSucursal', opcionesSucursal, CLIENTES_SUCURSAL, 'Todas las sucursales')}
-    ${renderMultiSelect('clFamilia', opcionesFamilia, CLIENTES_FAMILIA, 'Todas las familias')}
   </div>`;
 
   html += renderBarraFiltros([
@@ -2073,35 +2410,17 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, etiquetaDe: v => titleCase(v) },
     { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
-    { id: 'familia', label: 'Familia', valor: CLIENTES_FAMILIA },
     { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
     { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO }
   ]);
 
   // Top Clientes — pivote por sucursal
-  const mesActual = new Date().getMonth() + 1;
-  const mesesFinalizados = meses.filter(m => m < mesActual);
-
-  function promedioCeldas(itemMeses, listaMeses, esMoneda) {
-    const mesesConVenta = listaMeses.filter(m => itemMeses[m] && itemMeses[m] > 0);
-    if (!mesesConVenta.length) return '';
-    const prom = mesesConVenta.reduce((s, m) => s + itemMeses[m], 0) / mesesConVenta.length;
-    return esMoneda ? money(prom) : Math.round(prom).toLocaleString('es-CO');
-  }
-
   const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
-  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   topClientes.forEach(c => {
     const activo = (CLIENTES_SUCURSAL||[]).includes(c.sucursal_despacho);
-    const prom = promedioCeldas(c.meses, mesesFinalizados, true);
-    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${c.total}">${money(c.total)}</td></tr>`;
+    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}<td class="num money">${money(c.total)}</td></tr>`;
   });
-  {
-    const totMes = {}; meses.forEach(m => { totMes[m] = topClientes.reduce((s,c) => s+(c.meses[m]||0),0); });
-    const totGeneral = topClientes.reduce((s,c) => s+c.total, 0);
-    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
-  }
   html += '</table></div></div>';
 
   // Productos más vendidos [$] y [#] — lado a lado
@@ -2109,32 +2428,18 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   const prodUnidades = pivotarPorMes(r.productos_unidades, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'unidades');
 
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:16px;">';
-  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   prodValor.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    const prom = promedioCeldas(p.meses, mesesFinalizados, true);
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${p.total}">${money(p.total)}</td></tr>`;
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}<td class="num money">${money(p.total)}</td></tr>`;
   });
-  {
-    const totMes = {}; meses.forEach(m => { totMes[m] = prodValor.reduce((s,p) => s+(p.meses[m]||0),0); });
-    const totGeneral = prodValor.reduce((s,p) => s+p.total, 0);
-    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
-  }
   html += '</table></div></div>';
 
-  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   prodUnidades.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    const prom = promedioCeldas(p.meses, mesesFinalizados, false);
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${prom}</td>`:''}<td class="num">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}<td class="num">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
   });
-  {
-    const totMes = {}; meses.forEach(m => { totMes[m] = prodUnidades.reduce((s,p) => s+(p.meses[m]||0),0); });
-    const totGeneral = prodUnidades.reduce((s,p) => s+p.total, 0);
-    const promTot = promedioCeldas(totMes, mesesFinalizados, false);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num" data-val="${totMes[m]}">${totMes[m]?Math.round(totMes[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${promTot}</td>`:''}<td class="num" data-val="${totGeneral}">${Math.round(totGeneral).toLocaleString('es-CO')}</td></tr>`;
-  }
   html += '</table></div></div></div>';
 
   // Facturas — pivote por nro_documento
@@ -2142,18 +2447,17 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   html += `<div class="card"><h2>Facturas (clic para filtrar) — ${facturas.length} documentos</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Nro. documento</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   facturas.forEach(f => {
     const activo = CLIENTES_NRO_DOCUMENTO === f.nro_documento;
-    html += `<tr class="fila-cl-factura" data-nrodoc="${esc(f.nro_documento)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(f.nro_documento)}</td>${meses.map(m => `<td class="num money">${f.meses[m]?money(f.meses[m]):''}</td>`).join('')}<td class="num money" data-val="${f.total}">${money(f.total)}</td></tr>`;
+    html += `<tr class="fila-cl-factura" data-nrodoc="${esc(f.nro_documento)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(f.nro_documento)}</td>${meses.map(m => `<td class="num money">${f.meses[m]?money(f.meses[m]):''}</td>`).join('')}<td class="num money">${money(f.total)}</td></tr>`;
   });
   html += '</table></div></div>';
 
   el.innerHTML = html;
   habilitarOrdenTablas(el);
 
-  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined, undefined));
-  activarMultiSelect('clFamilia', (vals) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, vals));
+  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined));
+  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined));
 
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-clKam');
@@ -2164,29 +2468,28 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     fila.addEventListener('click', () => {
       const actuales = CLIENTES_SUCURSAL || [];
       const nuevo = actuales.includes(fila.dataset.sucursal) ? actuales.filter(v=>v!==fila.dataset.sucursal) : [...actuales, fila.dataset.sucursal];
-      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined, undefined);
+      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-referencia').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined, undefined);
+      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-factura').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc, undefined);
+      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc);
     });
   });
 
   activarBarraFiltros(el, {
-    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined, undefined),
-    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined),
-    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
-    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined, undefined),
-    familia: (v) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, (CLIENTES_FAMILIA||[]).filter(x=>x!==v)),
-    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined, undefined),
-    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null, undefined)
-  }, () => loadClientes([], [], [], [], null, null, []));
+    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined),
+    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
+    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined),
+    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined),
+    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined),
+    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null)
+  }, () => loadClientes([], [], [], [], null, null));
 }
 
 function loadCargarVentas() {
@@ -2229,34 +2532,13 @@ function loadCargarVentas() {
 }
 
 async function mostrarUltimaCarga() {
-  const r = await rpc('dash_estado_cargas', { p_token: TOKEN });
+  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN });
   const info = document.getElementById('ultimaCargaInfo');
-  if (!r.ok) { info.textContent = 'No se pudo consultar el estado actual.'; return; }
-
-  const fmt = (iso) => {
-    if (!iso) return '<span style="color:#ff6b6b;">Sin datos</span>';
-    const d = new Date(iso);
-    return `<b style="color:var(--neon);">${d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})} ${d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</b>`;
-  };
-
-  const fuentes = [
-    { key: 'facturacion',  label: '📄 Facturación' },
-    { key: 'remisiones',   label: '🚚 Remisiones' },
-    { key: 'cartera',      label: '💰 Cartera' },
-    { key: 'facilitadores',label: '🏍️ Facilitadores' }
-  ];
-
-  info.innerHTML = `<table style="width:100%;font-size:13px;border-collapse:collapse;">
-    <tr><th style="text-align:left;color:var(--text-dim);padding:6px 12px 6px 0;">Fuente</th><th style="text-align:left;color:var(--text-dim);padding:6px 12px;">Última actualización</th><th style="text-align:right;color:var(--text-dim);padding:6px 0;">Registros</th></tr>
-    ${fuentes.map(f => {
-      const d = r[f.key] || {};
-      return `<tr style="border-top:1px solid #333630;">
-        <td style="padding:8px 12px 8px 0;">${f.label}</td>
-        <td style="padding:8px 12px;">${fmt(d.ultima_carga)}</td>
-        <td style="padding:8px 0;text-align:right;color:var(--text-dim);">${(d.total_registros||0).toLocaleString('es-CO')}</td>
-      </tr>`;
-    }).join('')}
-  </table>`
+  if (r.ok && r.general) {
+    info.innerHTML = `Venta total acumulada (Facturación) en el dashboard: <b style="color:var(--neon);">${money(r.general.venta_total)}</b>. Compara contra tu Power BI para confirmar que la última carga quedó al día.`;
+  } else {
+    info.textContent = 'No se pudo consultar el estado actual.';
+  }
 }
 
 async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
@@ -2280,11 +2562,7 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     estado.textContent = `Leyendo ${archivo.name}...`;
     const buffer = await archivo.arrayBuffer();
     const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-    // Usar hoja activa si el workbook la indica, sino la primera
-    const nombreHoja = (wb.Workbook?.WBView?.[0]?.activeTab !== undefined)
-      ? wb.SheetNames[wb.Workbook.WBView[0].activeTab]
-      : wb.SheetNames[0];
-    const hoja = wb.Sheets[nombreHoja];
+    const hoja = wb.Sheets[wb.SheetNames[0]];
     const filas = XLSX.utils.sheet_to_json(hoja, { defval: null });
 
     if (!filas.length) { estado.textContent = 'El archivo no tiene datos.'; progreso.style.display = 'none'; return; }
