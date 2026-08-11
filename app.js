@@ -244,26 +244,380 @@ async function loadTopAliados() {
 // OKR — solo admin
 // ============================================================
 let OKR_MES = [];
-let OKR_DATOS = null;
 
 async function loadOkr() {
   const el = document.getElementById('view-okr');
   el.innerHTML = '<div class="loading">Cargando OKR...</div>';
-
   const mesActual = new Date().getMonth() + 1;
   const opcionesMeses = MESES.slice(0, mesActual).map((m, i) => ({ value: String(i + 1), label: m }));
+  await renderOkr(el, opcionesMeses, mesActual);
+}
 
-  // Cargar datos en paralelo
+async function renderOkr(el, opcionesMeses, mesActual) {
+  const mesFiltro = OKR_MES.length ? OKR_MES.map(m => parseInt(m)).sort((a,b)=>a-b) : null;
+  const mesesAct = mesFiltro || Array.from({ length: mesActual }, (_, i) => i + 1);
+  const mesDesde = mesesAct[0];
+  const mesHasta = mesesAct[mesesAct.length - 1];
+  const label = mesesAct.map(m => MESES[m-1]).join(', ');
+
+  // Recargar RPCs con rango correcto
   const [rOkr, rKpi, rCrec] = await Promise.all([
     rpc('dash_okr_leer', { p_token: TOKEN }),
-    rpc('dash_tablero_control', { p_token: TOKEN, p_mes: mesActual, p_anio: 2026, p_remisiones_excluidas: [] }),
-    rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: 1, p_mes_hasta: mesActual })
+    rpc('dash_tablero_control', { p_token: TOKEN, p_mes: mesHasta, p_anio: 2026, p_remisiones_excluidas: [] }),
+    rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta })
   ]);
 
-  OKR_DATOS = { okr: rOkr, kpi: rKpi, crec: rCrec };
+  const kpis = rOkr.ok ? (rOkr.kpis || []) : [];
+  const obj = rOkr.ok ? (rOkr.objetivos || {}) : {};
+  const kpisFiltro = kpis.filter(k => mesesAct.includes(k.mes));
+  const porKam = rCrec.ok ? (rCrec.por_kam || []) : [];
+  const cristian = porKam.find(k => k.kam_norm && k.kam_norm.toUpperCase().includes('ARISMENDY')) || {};
+  const porKamKpi = rKpi.ok ? (rKpi.por_kam || []) : [];
 
-  renderOkr(el, opcionesMeses, mesActual);
+  let html = `
+  <div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
+    ${renderMultiSelect('okrMes', opcionesMeses, OKR_MES, 'Todos los meses')}
+  </div>`;
+
+  html += renderBarraFiltros([{ id: 'mes', label: 'Mes', valor: OKR_MES, etiquetaDe: v => MESES[parseInt(v)-1] }]);
+
+  // ── GAME CHANGER ─────────────────────────────────────────
+  const v2025c = cristian.v2025 || 0;
+  const v2026c = cristian.v2026 || 0;
+  const deltaC = v2026c - v2025c;
+  const pctC = v2025c ? Math.round((deltaC / v2025c) * 100) : 0;
+  const colorC = deltaC >= 0 ? '#4ade80' : '#ff6b6b';
+  const presC = porKamKpi.find(k => k.vendedor && k.vendedor.includes('ARISMENDY'));
+  const presupC = presC ? presC.presupuesto : 0;
+  const cumplPctC = presupC ? Math.round((v2026c / presupC) * 100) : null;
+  const colorCumplC = cumplPctC === null ? 'var(--neon)' : cumplPctC >= 100 ? '#4ade80' : cumplPctC >= 80 ? '#ff9f43' : '#ff6b6b';
+
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">🚀 Game Changer · Cristian Arismendy (${label})</h2>
+    <div class="kpis" style="margin-bottom:16px;">
+      <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(v2026c)}</div></div>
+      <div class="kpi"><div class="label">% Cumplimiento 2026</div><div class="value" style="color:${colorCumplC};">${cumplPctC !== null ? cumplPctC+'%' : '—'}</div></div>
+      <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorC};">${deltaC>=0?'+':''}${money(deltaC)}</div></div>
+      <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorC};">${pctC>=0?'+':''}${pctC}%</div></div>
+    </div>
+    ${okrGraficaBarras('Ventas Cristian Arismendy 2025 vs 2026', rCrec, mesesAct, true)}
+  </div>`;
+
+  // ── COMERCIAL ─────────────────────────────────────────────
+  const anios = rCrec.ok ? (rCrec.por_anio || []) : [];
+  const a2026 = anios.find(a => a.anio === 2026) || {};
+  const a2025 = anios.find(a => a.anio === 2025) || {};
+  const ventaEq = a2026.venta || 0;
+  const venta25Eq = a2025.venta || 0;
+  const deltaEq = ventaEq - venta25Eq;
+  const pctEq = venta25Eq ? Math.round((deltaEq / venta25Eq) * 100) : 0;
+  const colorEq = deltaEq >= 0 ? '#4ade80' : '#ff6b6b';
+  const presupEq = porKamKpi.reduce((s, k) => s + (k.presupuesto || 0), 0);
+  const cumplEq = presupEq ? Math.round((ventaEq / presupEq) * 100) : null;
+  const faltanteEq = presupEq - ventaEq;
+  const colorCumplEq = cumplEq === null ? 'var(--neon)' : cumplEq >= 100 ? '#4ade80' : cumplEq >= 80 ? '#ff9f43' : '#ff6b6b';
+
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">📊 Comercial · Equipo BRK (${label})</h2>
+    <div class="kpis" style="margin-bottom:16px;">
+      <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(ventaEq)}</div></div>
+      <div class="kpi"><div class="label">% Cumplimiento</div><div class="value" style="color:${colorCumplEq};">${cumplEq !== null ? cumplEq+'%' : '—'}</div></div>
+      <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorEq};">${deltaEq>=0?'+':''}${money(deltaEq)}</div></div>
+      <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorEq};">${pctEq>=0?'+':''}${pctEq}%</div></div>
+      <div class="kpi"><div class="label">${faltanteEq<=0?'Sobre-cumplimiento':'Faltante'}</div><div class="value" style="color:${faltanteEq<=0?'#4ade80':'#ff6b6b'};">${faltanteEq<=0?'+':''}${money(Math.abs(faltanteEq))}</div></div>
+    </div>
+    ${okrGraficaVentasVsPresupuesto('Ventas vs Presupuesto por mes', rCrec, rKpi, mesesAct)}
+    ${okrGraficaEbitda('EBITDA Directo', kpisFiltro, 'directo')}
+    ${okrGraficaEbitda('EBITDA Neto', kpisFiltro, 'neto')}
+    ${okrTablaKam(rCrec, rKpi)}
+  </div>`;
+
+  // ── FINANCIERO ────────────────────────────────────────────
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">💰 Financiero (${label})</h2>
+    ${okrGraficaCxc('CXC · Cartera >60 días', kpisFiltro, obj)}
+    ${okrGraficaDso('DSO · Días de cartera', kpisFiltro, obj)}
+  </div>`;
+
+  // ── TABLA EDITABLE ────────────────────────────────────────
+  html += okrTablaEditable(kpis, mesActual);
+
+  el.innerHTML = html;
+
+  activarMultiSelect('okrMes', async (vals) => {
+    OKR_MES = vals;
+    el.innerHTML = '<div class="loading">Actualizando...</div>';
+    await renderOkr(el, opcionesMeses, mesActual);
+  });
+  activarBarraFiltros(el, {
+    mes: async (v) => { OKR_MES = OKR_MES.filter(x => String(x) !== String(v)); el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkr(el, opcionesMeses, mesActual); }
+  }, async () => { OKR_MES = []; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkr(el, opcionesMeses, mesActual); });
+
+  el.querySelectorAll('.btn-okr-guardar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mes = parseInt(btn.dataset.mes);
+      const row = el.querySelector(`.okr-row[data-mes="${mes}"]`);
+      const val = (id) => { const i = row.querySelector(`[data-field="${id}"]`); return i && i.value !== '' ? parseFloat(i.value.replace(/[^0-9.\-]/g,'')) : null; };
+      const valI = (id) => { const i = row.querySelector(`[data-field="${id}"]`); return i && i.value !== '' ? parseInt(i.value) : null; };
+      btn.textContent = '...';
+      const r = await rpc('dash_okr_guardar_kpi', {
+        p_token: TOKEN, p_anio: 2026, p_mes: mes,
+        p_ebitda_directo_real: val('ebitda_directo_real'),
+        p_ebitda_directo_obj_pesos: val('ebitda_directo_obj_pesos'),
+        p_ebitda_neto_real: val('ebitda_neto_real'),
+        p_ebitda_neto_obj_pesos: val('ebitda_neto_obj_pesos'),
+        p_cxc_real_pct: val('cxc_real_pct'),
+        p_dso_real_dias: valI('dso_real_dias')
+      });
+      btn.textContent = r.ok ? '✅' : '❌';
+      if (r.ok) { el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkr(el, opcionesMeses, mesActual); }
+    });
+  });
+
+  habilitarOrdenTablas(el);
 }
+
+function okrBarra(label, real, obj2026, colorReal, showLabel) {
+  // Barra vertical con valor dentro si cabe, fuera si no
+  const maxH = 130;
+  const maxV = Math.max(real, obj2026 || 0, 1);
+  const hR = Math.max(4, Math.round((real / maxV) * maxH));
+  const hO = obj2026 ? Math.max(4, Math.round((obj2026 / maxV) * maxH)) : 0;
+  const valFmt = real >= 1000000 ? `$${Math.round(real/1000000)}M` : real >= 1000 ? `$${Math.round(real/1000)}K` : `$${Math.round(real)}`;
+  const valStyle = hR > 22 ? `position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;color:#1a1a1a;font-weight:700;` : `position:absolute;bottom:${hR+3}px;left:0;right:0;text-align:center;font-size:9px;color:var(--neon);font-weight:700;`;
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+    <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;position:relative;">
+      ${hO ? `<div style="width:20px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Presup: ${money(obj2026)}"></div>` : ''}
+      <div style="width:20px;height:${hR}px;background:${colorReal};border-radius:3px 3px 0 0;position:relative;" title="Real: ${money(real)}">
+        <span style="${valStyle}">${valFmt}</span>
+      </div>
+    </div>
+    <span style="font-size:10px;color:var(--text-dim);">${label}</span>
+  </div>`;
+}
+
+function okrGraficaBarras(titulo, crec, meses, conEquipo) {
+  const porMesAnio = crec.por_mes_anio || [];
+  const datos = meses.map(m => {
+    const f = porMesAnio.find(x => x.mes_num === m) || {};
+    return { mes: m, v2025: f.v2025 || 0, v2026: f.v2026 || 0 };
+  });
+  const maxV = Math.max(...datos.flatMap(d => [d.v2025, d.v2026]), 1);
+  const maxH = 130;
+  let bars = datos.map(d => {
+    const h25 = Math.max(4, Math.round((d.v2025 / maxV) * maxH));
+    const h26 = Math.max(4, Math.round((d.v2026 / maxV) * maxH));
+    const fmt = v => v >= 1000000 ? `$${Math.round(v/1000000)}M` : `$${Math.round(v/1000)}K`;
+    const s25 = h25 > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${h25+3}px;color:#9A979F;`;
+    const s26 = h26 > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${h26+3}px;color:var(--neon);`;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
+        <div style="width:20px;height:${h25}px;background:#596B63;border-radius:3px 3px 0 0;position:relative;">
+          <span style="position:absolute;${s25}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${fmt(d.v2025)}</span>
+        </div>
+        <div style="width:20px;height:${h26}px;background:var(--neon);border-radius:3px 3px 0 0;position:relative;">
+          <span style="position:absolute;${s26}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${fmt(d.v2026)}</span>
+        </div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo}</div>
+    <div style="display:flex;gap:16px;margin-bottom:6px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>2025</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>2026</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaVentasVsPresupuesto(titulo, crec, kpiTablero, meses) {
+  const porMes = crec.por_mes_anio || [];
+  const porKamMes = kpiTablero.ok ? (kpiTablero.por_mes || []) : [];
+  const datos = meses.map(m => {
+    const f = porMes.find(x => x.mes_num === m) || {};
+    const km = porKamMes.find(x => x.mes === m) || {};
+    return { mes: m, real: f.v2026 || 0, presup: km.presupuesto || 0 };
+  });
+  const maxV = Math.max(...datos.flatMap(d => [d.real, d.presup]), 1);
+  const maxH = 130;
+  let bars = datos.map(d => {
+    const hR = Math.max(4, Math.round((d.real / maxV) * maxH));
+    const hP = d.presup ? Math.max(4, Math.round((d.presup / maxV) * maxH)) : 0;
+    const pct = d.presup ? Math.round((d.real / d.presup) * 100) : null;
+    const color = pct === null ? 'var(--neon)' : pct >= 100 ? '#4ade80' : pct >= 80 ? '#ff9f43' : '#ff6b6b';
+    const fmt = v => v >= 1000000 ? `$${Math.round(v/1000000)}M` : `$${Math.round(v/1000)}K`;
+    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:var(--neon);`;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+      ${pct !== null ? `<span style="font-size:10px;color:${color};font-weight:700;">${pct}%</span>` : ''}
+      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
+        ${hP ? `<div style="width:20px;height:${hP}px;background:#596B63;border-radius:3px 3px 0 0;" title="Presup: ${money(d.presup)}"></div>` : ''}
+        <div style="width:20px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;position:relative;" title="Real: ${money(d.real)}">
+          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${fmt(d.real)}</span>
+        </div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo}</div>
+    <div style="display:flex;gap:16px;margin-bottom:6px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>Presupuesto</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>Real</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaEbitda(titulo, kpis, tipo) {
+  const datos = kpis.filter(k => k[`ebitda_${tipo}_real`] !== null && k[`ebitda_${tipo}_real`] !== undefined);
+  if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
+  const totalReal = datos.reduce((s,k) => s+(k[`ebitda_${tipo}_real`]||0), 0);
+  const totalObjP = datos.reduce((s,k) => s+(k[`ebitda_${tipo}_obj_pesos`]||0), 0);
+  const cumplPct = totalObjP ? Math.round((totalReal/totalObjP)*100) : null;
+  const color = cumplPct === null ? 'var(--neon)' : cumplPct >= 100 ? '#4ade80' : '#ff9f43';
+  const maxV = Math.max(...datos.flatMap(d => [d[`ebitda_${tipo}_real`]||0, d[`ebitda_${tipo}_obj_pesos`]||0]), 1);
+  const maxH = 130;
+  let bars = datos.map(d => {
+    const real = d[`ebitda_${tipo}_real`]||0;
+    const objP = d[`ebitda_${tipo}_obj_pesos`]||0;
+    const hR = Math.max(4, Math.round((real/maxV)*maxH));
+    const hO = objP ? Math.max(4, Math.round((objP/maxV)*maxH)) : 0;
+    const pct = objP ? Math.round((real/objP)*100) : null;
+    const col = pct === null ? 'var(--neon)' : pct >= 100 ? '#4ade80' : '#ff9f43';
+    const fmt = v => v >= 1000000 ? `$${Math.round(v/1000000)}M` : `$${Math.round(v/1000)}K`;
+    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:var(--neon);`;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+      ${pct !== null ? `<span style="font-size:10px;color:${col};font-weight:700;">${pct}%</span>` : ''}
+      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
+        ${hO ? `<div style="width:20px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${money(objP)}"></div>` : ''}
+        <div style="width:20px;height:${hR}px;background:${col};border-radius:3px 3px 0 0;position:relative;" title="Real: ${money(real)}">
+          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${fmt(real)}</span>
+        </div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div class="kpis" style="margin-bottom:10px;">
+      <div class="kpi"><div class="label">${titulo} $</div><div class="value" style="font-size:18px;">${money(totalReal)}</div></div>
+      <div class="kpi"><div class="label">${titulo} % Cumpl</div><div class="value" style="color:${color};">${cumplPct !== null ? cumplPct+'%' : '—'}</div></div>
+    </div>
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo} por mes</div>
+    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaCxc(titulo, kpis, obj) {
+  const cxcObj = obj.cxc_obj_pct || 2.8;
+  const datos = kpis.filter(k => k.cxc_real_pct !== null && k.cxc_real_pct !== undefined);
+  if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
+  const maxV = Math.max(...datos.map(d => d.cxc_real_pct), cxcObj, 1);
+  const maxH = 130;
+  let bars = datos.map(d => {
+    const real = d.cxc_real_pct;
+    const hR = Math.max(4, Math.round((real/maxV)*maxH));
+    const hO = Math.max(4, Math.round((cxcObj/maxV)*maxH));
+    const color = real <= cxcObj ? '#4ade80' : '#ff6b6b';
+    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:${color};`;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
+        <div style="width:20px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${cxcObj}%"></div>
+        <div style="width:20px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;position:relative;" title="Real: ${real}%">
+          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${real}%</span>
+        </div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo} · Objetivo ${cxcObj}%</div>
+    <div style="display:flex;gap:16px;margin-bottom:6px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>Objetivo</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>Real</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaDso(titulo, kpis, obj) {
+  const dsoObj = obj.dso_obj_dias || 60;
+  const datos = kpis.filter(k => k.dso_real_dias !== null && k.dso_real_dias !== undefined);
+  if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
+  const maxV = Math.max(...datos.map(d => d.dso_real_dias), dsoObj, 1);
+  const maxH = 130;
+  let bars = datos.map(d => {
+    const real = d.dso_real_dias;
+    const hR = Math.max(4, Math.round((real/maxV)*maxH));
+    const hO = Math.max(4, Math.round((dsoObj/maxV)*maxH));
+    const color = real <= dsoObj ? '#4ade80' : '#ff6b6b';
+    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:${color};`;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
+        <div style="width:20px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${dsoObj}d"></div>
+        <div style="width:20px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;position:relative;" title="Real: ${real}d">
+          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${real}d</span>
+        </div>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo} · Objetivo ${dsoObj} días</div>
+    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+  </div>`;
+}
+
+function okrTablaKam(crec, kpiTablero) {
+  const porKam = crec.ok ? (crec.por_kam || []) : [];
+  const porKamKpi = kpiTablero.ok ? (kpiTablero.por_kam || []) : [];
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-top:16px;">`;
+  html += `<div><h3 style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Cumplimiento por KAM</h3><table data-no-sort><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Presupuesto</th><th class="num">% Cumpl</th></tr>`;
+  porKamKpi.forEach(k => {
+    const pct = k.presupuesto ? Math.round(((k.fact_remas||0)/k.presupuesto)*100) : null;
+    const color = pct===null?'var(--text-dim)':pct>=100?'#4ade80':pct>=80?'#ff9f43':'#ff6b6b';
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money" data-val="${k.fact_remas||0}">${money(k.fact_remas||0)}</td><td class="num money" data-val="${k.presupuesto||0}">${money(k.presupuesto||0)}</td><td class="num" data-val="${pct||0}" style="color:${color};font-weight:700;">${pct!==null?pct+'%':'—'}</td></tr>`;
+  });
+  html += `</table></div>`;
+  html += `<div><h3 style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Crecimiento por KAM</h3><table data-no-sort><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ%</th></tr>`;
+  porKam.sort((a,b)=>b.crecimiento_pesos-a.crecimiento_pesos).forEach(k => {
+    const color = k.crecimiento_pct>=0?'#4ade80':'#ff6b6b';
+    const pct = Math.round(Number(k.crecimiento_pct));
+    html += `<tr><td>${esc(titleCase(k.kam_norm))}</td><td class="num money" data-val="${k.v2025}">${money(k.v2025)}</td><td class="num money" data-val="${k.v2026}">${money(k.v2026)}</td><td class="num" data-val="${pct}" style="color:${color};font-weight:700;">${pct>=0?'+':''}${pct}%</td></tr>`;
+  });
+  html += `</table></div></div>`;
+  return html;
+}
+
+function okrTablaEditable(kpis, mesActual) {
+  const mesesDisp = Array.from({ length: mesActual }, (_, i) => i + 1);
+  const kpiMap = {};
+  kpis.forEach(k => { kpiMap[k.mes] = k; });
+  let html = `<div class="card"><h2>📝 Ingresar / Editar KPIs mensuales</h2>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Completa los datos reales de cada mes. Los campos vacíos no sobreescriben valores existentes.</p>
+  <div style="overflow-x:auto;"><table data-no-sort style="min-width:700px;">
+    <tr><th>Mes</th><th class="num">EBITDA Dir Real $</th><th class="num">EBITDA Dir Obj $</th><th class="num">EBITDA Neto Real $</th><th class="num">EBITDA Neto Obj $</th><th class="num">CXC %</th><th class="num">DSO días</th><th></th></tr>`;
+  mesesDisp.forEach(m => {
+    const k = kpiMap[m] || {};
+    const inp = (field, val, placeholder) =>
+      `<input type="number" data-field="${field}" value="${val!==null&&val!==undefined?val:''}" placeholder="${placeholder}" style="width:90px;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:11px;">`;
+    html += `<tr class="okr-row" data-mes="${m}">
+      <td><b>${MESES[m-1]}</b></td>
+      <td class="num">${inp('ebitda_directo_real', k.ebitda_directo_real, 'Real $')}</td>
+      <td class="num">${inp('ebitda_directo_obj_pesos', k.ebitda_directo_obj_pesos, 'Obj $')}</td>
+      <td class="num">${inp('ebitda_neto_real', k.ebitda_neto_real, 'Real $')}</td>
+      <td class="num">${inp('ebitda_neto_obj_pesos', k.ebitda_neto_obj_pesos, 'Obj $')}</td>
+      <td class="num">${inp('cxc_real_pct', k.cxc_real_pct, 'Ej: 5.43')}</td>
+      <td class="num">${inp('dso_real_dias', k.dso_real_dias, 'Días')}</td>
+      <td><button class="btn-okr-guardar" data-mes="${m}" style="width:auto;padding:5px 10px;font-size:11px;">Guardar</button></td>
+    </tr>`;
+  });
+  html += `</table></div></div>`;
+  return html;
+}
+
 
 function renderOkr(el, opcionesMeses, mesActual) {
   const mesFiltro = OKR_MES.length ? OKR_MES.map(m => parseInt(m)) : null;
