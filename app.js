@@ -261,10 +261,11 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const label = mesesAct.map(m => MESES[m-1]).join(', ');
 
   // Recargar RPCs con rango correcto
-  const [rOkr, rPres, rCrec] = await Promise.all([
+  const [rOkr, rPres, rCrec, rCristian] = await Promise.all([
     rpc('dash_okr_leer', { p_token: TOKEN }),
     rpc('dash_okr_presupuesto_rango', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026 }),
-    rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta })
+    rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta }),
+    rpc('dash_okr_cristian', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026 })
   ]);
 
   const kpis = rOkr.ok ? (rOkr.kpis || []) : [];
@@ -286,8 +287,9 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   html += renderBarraFiltros([{ id: 'mes', label: 'Mes', valor: OKR_MES, etiquetaDe: v => MESES[parseInt(v)-1] }]);
 
   // ── GAME CHANGER ─────────────────────────────────────────
-  const v2025c = cristian.v2025 || 0;
-  const v2026c = cristian.v2026 || 0;
+  const v2025c = rCristian.ok ? (rCristian.venta2025 || 0) : 0;
+  const v2026c = rCristian.ok ? (rCristian.venta2026 || 0) : 0;
+  const porMesCristian = rCristian.ok ? (rCristian.por_mes || []) : [];
   const deltaC = v2026c - v2025c;
   const pctC = v2025c ? Math.round((deltaC / v2025c) * 100) : 0;
   const colorC = deltaC >= 0 ? '#4ade80' : '#ff6b6b';
@@ -304,7 +306,7 @@ async function renderOkr(el, opcionesMeses, mesActual) {
       <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorC};">${deltaC>=0?'+':''}${money(deltaC)}</div></div>
       <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorC};">${pctC>=0?'+':''}${pctC}%</div></div>
     </div>
-    ${okrGraficaBarras('Ventas Cristian Arismendy 2025 vs 2026', rCrec, mesesAct, true)}
+    ${okrGraficaBarrasCristian('Ventas Cristian Arismendy 2025 vs 2026', porMesCristian, mesesAct)}
   </div>`;
 
   // ── COMERCIAL ─────────────────────────────────────────────
@@ -397,6 +399,41 @@ function okrBarra(label, real, obj2026, colorReal, showLabel) {
       </div>
     </div>
     <span style="font-size:10px;color:var(--text-dim);">${label}</span>
+  </div>`;
+}
+
+function okrGraficaBarrasCristian(titulo, porMes, meses) {
+  const datos = meses.map(m => {
+    const f = porMes.find(x => x.mes === m) || {};
+    return { mes: m, v2025: f.v2025 || 0, v2026: f.v2026 || 0 };
+  });
+  const maxV = Math.max(...datos.flatMap(d => [d.v2025, d.v2026]), 1);
+  const maxH = 160;
+  const fmt = v => '$' + Math.round(v).toLocaleString('es-CO');
+  let bars = datos.map(d => {
+    const h25 = Math.max(4, Math.round((d.v2025 / maxV) * maxH));
+    const h26 = Math.max(4, Math.round((d.v2026 / maxV) * maxH));
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">
+      <div style="display:flex;align-items:flex-end;gap:4px;height:${maxH}px;">
+        <div style="display:flex;flex-direction:column;align-items:center;width:34px;">
+          <span style="font-size:9px;color:var(--silver);writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);max-height:${h25-4}px;overflow:hidden;white-space:nowrap;">${fmt(d.v2025)}</span>
+          <div style="width:34px;height:${h25}px;background:#596B63;border-radius:3px 3px 0 0;flex-shrink:0;" title="2025: ${fmt(d.v2025)}"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;width:34px;">
+          <span style="font-size:9px;color:#1a1a1a;font-weight:700;writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);max-height:${h26-4}px;overflow:hidden;white-space:nowrap;background:var(--neon);padding:1px;">${fmt(d.v2026)}</span>
+          <div style="width:34px;height:${h26}px;background:var(--neon);border-radius:3px 3px 0 0;flex-shrink:0;" title="2026: ${fmt(d.v2026)}"></div>
+        </div>
+      </div>
+      <span style="font-size:11px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo}</div>
+    <div style="display:flex;gap:16px;margin-bottom:6px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>2025</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>2026</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
   </div>`;
 }
 
