@@ -261,9 +261,9 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const label = mesesAct.map(m => MESES[m-1]).join(', ');
 
   // Recargar RPCs con rango correcto
-  const [rOkr, rKpi, rCrec] = await Promise.all([
+  const [rOkr, rPres, rCrec] = await Promise.all([
     rpc('dash_okr_leer', { p_token: TOKEN }),
-    rpc('dash_tablero_control', { p_token: TOKEN, p_mes: mesHasta, p_anio: 2026, p_remisiones_excluidas: [] }),
+    rpc('dash_okr_presupuesto_rango', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026 }),
     rpc('dash_crecimiento_anual', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta })
   ]);
 
@@ -272,7 +272,10 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const kpisFiltro = kpis.filter(k => mesesAct.includes(k.mes));
   const porKam = rCrec.ok ? (rCrec.por_kam || []) : [];
   const cristian = porKam.find(k => k.kam_norm && k.kam_norm.toUpperCase().includes('ARISMENDY')) || {};
-  const porKamKpi = rKpi.ok ? (rKpi.por_kam || []) : [];
+  const porKamPres = rPres.ok ? (rPres.por_kam || []) : [];
+  const porMesPres = rPres.ok ? (rPres.por_mes || []) : [];
+  const totalFacturado = rPres.ok ? (rPres.total_facturado || 0) : 0;
+  const totalPresupuesto = rPres.ok ? (rPres.total_presupuesto || 0) : 0;
 
   let html = `
   <div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
@@ -288,8 +291,8 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const deltaC = v2026c - v2025c;
   const pctC = v2025c ? Math.round((deltaC / v2025c) * 100) : 0;
   const colorC = deltaC >= 0 ? '#4ade80' : '#ff6b6b';
-  const presC = porKamKpi.find(k => k.vendedor && k.vendedor.includes('ARISMENDY'));
-  const presupC = presC ? presC.presupuesto : 0;
+  const presC = porKamPres.find(k => k.vendedor && k.vendedor.includes('ARISMENDY'));
+  const presupC = presC ? (presC.presupuesto || 0) : 0;
   const cumplPctC = presupC ? Math.round((v2026c / presupC) * 100) : null;
   const colorCumplC = cumplPctC === null ? 'var(--neon)' : cumplPctC >= 100 ? '#4ade80' : cumplPctC >= 80 ? '#ff9f43' : '#ff6b6b';
 
@@ -308,12 +311,12 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const anios = rCrec.ok ? (rCrec.por_anio || []) : [];
   const a2026 = anios.find(a => a.anio === 2026) || {};
   const a2025 = anios.find(a => a.anio === 2025) || {};
-  const ventaEq = a2026.venta || 0;
+  const ventaEq = totalFacturado || a2026.venta || 0;
   const venta25Eq = a2025.venta || 0;
   const deltaEq = ventaEq - venta25Eq;
   const pctEq = venta25Eq ? Math.round((deltaEq / venta25Eq) * 100) : 0;
   const colorEq = deltaEq >= 0 ? '#4ade80' : '#ff6b6b';
-  const presupEq = porKamKpi.reduce((s, k) => s + (k.presupuesto || 0), 0);
+  const presupEq = totalPresupuesto;
   const cumplEq = presupEq ? Math.round((ventaEq / presupEq) * 100) : null;
   const faltanteEq = presupEq - ventaEq;
   const colorCumplEq = cumplEq === null ? 'var(--neon)' : cumplEq >= 100 ? '#4ade80' : cumplEq >= 80 ? '#ff9f43' : '#ff6b6b';
@@ -327,10 +330,10 @@ async function renderOkr(el, opcionesMeses, mesActual) {
       <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorEq};">${pctEq>=0?'+':''}${pctEq}%</div></div>
       <div class="kpi"><div class="label">${faltanteEq<=0?'Sobre-cumplimiento':'Faltante'}</div><div class="value" style="color:${faltanteEq<=0?'#4ade80':'#ff6b6b'};">${faltanteEq<=0?'+':''}${money(Math.abs(faltanteEq))}</div></div>
     </div>
-    ${okrGraficaVentasVsPresupuesto('Ventas vs Presupuesto por mes', rCrec, rKpi, mesesAct)}
+    ${okrGraficaVentasVsPresupuesto('Ventas vs Presupuesto por mes', rCrec, rPres, mesesAct)}
     ${okrGraficaEbitda('EBITDA Directo', kpisFiltro, 'directo')}
     ${okrGraficaEbitda('EBITDA Neto', kpisFiltro, 'neto')}
-    ${okrTablaKam(rCrec, rKpi)}
+    ${okrTablaKam(rCrec, rPres)}
   </div>`;
 
   // ── FINANCIERO ────────────────────────────────────────────
@@ -433,12 +436,12 @@ function okrGraficaBarras(titulo, crec, meses, conEquipo) {
   </div>`;
 }
 
-function okrGraficaVentasVsPresupuesto(titulo, crec, kpiTablero, meses) {
+function okrGraficaVentasVsPresupuesto(titulo, crec, pres, meses) {
   const porMes = crec.por_mes_anio || [];
-  const porKamMes = kpiTablero.ok ? (kpiTablero.por_mes || []) : [];
+  const porMesPres = pres.ok ? (pres.por_mes || []) : [];
   const datos = meses.map(m => {
     const f = porMes.find(x => x.mes_num === m) || {};
-    const km = porKamMes.find(x => x.mes === m) || {};
+    const km = porMesPres.find(x => x.mes === m) || {};
     return { mes: m, real: f.v2026 || 0, presup: km.presupuesto || 0 };
   });
   const maxV = Math.max(...datos.flatMap(d => [d.real, d.presup]), 1);
@@ -570,15 +573,15 @@ function okrGraficaDso(titulo, kpis, obj) {
   </div>`;
 }
 
-function okrTablaKam(crec, kpiTablero) {
+function okrTablaKam(crec, pres) {
   const porKam = crec.ok ? (crec.por_kam || []) : [];
-  const porKamKpi = kpiTablero.ok ? (kpiTablero.por_kam || []) : [];
+  const porKamPres = pres.ok ? (pres.por_kam || []) : [];
   let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-top:16px;">`;
   html += `<div><h3 style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Cumplimiento por KAM</h3><table data-no-sort><tr><th>KAM</th><th class="num">Facturado</th><th class="num">Presupuesto</th><th class="num">% Cumpl</th></tr>`;
-  porKamKpi.forEach(k => {
-    const pct = k.presupuesto ? Math.round(((k.fact_remas||0)/k.presupuesto)*100) : null;
+  porKamPres.forEach(k => {
+    const pct = k.presupuesto ? Math.round(((k.facturado||0)/k.presupuesto)*100) : null;
     const color = pct===null?'var(--text-dim)':pct>=100?'#4ade80':pct>=80?'#ff9f43':'#ff6b6b';
-    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money" data-val="${k.fact_remas||0}">${money(k.fact_remas||0)}</td><td class="num money" data-val="${k.presupuesto||0}">${money(k.presupuesto||0)}</td><td class="num" data-val="${pct||0}" style="color:${color};font-weight:700;">${pct!==null?pct+'%':'—'}</td></tr>`;
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money" data-val="${k.facturado||0}">${money(k.facturado||0)}</td><td class="num money" data-val="${k.presupuesto||0}">${money(k.presupuesto||0)}</td><td class="num" data-val="${pct||0}" style="color:${color};font-weight:700;">${pct!==null?pct+'%':'—'}</td></tr>`;
   });
   html += `</table></div>`;
   html += `<div><h3 style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Crecimiento por KAM</h3><table data-no-sort><tr><th>KAM</th><th class="num">2025</th><th class="num">2026</th><th class="num">Δ%</th></tr>`;
