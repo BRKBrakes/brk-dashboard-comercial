@@ -2430,15 +2430,10 @@ async function loadNps() {
         style="border-radius:8px;border:2px solid var(--neon);">
       <div style="font-size:10px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">ESCANEA PARA RESPONDER</div>
     </div>
-  </div>
+  </div>`;
 
-  const OBJ_SCORE = 4.3;
-  const OBJ_NPS = 60;
-
-  const scoreColor = (v) => v >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
-  const npsScoreColor = (v) => v >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
-
-  <!-- GAUGES -->
+  // Gauges
+  html += `<!-- GAUGES -->
   <div class="card" style="margin-bottom:16px;">
     <h2 style="margin-bottom:4px;">Calificaciones promedio <span style="font-size:11px;color:var(--text-dim);font-weight:400;">· Objetivo: 4.3 por categoría · NPS objetivo: 60</span></h2>
     <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-end;margin-top:12px;">
