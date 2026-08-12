@@ -2453,12 +2453,15 @@ async function loadNps() {
 
   <!-- POR KAM -->
   ${porKam.length ? `<div class="card" style="margin-bottom:16px;">
-    <h2 style="margin-bottom:12px;">Resultados por KAM</h2>
+    <h2 style="margin-bottom:12px;">Resultados por KAM <span style="font-size:11px;color:var(--text-dim);font-weight:400;">(clic para filtrar)</span></h2>
     <table><tr><th>KAM</th><th class="num">Respuestas</th><th class="num">Atención</th><th class="num">Tiempos</th><th class="num">Calidad</th><th class="num">Cotización</th><th class="num">NPS</th></tr>
     ${porKam.map(k => {
       const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
       const npsC = k.nps >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
-      return `<tr><td>${esc(titleCase(k.kam))}</td><td class="num">${k.total}</td>
+      const activo = NPS_KAM === k.kam;
+      return `<tr class="fila-nps-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
+        <td>${esc(titleCase(k.kam))}</td>
+        <td class="num">${k.total}</td>
         <td class="num" style="color:${nc(k.atencion)};font-weight:700;">${k.atencion}</td>
         <td class="num" style="color:${nc(k.tiempos)};font-weight:700;">${k.tiempos}</td>
         <td class="num" style="color:${nc(k.calidad)};font-weight:700;">${k.calidad}</td>
@@ -2495,6 +2498,14 @@ async function loadNps() {
   </div>` : ''}`;
 
   el.innerHTML = html;
+
+  // Clic en fila KAM — filtra todas las demás tablas
+  el.querySelectorAll('.fila-nps-kam').forEach(fila => {
+    fila.addEventListener('click', () => {
+      NPS_KAM = NPS_KAM === fila.dataset.kam ? null : fila.dataset.kam;
+      loadNps();
+    });
+  });
 
   // Handlers filtros
   ['npsSelAnio','npsSelTrim','npsSelKam','npsSelEmp'].forEach(id => {
