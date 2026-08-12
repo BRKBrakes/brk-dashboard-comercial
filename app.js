@@ -2334,7 +2334,7 @@ let NPS_TRIMESTRE = null;
 let NPS_KAM = null;
 let NPS_EMPRESA = null;
 
-const NPS_URL = 'https://brkbrakes.github.io/brk-nps/nps.html';
+const NPS_URL = 'https://brkdashboard.vercel.app/nps.html';
 
 async function loadNps() {
   const el = document.getElementById('view-nps');
