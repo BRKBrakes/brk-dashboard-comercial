@@ -36,6 +36,8 @@ const moneyShort = n => {
   return '$' + Math.round(n);
 };
 
+let MIS_PERMISOS = null; // null = admin (todo permitido), objeto = mapa tab→bool
+
 // ---- LOGIN ----
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -51,6 +53,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     sessionStorage.setItem('brk_token', TOKEN);
     sessionStorage.setItem('brk_rol', ROL);
     sessionStorage.setItem('brk_kam_asignados', JSON.stringify(KAM_ASIGNADOS));
+    // Cargar permisos desde BD antes de mostrar la app
+    if (ROL !== 'admin') {
+      const rPermisos = await rpc('dash_mis_permisos', { p_token: TOKEN });
+      MIS_PERMISOS = (rPermisos.ok && !rPermisos.admin) ? (rPermisos.tabs || {}) : null;
+    } else {
+      MIS_PERMISOS = null;
+    }
     showApp();
   } else {
     errEl.textContent = r.error || 'Error al iniciar sesión';
@@ -119,7 +128,7 @@ async function showApp() {
 }
 
 const TABS_SIN_ACCESO_GERENCIA = ['okr','oportunidades','segmentacion','perdidos','planes'];
-const TABS_LOGISTICA = ['ejecutivo','facilitadores']; // solo estos 2 son visibles para logistica
+const TABS_LOGISTICA = ['ejecutivo','facilitadores'];
 
 function aplicarRestriccionesRol() {
   const btnUsuarios = document.getElementById('usuariosBtn');
@@ -129,9 +138,17 @@ function aplicarRestriccionesRol() {
 
   document.querySelectorAll('#app > main > .tabs > .tab').forEach(tab => {
     let oculto = false;
-    if (ROL === 'gerencia') oculto = TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
-    if (ROL === 'logistica') oculto = !TABS_LOGISTICA.includes(tab.dataset.tab);
-    if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr';
+    if (ROL === 'admin') {
+      oculto = false; // admin ve todo siempre
+    } else if (MIS_PERMISOS !== null) {
+      // Usar permisos de BD
+      oculto = !MIS_PERMISOS[tab.dataset.tab];
+    } else {
+      // Fallback hardcodeado si no hay permisos en BD
+      if (ROL === 'gerencia') oculto = TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
+      if (ROL === 'logistica') oculto = !TABS_LOGISTICA.includes(tab.dataset.tab);
+      if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr';
+    }
     tab.classList.toggle('hidden', oculto);
   });
 }
@@ -2118,9 +2135,15 @@ async function loadUsuarios() {
   });
   html += '</table></div>';
   html += '<div id="editar-usuario-panel"></div>';
+  html += `<div class="card" style="margin-top:16px;">
+    <h2>Matriz de permisos por rol</h2>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Los cambios se guardan al instante. Admin siempre ve todo y no se puede modificar.</p>
+    <div id="matriz-permisos-contenido"><div class="loading">Cargando...</div></div>
+  </div>`;
 
   el.innerHTML = html;
   habilitarOrdenTablas(el);
+  loadMatrizPermisos();
 
   document.getElementById('nuCrear').addEventListener('click', async () => {
     const email = document.getElementById('nuEmail').value.trim();
@@ -2205,6 +2228,101 @@ function abrirEditorUsuario(userId, usuarios) {
     const res = await rpc('dash_usuarios_eliminar', { p_token: TOKEN, p_user_id: userId });
     if (res.ok) loadUsuarios(); else alert(res.error || 'Error');
   });
+}
+
+async function loadMatrizPermisos() {
+  const el = document.getElementById('matriz-permisos-contenido');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Cargando permisos...</div>';
+
+  const r = await rpc('dash_permisos_leer', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = `<div style="color:#ff6b6b;">${r.error}</div>`; return; }
+
+  const TABS_LABELS = {
+    okr: 'OKR', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
+    remisiones: 'Remisiones', cartera: 'Cartera', facilitadores: 'Facilitadores',
+    oportunidades: 'Oportunidades', tipoa: 'Aliados Tipo A', clientes: 'Clientes',
+    segmentacion: 'Segmentación', perdidos: 'Recuperación', ticket: 'Ticket Promedio',
+    portafolio: 'Portafolio', planes: 'Planes de acción'
+  };
+
+  const permisos = r.permisos || [];
+  const roles = [...new Set(permisos.map(p => p.rol))].sort();
+  const tabs = Object.keys(TABS_LABELS);
+
+  // Construir mapa rol→tab→permitido
+  const mapa = {};
+  permisos.forEach(p => {
+    if (!mapa[p.rol]) mapa[p.rol] = {};
+    mapa[p.rol][p.tab] = p.permitido;
+  });
+
+  let html = `<div style="overflow-x:auto;"><table style="min-width:600px;border-collapse:collapse;font-size:12px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;color:var(--text-dim);border-bottom:1px solid var(--dust);">Botón / Tab</th>
+      <th style="padding:8px 16px;color:var(--neon);border-bottom:1px solid var(--dust);text-align:center;">ADMIN<br><span style="font-size:10px;color:var(--text-dim);">(siempre ✓)</span></th>
+      ${roles.map(rol => `<th style="padding:8px 16px;color:var(--silver);border-bottom:1px solid var(--dust);text-align:center;">${esc(rol.toUpperCase())}</th>`).join('')}
+    </tr>`;
+
+  tabs.forEach(tab => {
+    html += `<tr style="border-bottom:1px solid #333630;">
+      <td style="padding:8px 12px;color:var(--text);">${esc(TABS_LABELS[tab])}</td>
+      <td style="text-align:center;padding:8px 16px;"><span style="color:var(--neon);">✓</span></td>
+      ${roles.map(rol => {
+        const checked = mapa[rol]?.[tab] ? 'checked' : '';
+        return `<td style="text-align:center;padding:8px 16px;">
+          <input type="checkbox" ${checked}
+            data-rol="${esc(rol)}" data-tab="${esc(tab)}"
+            style="width:16px;height:16px;cursor:pointer;"
+            class="chk-permiso">
+        </td>`;
+      }).join('')}
+    </tr>`;
+  });
+
+  html += `</table></div>
+  <div style="margin-top:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div id="permiso-estado" style="font-size:12px;color:var(--text-dim);min-height:16px;"></div>
+  </div>`;
+
+  // Sección agregar rol
+  html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--dust);display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-dim);">Nuevo rol:</span>
+    <input type="text" id="nuevoRolInput" placeholder="ej: supervisor" style="width:160px;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+    <button id="btnAgregarRol" style="width:auto;padding:6px 14px;font-size:12px;">Agregar rol</button>
+  </div>`;
+
+  el.innerHTML = html;
+
+  // Handler checkboxes — guardar al instante
+  el.querySelectorAll('.chk-permiso').forEach(chk => {
+    chk.addEventListener('change', async () => {
+      const estado = document.getElementById('permiso-estado');
+      estado.textContent = 'Guardando...';
+      const res = await rpc('dash_permiso_guardar', {
+        p_token: TOKEN,
+        p_rol: chk.dataset.rol,
+        p_tab: chk.dataset.tab,
+        p_permitido: chk.checked
+      });
+      estado.textContent = res.ok ? '✓ Guardado' : `Error: ${res.error}`;
+      estado.style.color = res.ok ? '#4ade80' : '#ff6b6b';
+      setTimeout(() => { estado.textContent = ''; }, 2000);
+    });
+  });
+
+  // Handler agregar rol
+  const btnAgregarRol = el.querySelector('#btnAgregarRol');
+  if (btnAgregarRol) {
+    btnAgregarRol.addEventListener('click', async () => {
+      const nuevoRol = el.querySelector('#nuevoRolInput').value.trim().toLowerCase();
+      if (!nuevoRol) return;
+      btnAgregarRol.textContent = '...';
+      const res = await rpc('dash_permiso_agregar_rol', { p_token: TOKEN, p_nuevo_rol: nuevoRol });
+      if (res.ok) { loadMatrizPermisos(); }
+      else { alert(res.error || 'Error'); btnAgregarRol.textContent = 'Agregar rol'; }
+    });
+  }
 }
 
 let FACILITADORES_MES = [];
