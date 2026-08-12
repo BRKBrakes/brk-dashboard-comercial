@@ -404,7 +404,7 @@ function okrBarra(label, real, obj2026, colorReal, showLabel) {
 
 function okrGraficaBarrasCristian(titulo, porMes, meses) {
   const datos = meses.map(m => {
-    const f = porMes.find(x => x.mes === m) || {};
+    const f = porMes.find(x => (x.mes_num || x.mes) === m) || {};
     return { mes: m, v2025: f.v2025 || 0, v2026: f.v2026 || 0 };
   });
   const maxV = Math.max(...datos.flatMap(d => [d.v2025, d.v2026]), 1);
@@ -2563,13 +2563,34 @@ function loadCargarVentas() {
 }
 
 async function mostrarUltimaCarga() {
-  const r = await rpc('dash_ticket_promedio', { p_token: TOKEN });
+  const r = await rpc('dash_estado_cargas', { p_token: TOKEN });
   const info = document.getElementById('ultimaCargaInfo');
-  if (r.ok && r.general) {
-    info.innerHTML = `Venta total acumulada (Facturación) en el dashboard: <b style="color:var(--neon);">${money(r.general.venta_total)}</b>. Compara contra tu Power BI para confirmar que la última carga quedó al día.`;
-  } else {
-    info.textContent = 'No se pudo consultar el estado actual.';
-  }
+  if (!r.ok) { info.textContent = 'No se pudo consultar el estado actual.'; return; }
+
+  const fmt = (iso) => {
+    if (!iso) return '<span style="color:#ff6b6b;">Sin datos</span>';
+    const d = new Date(iso);
+    return `<b style="color:var(--neon);">${d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})} ${d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</b>`;
+  };
+
+  const fuentes = [
+    { key: 'facturacion',   label: '📄 Facturación' },
+    { key: 'remisiones',    label: '🚚 Remisiones' },
+    { key: 'cartera',       label: '💰 Cartera' },
+    { key: 'facilitadores', label: '🏍️ Facilitadores' }
+  ];
+
+  info.innerHTML = `<table style="width:100%;font-size:13px;border-collapse:collapse;">
+    <tr><th style="text-align:left;color:var(--text-dim);padding:6px 12px 6px 0;">Fuente</th><th style="text-align:left;color:var(--text-dim);padding:6px 12px;">Última actualización</th><th style="text-align:right;color:var(--text-dim);padding:6px 0;">Registros</th></tr>
+    ${fuentes.map(f => {
+      const d = r[f.key] || {};
+      return `<tr style="border-top:1px solid #333630;">
+        <td style="padding:8px 12px 8px 0;">${f.label}</td>
+        <td style="padding:8px 12px;">${fmt(d.ultima_carga)}</td>
+        <td style="padding:8px 0;text-align:right;color:var(--text-dim);">${(d.total_registros||0).toLocaleString('es-CO')}</td>
+      </tr>`;
+    }).join('')}
+  </table>`;
 }
 
 async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
