@@ -480,20 +480,21 @@ function okrGraficaVentasVsPresupuesto(titulo, crec, pres, meses) {
     return { mes: m, real: f.v2026 || 0, presup: km.presupuesto || 0 };
   });
   const maxV = Math.max(...datos.flatMap(d => [d.real, d.presup]), 1);
-  const maxH = 130;
+  const maxH = 180;
+  const fmt = v => '$' + Math.round(v).toLocaleString('es-CO');
   let bars = datos.map(d => {
-    const hR = Math.max(4, Math.round((d.real / maxV) * maxH));
-    const hP = d.presup ? Math.max(4, Math.round((d.presup / maxV) * maxH)) : 0;
+    const hR = Math.max(30, Math.round((d.real / maxV) * maxH));
+    const hP = d.presup ? Math.max(30, Math.round((d.presup / maxV) * maxH)) : 0;
     const pct = d.presup ? Math.round((d.real / d.presup) * 100) : null;
     const color = pct === null ? 'var(--neon)' : pct >= 100 ? '#4ade80' : pct >= 80 ? '#ff9f43' : '#ff6b6b';
-    const fmt = v => v >= 1000000 ? `$${Math.round(v/1000000)}M` : `$${Math.round(v/1000)}K`;
-    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:var(--neon);`;
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:90px;">
       ${pct !== null ? `<span style="font-size:10px;color:${color};font-weight:700;">${pct}%</span>` : ''}
-      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
-        ${hP ? `<div style="width:20px;height:${hP}px;background:#596B63;border-radius:3px 3px 0 0;" title="Presup: ${money(d.presup)}"></div>` : ''}
-        <div style="width:20px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;position:relative;" title="Real: ${money(d.real)}">
-          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${fmt(d.real)}</span>
+      <div style="display:flex;align-items:flex-end;gap:4px;height:${maxH}px;">
+        ${hP ? `<div style="width:38px;height:${hP}px;background:#596B63;border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Presup: ${fmt(d.presup)}">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${fmt(d.presup)}</span>
+        </div>` : ''}
+        <div style="width:38px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Real: ${fmt(d.real)}">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${fmt(d.real)}</span>
         </div>
       </div>
       <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
@@ -505,7 +506,7 @@ function okrGraficaVentasVsPresupuesto(titulo, crec, pres, meses) {
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>Presupuesto</span>
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>Real</span>
     </div>
-    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
   </div>`;
 }
 
@@ -517,22 +518,23 @@ function okrGraficaEbitda(titulo, kpis, tipo) {
   const cumplPct = totalObjP ? Math.round((totalReal/totalObjP)*100) : null;
   const color = cumplPct === null ? 'var(--neon)' : cumplPct >= 100 ? '#4ade80' : '#ff9f43';
   const maxV = Math.max(...datos.flatMap(d => [d[`ebitda_${tipo}_real`]||0, d[`ebitda_${tipo}_obj_pesos`]||0]), 1);
-  const maxH = 130;
+  const maxH = 180;
+  const fmt = v => '$' + Math.round(v).toLocaleString('es-CO');
   let bars = datos.map(d => {
     const real = d[`ebitda_${tipo}_real`]||0;
     const objP = d[`ebitda_${tipo}_obj_pesos`]||0;
-    const hR = Math.max(4, Math.round((real/maxV)*maxH));
-    const hO = objP ? Math.max(4, Math.round((objP/maxV)*maxH)) : 0;
+    const hR = Math.max(30, Math.round((real/maxV)*maxH));
+    const hO = objP ? Math.max(30, Math.round((objP/maxV)*maxH)) : 0;
     const pct = objP ? Math.round((real/objP)*100) : null;
     const col = pct === null ? 'var(--neon)' : pct >= 100 ? '#4ade80' : '#ff9f43';
-    const fmt = v => v >= 1000000 ? `$${Math.round(v/1000000)}M` : `$${Math.round(v/1000)}K`;
-    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:var(--neon);`;
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:90px;">
       ${pct !== null ? `<span style="font-size:10px;color:${col};font-weight:700;">${pct}%</span>` : ''}
-      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
-        ${hO ? `<div style="width:20px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${money(objP)}"></div>` : ''}
-        <div style="width:20px;height:${hR}px;background:${col};border-radius:3px 3px 0 0;position:relative;" title="Real: ${money(real)}">
-          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${fmt(real)}</span>
+      <div style="display:flex;align-items:flex-end;gap:4px;height:${maxH}px;">
+        ${hO ? `<div style="width:38px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Obj: ${fmt(objP)}">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${fmt(objP)}</span>
+        </div>` : ''}
+        <div style="width:38px;height:${hR}px;background:${col};border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Real: ${fmt(real)}">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${fmt(real)}</span>
         </div>
       </div>
       <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
@@ -544,7 +546,7 @@ function okrGraficaEbitda(titulo, kpis, tipo) {
       <div class="kpi"><div class="label">${titulo} % Cumpl</div><div class="value" style="color:${color};">${cumplPct !== null ? cumplPct+'%' : '—'}</div></div>
     </div>
     <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo} por mes</div>
-    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
   </div>`;
 }
 
@@ -553,18 +555,19 @@ function okrGraficaCxc(titulo, kpis, obj) {
   const datos = kpis.filter(k => k.cxc_real_pct !== null && k.cxc_real_pct !== undefined);
   if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
   const maxV = Math.max(...datos.map(d => d.cxc_real_pct), cxcObj, 1);
-  const maxH = 130;
+  const maxH = 180;
   let bars = datos.map(d => {
     const real = d.cxc_real_pct;
-    const hR = Math.max(4, Math.round((real/maxV)*maxH));
-    const hO = Math.max(4, Math.round((cxcObj/maxV)*maxH));
+    const hR = Math.max(30, Math.round((real/maxV)*maxH));
+    const hO = Math.max(30, Math.round((cxcObj/maxV)*maxH));
     const color = real <= cxcObj ? '#4ade80' : '#ff6b6b';
-    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:${color};`;
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
-      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
-        <div style="width:20px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${cxcObj}%"></div>
-        <div style="width:20px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;position:relative;" title="Real: ${real}%">
-          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${real}%</span>
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:90px;">
+      <div style="display:flex;align-items:flex-end;gap:4px;height:${maxH}px;">
+        <div style="width:38px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Obj: ${cxcObj}%">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${cxcObj}%</span>
+        </div>
+        <div style="width:38px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Real: ${real}%">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${real}%</span>
         </div>
       </div>
       <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
@@ -576,7 +579,7 @@ function okrGraficaCxc(titulo, kpis, obj) {
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#596B63;border-radius:2px;display:inline-block;"></span>Objetivo</span>
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>Real</span>
     </div>
-    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
   </div>`;
 }
 
@@ -585,18 +588,19 @@ function okrGraficaDso(titulo, kpis, obj) {
   const datos = kpis.filter(k => k.dso_real_dias !== null && k.dso_real_dias !== undefined);
   if (!datos.length) return `<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">${titulo}: sin datos ingresados aún.</div>`;
   const maxV = Math.max(...datos.map(d => d.dso_real_dias), dsoObj, 1);
-  const maxH = 130;
+  const maxH = 180;
   let bars = datos.map(d => {
     const real = d.dso_real_dias;
-    const hR = Math.max(4, Math.round((real/maxV)*maxH));
-    const hO = Math.max(4, Math.round((dsoObj/maxV)*maxH));
+    const hR = Math.max(30, Math.round((real/maxV)*maxH));
+    const hO = Math.max(30, Math.round((dsoObj/maxV)*maxH));
     const color = real <= dsoObj ? '#4ade80' : '#ff6b6b';
-    const sR = hR > 22 ? `bottom:4px;color:#1a1a1a;` : `bottom:${hR+3}px;color:${color};`;
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:52px;">
-      <div style="display:flex;align-items:flex-end;gap:2px;height:${maxH}px;">
-        <div style="width:20px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;" title="Obj: ${dsoObj}d"></div>
-        <div style="width:20px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;position:relative;" title="Real: ${real}d">
-          <span style="position:absolute;${sR}left:0;right:0;text-align:center;font-size:8px;font-weight:700;">${real}d</span>
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:90px;">
+      <div style="display:flex;align-items:flex-end;gap:4px;height:${maxH}px;">
+        <div style="width:38px;height:${hO}px;background:#596B63;border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Obj: ${dsoObj}d">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${dsoObj}d</span>
+        </div>
+        <div style="width:38px;height:${hR}px;background:${color};border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="Real: ${real}d">
+          <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:#fff;font-weight:700;padding:3px 0;white-space:nowrap;">${real}d</span>
         </div>
       </div>
       <span style="font-size:10px;color:var(--text-dim);">${MESES[d.mes-1]}</span>
@@ -604,7 +608,7 @@ function okrGraficaDso(titulo, kpis, obj) {
   }).join('');
   return `<div style="margin-bottom:16px;">
     <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo} · Objetivo ${dsoObj} días</div>
-    <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
   </div>`;
 }
 
