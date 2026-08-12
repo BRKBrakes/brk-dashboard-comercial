@@ -147,7 +147,7 @@ function aplicarRestriccionesRol() {
       // Fallback hardcodeado si no hay permisos en BD
       if (ROL === 'gerencia') oculto = TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
       if (ROL === 'logistica') oculto = !TABS_LOGISTICA.includes(tab.dataset.tab);
-      if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr';
+      if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr' || tab.dataset.tab === 'nps';
     }
     tab.classList.toggle('hidden', oculto);
   });
@@ -179,6 +179,7 @@ async function loadTab(tab) {
   if (tab === 'remisiones') return loadRemisiones();
   if (tab === 'tablerocontrol') return loadTableroControl();
   if (tab === 'cartera') return loadCartera();
+  if (tab === 'nps') return loadNps();
   if (tab === 'facilitadores') return loadFacilitadores();
   if (tab === 'cargar') return loadCargarVentas();
 }
@@ -2323,6 +2324,168 @@ async function loadMatrizPermisos() {
       else { alert(res.error || 'Error'); btnAgregarRol.textContent = 'Agregar rol'; }
     });
   }
+}
+
+// ============================================================
+// NPS — solo admin y gerencia
+// ============================================================
+let NPS_ANIO = null;
+let NPS_TRIMESTRE = null;
+let NPS_KAM = null;
+let NPS_EMPRESA = null;
+
+const NPS_URL = 'https://brkbrakes.github.io/brk-nps/nps.html';
+
+async function loadNps() {
+  const el = document.getElementById('view-nps');
+  el.innerHTML = '<div class="loading">Cargando NPS...</div>';
+
+  const r = await rpc('dash_nps_metricas', {
+    p_token: TOKEN,
+    p_anio: NPS_ANIO,
+    p_trimestre: NPS_TRIMESTRE,
+    p_kam: NPS_KAM,
+    p_empresa: NPS_EMPRESA
+  });
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sin acceso.'}</div>`; return; }
+
+  const f = r.filtros || {};
+  const prom = r.promedios || {};
+  const nps = r.nps || {};
+  const comentarios = r.comentarios || [];
+  const porKam = r.por_kam || [];
+
+  const TRIMESTRES = { 1:'Q1 · Ene-Mar', 2:'Q2 · Abr-Jun', 3:'Q3 · Jul-Sep', 4:'Q4 · Oct-Dic' };
+  const opAnios = (f.anios||[]).map(a => `<option value="${a}" ${NPS_ANIO==a?'selected':''}>${a}</option>`).join('');
+  const opTrim = [1,2,3,4].map(t => `<option value="${t}" ${NPS_TRIMESTRE==t?'selected':''}>${TRIMESTRES[t]}</option>`).join('');
+  const opKam = (f.kams||[]).map(k => `<option value="${k}" ${NPS_KAM==k?'selected':''}>${titleCase(k)}</option>`).join('');
+  const opEmp = (f.empresas||[]).map(e => `<option value="${e}" ${NPS_EMPRESA==e?'selected':''}>${titleCase(e)}</option>`).join('');
+
+  const gauge = (val, max, label) => {
+    const pct = Math.min(val / max, 1);
+    const angle = -180 + pct * 180;
+    const color = val >= max * 0.8 ? '#4ade80' : val >= max * 0.6 ? '#ff9f43' : '#ff6b6b';
+    return `<div style="text-align:center;min-width:160px;">
+      <svg viewBox="0 0 120 70" width="160" height="95">
+        <path d="M10,65 A50,50 0 0,1 110,65" fill="none" stroke="#333" stroke-width="10" stroke-linecap="round"/>
+        <path d="M10,65 A50,50 0 0,1 110,65" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round"
+          stroke-dasharray="${pct * 157} 157"/>
+        <text x="60" y="58" text-anchor="middle" fill="${color}" font-size="18" font-weight="bold" font-family="monospace">${val}</text>
+        <text x="60" y="68" text-anchor="middle" fill="#666" font-size="7" font-family="monospace">${label}</text>
+      </svg>
+    </div>`;
+  };
+
+  const gaugeNps = (score) => {
+    const pct = Math.max(0, Math.min((score + 100) / 200, 1));
+    const color = score >= 50 ? '#4ade80' : score >= 0 ? '#ff9f43' : '#ff6b6b';
+    return `<div style="text-align:center;">
+      <svg viewBox="0 0 180 100" width="220" height="120">
+        <path d="M15,90 A75,75 0 0,1 165,90" fill="none" stroke="#333" stroke-width="14" stroke-linecap="round"/>
+        <path d="M15,90 A75,75 0 0,1 165,90" fill="none" stroke="${color}" stroke-width="14" stroke-linecap="round"
+          stroke-dasharray="${pct * 235} 235"/>
+        <text x="90" y="82" text-anchor="middle" fill="${color}" font-size="28" font-weight="bold" font-family="monospace">${score !== null ? score : '—'}</text>
+        <text x="90" y="96" text-anchor="middle" fill="#666" font-size="9" font-family="monospace">NPS SCORE</text>
+      </svg>
+    </div>`;
+  };
+
+  let html = `
+  <!-- FILTROS -->
+  <div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    <select id="npsSelAnio" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Todos los años</option>${opAnios}
+    </select>
+    <select id="npsSelTrim" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Todos los trimestres</option>${opTrim}
+    </select>
+    <select id="npsSelKam" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Todos los KAM</option>${opKam}
+    </select>
+    <select id="npsSelEmp" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Todas las empresas</option>${opEmp}
+    </select>
+    <span style="font-size:12px;color:var(--text-dim);">${r.total || 0} respuestas</span>
+  </div>
+
+  <!-- TARJETA QR -->
+  <div class="card" style="margin-bottom:16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+    <div style="flex:1;min-width:260px;">
+      <h2 style="color:var(--neon);margin-bottom:10px;">Comparte la encuesta</h2>
+      <p style="font-size:13px;color:var(--text-dim);line-height:1.7;margin-bottom:14px;">
+        Ayúdanos a mejorar nuestro servicio. Tu opinión es fundamental para BRK Colombia.<br>
+        — <strong style="color:var(--neon);">Carlos Gómez</strong>, Líder BRK Colombia
+      </p>
+      <a href="${NPS_URL}" target="_blank"
+        style="display:inline-block;background:var(--neon);color:var(--ash);padding:10px 20px;border-radius:6px;font-weight:700;font-size:13px;letter-spacing:1px;text-decoration:none;text-transform:uppercase;">
+        🔗 Abrir encuesta
+      </a>
+    </div>
+    <div style="text-align:center;">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(NPS_URL)}&bgcolor=363636&color=F1FE34&margin=2"
+        alt="QR Encuesta BRK"
+        style="border-radius:8px;border:2px solid var(--neon);">
+      <div style="font-size:10px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">ESCANEA PARA RESPONDER</div>
+    </div>
+  </div>
+
+  <!-- GAUGES -->
+  <div class="card" style="margin-bottom:16px;">
+    <h2 style="margin-bottom:16px;">Calificaciones promedio</h2>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-end;">
+      ${gauge(prom.atencion||0, 5, 'ATENCIÓN KAM')}
+      ${gauge(prom.tiempos||0, 5, 'TIEMPOS ENTREGA')}
+      ${gauge(prom.calidad||0, 5, 'CALIDAD PRODUCTO')}
+      ${gauge(prom.cotizacion||0, 5, 'COTIZACIÓN')}
+      ${gaugeNps(nps.score !== null ? nps.score : null)}
+    </div>
+    <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-top:12px;font-size:12px;">
+      <span style="color:#4ade80;">● Promotores: ${nps.promotores||0}</span>
+      <span style="color:#ff9f43;">● Neutros: ${nps.neutros||0}</span>
+      <span style="color:#ff6b6b;">● Detractores: ${nps.detractores||0}</span>
+      <span style="color:var(--text-dim);">Total: ${nps.total||0}</span>
+    </div>
+  </div>
+
+  <!-- POR KAM -->
+  ${porKam.length ? `<div class="card" style="margin-bottom:16px;">
+    <h2 style="margin-bottom:12px;">Resultados por KAM</h2>
+    <table><tr><th>KAM</th><th class="num">Respuestas</th><th class="num">Atención</th><th class="num">Tiempos</th><th class="num">Calidad</th><th class="num">Cotización</th><th class="num">NPS</th></tr>
+    ${porKam.map(k => {
+      const npsColor = k.nps >= 50 ? '#4ade80' : k.nps >= 0 ? '#ff9f43' : '#ff6b6b';
+      return `<tr><td>${esc(titleCase(k.kam))}</td><td class="num">${k.total}</td><td class="num">${k.atencion}</td><td class="num">${k.tiempos}</td><td class="num">${k.calidad}</td><td class="num">${k.cotizacion}</td><td class="num" style="color:${npsColor};font-weight:700;">${k.nps}</td></tr>`;
+    }).join('')}
+    </table>
+  </div>` : ''}
+
+  <!-- COMENTARIOS -->
+  ${comentarios.length ? `<div class="card" style="margin-bottom:16px;">
+    <h2 style="margin-bottom:12px;">Comentarios recientes</h2>
+    <div style="max-height:380px;overflow-y:auto;">
+    <table><tr><th>KAM</th><th>Empresa</th><th>Sede</th><th class="num">NPS</th><th>Comentario</th><th>Fecha</th></tr>
+    ${comentarios.map(c => {
+      const npsColor = c.nps_score >= 9 ? '#4ade80' : c.nps_score >= 7 ? '#ff9f43' : '#ff6b6b';
+      const fecha = new Date(c.creado_en).toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
+      return `<tr><td>${esc(titleCase(c.kam))}</td><td>${esc(titleCase(c.empresa))}</td><td>${esc(c.sede)}</td><td class="num" style="color:${npsColor};font-weight:700;">${c.nps_score}</td><td style="max-width:280px;">${esc(c.comentario)}</td><td style="white-space:nowrap;">${fecha}</td></tr>`;
+    }).join('')}
+    </table></div>
+  </div>` : ''}`;
+
+  el.innerHTML = html;
+
+  // Handlers filtros
+  ['npsSelAnio','npsSelTrim','npsSelKam','npsSelEmp'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) sel.addEventListener('change', () => {
+      NPS_ANIO = document.getElementById('npsSelAnio').value ? parseInt(document.getElementById('npsSelAnio').value) : null;
+      NPS_TRIMESTRE = document.getElementById('npsSelTrim').value ? parseInt(document.getElementById('npsSelTrim').value) : null;
+      NPS_KAM = document.getElementById('npsSelKam').value || null;
+      NPS_EMPRESA = document.getElementById('npsSelEmp').value || null;
+      loadNps();
+    });
+  });
+
+  habilitarOrdenTablas(el);
 }
 
 let FACILITADORES_MES = [];
