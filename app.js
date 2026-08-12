@@ -298,18 +298,7 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const cumplPctC = presupC ? Math.round((v2026c / presupC) * 100) : null;
   const colorCumplC = cumplPctC === null ? 'var(--neon)' : cumplPctC >= 100 ? '#4ade80' : cumplPctC >= 80 ? '#ff9f43' : '#ff6b6b';
 
-  html += `<div class="card" style="margin-bottom:16px;">
-    <h2 style="color:var(--neon);">🚀 Game Changer · Cristian Arismendy (${label})</h2>
-    <div class="kpis" style="margin-bottom:16px;">
-      <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(v2026c)}</div></div>
-      <div class="kpi"><div class="label">% Cumplimiento 2026</div><div class="value" style="color:${colorCumplC};">${cumplPctC !== null ? cumplPctC+'%' : '—'}</div></div>
-      <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorC};">${deltaC>=0?'+':''}${money(deltaC)}</div></div>
-      <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorC};">${pctC>=0?'+':''}${pctC}%</div></div>
-    </div>
-    ${okrGraficaBarrasCristian('Ventas Cristian Arismendy 2025 vs 2026', porMesCristian, mesesAct)}
-  </div>`;
-
-  // ── COMERCIAL ─────────────────────────────────────────────
+  // Variables compartidas
   const anios = rCrec.ok ? (rCrec.por_anio || []) : [];
   const a2026 = anios.find(a => a.anio === 2026) || {};
   const a2025 = anios.find(a => a.anio === 2025) || {};
@@ -324,7 +313,24 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const colorCumplEq = cumplEq === null ? 'var(--neon)' : cumplEq >= 100 ? '#4ade80' : cumplEq >= 80 ? '#ff9f43' : '#ff6b6b';
 
   html += `<div class="card" style="margin-bottom:16px;">
-    <h2 style="color:var(--neon);">📊 Comercial · Equipo BRK (${label})</h2>
+    <h2 style="color:var(--neon);">Game Changer · Cristian Arismendy (${label})</h2>
+    <div class="kpis" style="margin-bottom:16px;">
+      <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(v2026c)}</div></div>
+      <div class="kpi"><div class="label">% Cumplimiento 2026</div><div class="value" style="color:${colorCumplC};">${cumplPctC !== null ? cumplPctC+'%' : '—'}</div></div>
+      <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorC};">${deltaC>=0?'+':''}${money(deltaC)}</div></div>
+      <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorC};">${pctC>=0?'+':''}${pctC}%</div></div>
+    </div>
+    ${okrGraficaBarrasCristian('Ventas Cristian Arismendy 2025 vs 2026', porMesCristian, mesesAct)}
+  </div>`;
+
+  // ── FACTURADO POR AÑO ─────────────────────────────────────
+  html += `<div class="card" style="margin-bottom:16px;">
+    ${okrGraficaAnual('Facturado por año · 2023–2026', anios)}
+  </div>`;
+
+  // ── COMERCIAL ─────────────────────────────────────────────
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">Comercial · Equipo BRK (${label})</h2>
     <div class="kpis" style="margin-bottom:16px;">
       <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(ventaEq)}</div></div>
       <div class="kpi"><div class="label">% Cumplimiento</div><div class="value" style="color:${colorCumplEq};">${cumplEq !== null ? cumplEq+'%' : '—'}</div></div>
@@ -333,15 +339,18 @@ async function renderOkr(el, opcionesMeses, mesActual) {
       <div class="kpi"><div class="label">${faltanteEq<=0?'Sobre-cumplimiento':'Faltante'}</div><div class="value" style="color:${faltanteEq<=0?'#4ade80':'#ff6b6b'};">${faltanteEq<=0?'+':''}${money(Math.abs(faltanteEq))}</div></div>
     </div>
     ${okrGraficaVentasVsPresupuesto('Ventas vs Presupuesto por mes', rCrec, rPres, mesesAct)}
-    ${okrGraficaAnual('Facturado por año · 2023–2026', anios)}
+    ${okrTablaKam(rCrec, rPres)}
+  </div>`;
+
+  // ── EBITDA ────────────────────────────────────────────────
+  html += `<div class="card" style="margin-bottom:16px;">
     ${okrGraficaEbitda('EBITDA Directo', kpisFiltro, 'directo')}
     ${okrGraficaEbitda('EBITDA Neto', kpisFiltro, 'neto')}
-    ${okrTablaKam(rCrec, rPres)}
   </div>`;
 
   // ── FINANCIERO ────────────────────────────────────────────
   html += `<div class="card" style="margin-bottom:16px;">
-    <h2 style="color:var(--neon);">💰 Financiero (${label})</h2>
+    <h2 style="color:var(--neon);">Financiero (${label})</h2>
     ${okrGraficaCxc('CXC · Cartera >60 días', kpisFiltro, obj)}
     ${okrGraficaDso('DSO · Días de cartera', kpisFiltro, obj)}
   </div>`;
