@@ -2242,7 +2242,7 @@ async function loadMatrizPermisos() {
   const TABS_LABELS = {
     okr: 'OKR', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
     remisiones: 'Remisiones', cartera: 'Cartera', facilitadores: 'Facilitadores',
-    oportunidades: 'Oportunidades', tipoa: 'Aliados Tipo A', clientes: 'Clientes',
+    nps: 'NPS', oportunidades: 'Oportunidades', tipoa: 'Aliados Tipo A', clientes: 'Clientes',
     segmentacion: 'Segmentación', perdidos: 'Recuperación', ticket: 'Ticket Promedio',
     portafolio: 'Portafolio', planes: 'Planes de acción'
   };
