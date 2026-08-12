@@ -333,6 +333,7 @@ async function renderOkr(el, opcionesMeses, mesActual) {
       <div class="kpi"><div class="label">${faltanteEq<=0?'Sobre-cumplimiento':'Faltante'}</div><div class="value" style="color:${faltanteEq<=0?'#4ade80':'#ff6b6b'};">${faltanteEq<=0?'+':''}${money(Math.abs(faltanteEq))}</div></div>
     </div>
     ${okrGraficaVentasVsPresupuesto('Ventas vs Presupuesto por mes', rCrec, rPres, mesesAct)}
+    ${okrGraficaAnual('Facturado por año · 2023–2026', anios)}
     ${okrGraficaEbitda('EBITDA Directo', kpisFiltro, 'directo')}
     ${okrGraficaEbitda('EBITDA Neto', kpisFiltro, 'neto')}
     ${okrTablaKam(rCrec, rPres)}
@@ -468,6 +469,33 @@ function okrGraficaBarras(titulo, crec, meses, conEquipo) {
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:var(--neon);border-radius:2px;display:inline-block;"></span>2026</span>
     </div>
     <div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
+  </div>`;
+}
+
+function okrGraficaAnual(titulo, anios) {
+  if (!anios.length) return '';
+  const a2026 = anios.find(a => a.anio === 2026) || {};
+  const maxV = Math.max(...anios.map(a => a.venta || 0), 1);
+  const maxH = 180;
+  const fmt = v => '$' + Math.round(v).toLocaleString('es-CO');
+  const colores = { 2023: '#596B63', 2024: '#596B63', 2025: '#596B63', 2026: 'var(--neon)' };
+  let bars = anios.map(a => {
+    const h = Math.max(30, Math.round((a.venta / maxV) * maxH));
+    const vs2026 = (a2026.venta && a.anio !== 2026)
+      ? Math.round(((a2026.venta - a.venta) / a.venta) * 100) : null;
+    const colorVs = vs2026 === null ? 'var(--neon)' : vs2026 >= 0 ? '#4ade80' : '#ff6b6b';
+    const txtColor = a.anio === 2026 ? '#1a1a1a' : '#fff';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">
+      ${vs2026 !== null ? `<span style="font-size:10px;color:${colorVs};font-weight:700;">${vs2026>=0?'+':''}${vs2026}% vs 2026</span>` : '<span style="font-size:10px;color:var(--neon);font-weight:700;">2026</span>'}
+      <div style="width:60px;height:${h}px;background:${colores[a.anio]||'#596B63'};border-radius:3px 3px 0 0;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;" title="${a.anio}: ${fmt(a.venta)}">
+        <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;color:${txtColor};font-weight:700;padding:3px 0;white-space:nowrap;">${fmt(a.venta)}</span>
+      </div>
+      <span style="font-size:11px;color:var(--text-dim);">${a.anio}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:12px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${titulo}</div>
+    <div style="display:flex;gap:12px;align-items:flex-end;overflow-x:auto;padding-bottom:4px;">${bars}</div>
   </div>`;
 }
 
