@@ -2361,10 +2361,12 @@ async function loadNps() {
   const opKam = (f.kams||[]).map(k => `<option value="${k}" ${NPS_KAM==k?'selected':''}>${titleCase(k)}</option>`).join('');
   const opEmp = (f.empresas||[]).map(e => `<option value="${e}" ${NPS_EMPRESA==e?'selected':''}>${titleCase(e)}</option>`).join('');
 
-  const gauge = (val, max, label) => {
+  const OBJ_SCORE = 4.3;
+  const OBJ_NPS = 60;
+
+  const gauge = (val, max, label, obj) => {
     const pct = Math.min(val / max, 1);
-    const angle = -180 + pct * 180;
-    const color = val >= max * 0.8 ? '#4ade80' : val >= max * 0.6 ? '#ff9f43' : '#ff6b6b';
+    const color = obj ? (val >= obj ? '#4ade80' : '#ff6b6b') : (val >= max*0.8 ? '#4ade80' : val >= max*0.6 ? '#ff9f43' : '#ff6b6b');
     return `<div style="text-align:center;min-width:160px;">
       <svg viewBox="0 0 120 70" width="160" height="95">
         <path d="M10,65 A50,50 0 0,1 110,65" fill="none" stroke="#333" stroke-width="10" stroke-linecap="round"/>
@@ -2376,9 +2378,9 @@ async function loadNps() {
     </div>`;
   };
 
-  const gaugeNps = (score) => {
+  const gaugeNps = (score, obj) => {
     const pct = Math.max(0, Math.min((score + 100) / 200, 1));
-    const color = score >= 50 ? '#4ade80' : score >= 0 ? '#ff9f43' : '#ff6b6b';
+    const color = obj ? (score >= obj ? '#4ade80' : '#ff6b6b') : (score >= 50 ? '#4ade80' : score >= 0 ? '#ff9f43' : '#ff6b6b');
     return `<div style="text-align:center;">
       <svg viewBox="0 0 180 100" width="220" height="120">
         <path d="M15,90 A75,75 0 0,1 165,90" fill="none" stroke="#333" stroke-width="14" stroke-linecap="round"/>
@@ -2430,20 +2432,26 @@ async function loadNps() {
     </div>
   </div>
 
+  const OBJ_SCORE = 4.3;
+  const OBJ_NPS = 60;
+
+  const scoreColor = (v) => v >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
+  const npsScoreColor = (v) => v >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
+
   <!-- GAUGES -->
   <div class="card" style="margin-bottom:16px;">
-    <h2 style="margin-bottom:16px;">Calificaciones promedio</h2>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-end;">
-      ${gauge(prom.atencion||0, 5, 'ATENCIÓN KAM')}
-      ${gauge(prom.tiempos||0, 5, 'TIEMPOS ENTREGA')}
-      ${gauge(prom.calidad||0, 5, 'CALIDAD PRODUCTO')}
-      ${gauge(prom.cotizacion||0, 5, 'COTIZACIÓN')}
-      ${gaugeNps(nps.score !== null ? nps.score : null)}
+    <h2 style="margin-bottom:4px;">Calificaciones promedio <span style="font-size:11px;color:var(--text-dim);font-weight:400;">· Objetivo: 4.3 por categoría · NPS objetivo: 60</span></h2>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-end;margin-top:12px;">
+      ${gauge(prom.atencion||0, 5, 'ATENCIÓN KAM', OBJ_SCORE)}
+      ${gauge(prom.tiempos||0, 5, 'TIEMPOS ENTREGA', OBJ_SCORE)}
+      ${gauge(prom.calidad||0, 5, 'CALIDAD PRODUCTO', OBJ_SCORE)}
+      ${gauge(prom.cotizacion||0, 5, 'COTIZACIÓN', OBJ_SCORE)}
+      ${gaugeNps(nps.score !== null ? nps.score : null, OBJ_NPS)}
     </div>
     <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-top:12px;font-size:12px;">
-      <span style="color:#4ade80;">● Promotores: ${nps.promotores||0}</span>
-      <span style="color:#ff9f43;">● Neutros: ${nps.neutros||0}</span>
-      <span style="color:#ff6b6b;">● Detractores: ${nps.detractores||0}</span>
+      <span style="color:#4ade80;">● Promotores (9-10): ${nps.promotores||0}</span>
+      <span style="color:#ff9f43;">● Pasivos (7-8): ${nps.pasivos||0}</span>
+      <span style="color:#ff6b6b;">● Detractores (0-6): ${nps.detractores||0}</span>
       <span style="color:var(--text-dim);">Total: ${nps.total||0}</span>
     </div>
   </div>
@@ -2453,9 +2461,29 @@ async function loadNps() {
     <h2 style="margin-bottom:12px;">Resultados por KAM</h2>
     <table><tr><th>KAM</th><th class="num">Respuestas</th><th class="num">Atención</th><th class="num">Tiempos</th><th class="num">Calidad</th><th class="num">Cotización</th><th class="num">NPS</th></tr>
     ${porKam.map(k => {
-      const npsColor = k.nps >= 50 ? '#4ade80' : k.nps >= 0 ? '#ff9f43' : '#ff6b6b';
-      return `<tr><td>${esc(titleCase(k.kam))}</td><td class="num">${k.total}</td><td class="num">${k.atencion}</td><td class="num">${k.tiempos}</td><td class="num">${k.calidad}</td><td class="num">${k.cotizacion}</td><td class="num" style="color:${npsColor};font-weight:700;">${k.nps}</td></tr>`;
+      const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
+      const npsC = k.nps >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
+      return `<tr><td>${esc(titleCase(k.kam))}</td><td class="num">${k.total}</td>
+        <td class="num" style="color:${nc(k.atencion)};font-weight:700;">${k.atencion}</td>
+        <td class="num" style="color:${nc(k.tiempos)};font-weight:700;">${k.tiempos}</td>
+        <td class="num" style="color:${nc(k.calidad)};font-weight:700;">${k.calidad}</td>
+        <td class="num" style="color:${nc(k.cotizacion)};font-weight:700;">${k.cotizacion}</td>
+        <td class="num" style="color:${npsC};font-weight:700;">${k.nps}</td></tr>`;
     }).join('')}
+    ${(() => {
+      const totR = porKam.reduce((s,k)=>s+(k.total||0),0);
+      const avg = f => totR ? (porKam.reduce((s,k)=>s+(parseFloat(k[f])||0)*k.total,0)/totR).toFixed(2) : '—';
+      const npsT = porKam.length ? (porKam.reduce((s,k)=>s+(k.nps||0),0)/porKam.length).toFixed(1) : '—';
+      const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
+      const npsC = parseFloat(npsT) >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
+      return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
+        <td>TOTAL</td><td class="num">${totR}</td>
+        <td class="num" style="color:${nc(avg('atencion'))};">${avg('atencion')}</td>
+        <td class="num" style="color:${nc(avg('tiempos'))};">${avg('tiempos')}</td>
+        <td class="num" style="color:${nc(avg('calidad'))};">${avg('calidad')}</td>
+        <td class="num" style="color:${nc(avg('cotizacion'))};">${avg('cotizacion')}</td>
+        <td class="num" style="color:${npsC};">${npsT}</td></tr>`;
+    })()}
     </table>
   </div>` : ''}
 
@@ -2463,11 +2491,10 @@ async function loadNps() {
   ${comentarios.length ? `<div class="card" style="margin-bottom:16px;">
     <h2 style="margin-bottom:12px;">Comentarios recientes</h2>
     <div style="max-height:380px;overflow-y:auto;">
-    <table><tr><th>KAM</th><th>Empresa</th><th>Sede</th><th class="num">NPS</th><th>Comentario</th><th>Fecha</th></tr>
+    <table><tr><th>KAM</th><th>Empresa</th><th>Sede</th><th class="num">NPS</th><th>Comentario</th></tr>
     ${comentarios.map(c => {
       const npsColor = c.nps_score >= 9 ? '#4ade80' : c.nps_score >= 7 ? '#ff9f43' : '#ff6b6b';
-      const fecha = new Date(c.creado_en).toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
-      return `<tr><td>${esc(titleCase(c.kam))}</td><td>${esc(titleCase(c.empresa))}</td><td>${esc(c.sede)}</td><td class="num" style="color:${npsColor};font-weight:700;">${c.nps_score}</td><td style="max-width:280px;">${esc(c.comentario)}</td><td style="white-space:nowrap;">${fecha}</td></tr>`;
+      return `<tr><td>${esc(titleCase(c.kam))}</td><td>${esc(titleCase(c.empresa))}</td><td>${esc(c.sede)}</td><td class="num" style="color:${npsColor};font-weight:700;">${c.nps_score}</td><td style="max-width:300px;">${esc(c.comentario)}</td></tr>`;
     }).join('')}
     </table></div>
   </div>` : ''}`;
