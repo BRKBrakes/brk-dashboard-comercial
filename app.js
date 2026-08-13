@@ -2470,16 +2470,16 @@ async function loadNps() {
     }).join('')}
     ${(() => {
       const totR = porKam.reduce((s,k)=>s+(k.total||0),0);
-      const avg = f => totR ? (porKam.reduce((s,k)=>s+(parseFloat(k[f])||0)*k.total,0)/totR).toFixed(2) : '—';
-      const npsT = porKam.length ? (porKam.reduce((s,k)=>s+(k.nps||0),0)/porKam.length).toFixed(1) : '—';
+      const wavg = f => totR ? (porKam.reduce((s,k)=>s+(parseFloat(k[f])||0)*(k.total||0),0)/totR).toFixed(2) : '—';
+      const npsT = totR ? ((porKam.reduce((s,k)=>s+(parseFloat(k.nps)||0)*(k.total||0),0))/totR).toFixed(1) : '—';
       const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
       const npsC = parseFloat(npsT) >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
       return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
         <td>TOTAL</td><td class="num">${totR}</td>
-        <td class="num" style="color:${nc(avg('atencion'))};">${avg('atencion')}</td>
-        <td class="num" style="color:${nc(avg('tiempos'))};">${avg('tiempos')}</td>
-        <td class="num" style="color:${nc(avg('calidad'))};">${avg('calidad')}</td>
-        <td class="num" style="color:${nc(avg('cotizacion'))};">${avg('cotizacion')}</td>
+        <td class="num" style="color:${nc(wavg('atencion'))};">${wavg('atencion')}</td>
+        <td class="num" style="color:${nc(wavg('tiempos'))};">${wavg('tiempos')}</td>
+        <td class="num" style="color:${nc(wavg('calidad'))};">${wavg('calidad')}</td>
+        <td class="num" style="color:${nc(wavg('cotizacion'))};">${wavg('cotizacion')}</td>
         <td class="num" style="color:${npsC};">${npsT}</td></tr>`;
     })()}
     </table>
