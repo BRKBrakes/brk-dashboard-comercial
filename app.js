@@ -1595,8 +1595,16 @@ function ordenarTabla(table, colIdx, dir) {
   const totales = dataRows.filter(r => /TOTAL|EQUIPO BRK/i.test(r.textContent));
   const normales = dataRows.filter(r => !totales.includes(r));
   normales.sort((a, b) => {
-    const va = parseCeldaValor(a.children[colIdx]?.textContent);
-    const vb = parseCeldaValor(b.children[colIdx]?.textContent);
+    const cA = a.children[colIdx];
+    const cB = b.children[colIdx];
+    const rawA = cA?.dataset?.val;
+    const rawB = cB?.dataset?.val;
+    if (rawA !== undefined && rawB !== undefined) {
+      const na = parseFloat(rawA), nb = parseFloat(rawB);
+      if (!isNaN(na) && !isNaN(nb)) return dir === 'asc' ? na - nb : nb - na;
+    }
+    const va = parseCeldaValor(cA?.textContent);
+    const vb = parseCeldaValor(cB?.textContent);
     if (typeof va === 'string' || typeof vb === 'string') {
       return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     }
