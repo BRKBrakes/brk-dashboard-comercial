@@ -2454,44 +2454,51 @@ async function loadNps() {
   <!-- POR KAM -->
   ${porKam.length ? `<div class="card" style="margin-bottom:16px;">
     <h2 style="margin-bottom:12px;">Resultados por KAM <span style="font-size:11px;color:var(--text-dim);font-weight:400;">(clic fila=filtrar · clic columna=ordenar)</span></h2>
-    <table id="tabla-nps-kam" data-no-sort><thead><tr>
-      <th style="cursor:pointer;" data-col="0">KAM</th>
-      <th class="num" style="cursor:pointer;" data-col="1">Respuestas</th>
-      <th class="num" style="cursor:pointer;" data-col="2">Atención</th>
-      <th class="num" style="cursor:pointer;" data-col="3">Tiempos</th>
-      <th class="num" style="cursor:pointer;" data-col="4">Calidad</th>
-      <th class="num" style="cursor:pointer;" data-col="5">Cotización</th>
-      <th class="num" style="cursor:pointer;" data-col="6">NPS</th>
-    </tr></thead><tbody>
-    ${porKam.map(k => {
-      const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
-      const npsC = k.nps >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
-      const activo = NPS_KAM === k.kam;
-      return `<tr class="fila-nps-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
-        <td>${esc(titleCase(k.kam))}</td>
-        <td class="num" data-val="${k.total}">${k.total}</td>
-        <td class="num" data-val="${k.atencion}" style="color:${nc(k.atencion)};font-weight:700;">${k.atencion}</td>
-        <td class="num" data-val="${k.tiempos}" style="color:${nc(k.tiempos)};font-weight:700;">${k.tiempos}</td>
-        <td class="num" data-val="${k.calidad}" style="color:${nc(k.calidad)};font-weight:700;">${k.calidad}</td>
-        <td class="num" data-val="${k.cotizacion}" style="color:${nc(k.cotizacion)};font-weight:700;">${k.cotizacion}</td>
-        <td class="num" data-val="${k.nps}" style="color:${npsC};font-weight:700;">${k.nps}</td></tr>`;
-    }).join('')}
-    </tbody><tfoot>
+    <table id="tabla-nps-kam" data-no-sort>
+      <thead><tr>
+        <th style="cursor:pointer;" data-col="0">KAM</th>
+        <th class="num" style="cursor:pointer;" data-col="1">Respuestas</th>
+        <th class="num" style="cursor:pointer;" data-col="2">Atención</th>
+        <th class="num" style="cursor:pointer;" data-col="3">Tiempos</th>
+        <th class="num" style="cursor:pointer;" data-col="4">Calidad</th>
+        <th class="num" style="cursor:pointer;" data-col="5">Cotización</th>
+        <th class="num" style="cursor:pointer;" data-col="6">NPS</th>
+      </tr></thead>
+      <tbody>
+      ${porKam.map(k => {
+        const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
+        const npsC = k.nps >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
+        const activo = NPS_KAM === k.kam;
+        return `<tr class="fila-nps-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
+          <td>${esc(titleCase(k.kam))}</td>
+          <td class="num" data-val="${k.total}">${k.total}</td>
+          <td class="num" data-val="${k.atencion}" style="color:${nc(k.atencion)};font-weight:700;">${k.atencion}</td>
+          <td class="num" data-val="${k.tiempos}" style="color:${nc(k.tiempos)};font-weight:700;">${k.tiempos}</td>
+          <td class="num" data-val="${k.calidad}" style="color:${nc(k.calidad)};font-weight:700;">${k.calidad}</td>
+          <td class="num" data-val="${k.cotizacion}" style="color:${nc(k.cotizacion)};font-weight:700;">${k.cotizacion}</td>
+          <td class="num" data-val="${k.nps}" style="color:${npsC};font-weight:700;">${k.nps}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
     ${(() => {
       const totR = porKam.reduce((s,k)=>s+(k.total||0),0);
       const wavg = f => totR ? (porKam.reduce((s,k)=>s+(parseFloat(k[f])||0)*(k.total||0),0)/totR).toFixed(2) : '—';
       const npsT = totR ? ((porKam.reduce((s,k)=>s+(parseFloat(k.nps)||0)*(k.total||0),0))/totR).toFixed(1) : '—';
       const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
       const npsC = parseFloat(npsT) >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
-      return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
-        <td>TOTAL</td><td class="num">${totR}</td>
-        <td class="num" style="color:${nc(wavg('atencion'))};">${wavg('atencion')}</td>
-        <td class="num" style="color:${nc(wavg('tiempos'))};">${wavg('tiempos')}</td>
-        <td class="num" style="color:${nc(wavg('calidad'))};">${wavg('calidad')}</td>
-        <td class="num" style="color:${nc(wavg('cotizacion'))};">${wavg('cotizacion')}</td>
-        <td class="num" style="color:${npsC};">${npsT}</td></tr>`;
+      return `<table style="border-top:2px solid var(--neon);margin-top:0;">
+        <tr style="font-weight:700;">
+          <td style="padding:8px;">TOTAL</td>
+          <td class="num" style="padding:8px;">${totR}</td>
+          <td class="num" style="padding:8px;color:${nc(wavg('atencion'))};">${wavg('atencion')}</td>
+          <td class="num" style="padding:8px;color:${nc(wavg('tiempos'))};">${wavg('tiempos')}</td>
+          <td class="num" style="padding:8px;color:${nc(wavg('calidad'))};">${wavg('calidad')}</td>
+          <td class="num" style="padding:8px;color:${nc(wavg('cotizacion'))};">${wavg('cotizacion')}</td>
+          <td class="num" style="padding:8px;color:${npsC};">${npsT}</td>
+        </tr>
+      </table>`;
     })()}
-    </tfoot></table>
   </div>` : ''}
 
   <!-- COMENTARIOS -->
