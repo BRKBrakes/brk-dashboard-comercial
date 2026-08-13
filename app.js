@@ -2352,7 +2352,7 @@ async function loadNps() {
   const f = r.filtros || {};
   const prom = r.promedios || {};
   const nps = r.nps || {};
-  const comentarios = r.comentarios || [];
+  const comentarios = r.respuestas || [];
   const porKam = r.por_kam || [];
 
   const TRIMESTRES = { 1:'Q1 · Ene-Mar', 2:'Q2 · Abr-Jun', 3:'Q3 · Jul-Sep', 4:'Q4 · Oct-Dic' };
@@ -2487,12 +2487,23 @@ async function loadNps() {
 
   <!-- COMENTARIOS -->
   ${comentarios.length ? `<div class="card" style="margin-bottom:16px;">
-    <h2 style="margin-bottom:12px;">Comentarios recientes</h2>
-    <div style="max-height:380px;overflow-y:auto;">
-    <table><tr><th>KAM</th><th>Empresa</th><th>Sede</th><th class="num">NPS</th><th>Comentario</th></tr>
+    <h2 style="margin-bottom:12px;">Todas las respuestas (${comentarios.length})</h2>
+    <div style="max-height:420px;overflow-y:auto;">
+    <table><tr><th>KAM</th><th>Empresa</th><th>Sede</th><th class="num">Aten.</th><th class="num">Tiem.</th><th class="num">Cal.</th><th class="num">Cot.</th><th class="num">NPS</th><th>Comentario</th></tr>
     ${comentarios.map(c => {
+      const nc = v => v >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
       const npsColor = c.nps_score >= 9 ? '#4ade80' : c.nps_score >= 7 ? '#ff9f43' : '#ff6b6b';
-      return `<tr><td>${esc(titleCase(c.kam))}</td><td>${esc(titleCase(c.empresa))}</td><td>${esc(c.sede)}</td><td class="num" style="color:${npsColor};font-weight:700;">${c.nps_score}</td><td style="max-width:300px;">${esc(c.comentario)}</td></tr>`;
+      return `<tr>
+        <td>${esc(titleCase(c.kam))}</td>
+        <td>${esc(titleCase(c.empresa))}</td>
+        <td>${esc(c.sede)}</td>
+        <td class="num" style="color:${nc(c.p_atencion)};font-weight:700;">${c.p_atencion}</td>
+        <td class="num" style="color:${nc(c.p_tiempos)};font-weight:700;">${c.p_tiempos}</td>
+        <td class="num" style="color:${nc(c.p_calidad)};font-weight:700;">${c.p_calidad}</td>
+        <td class="num" style="color:${nc(c.p_cotizacion)};font-weight:700;">${c.p_cotizacion}</td>
+        <td class="num" style="color:${npsColor};font-weight:700;">${c.nps_score}</td>
+        <td style="max-width:240px;color:var(--text-dim);font-size:12px;">${c.comentario ? esc(c.comentario) : ''}</td>
+      </tr>`;
     }).join('')}
     </table></div>
   </div>` : ''}`;
