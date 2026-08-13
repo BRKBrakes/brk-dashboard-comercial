@@ -2454,17 +2454,16 @@ async function loadNps() {
   <!-- POR KAM -->
   ${porKam.length ? `<div class="card" style="margin-bottom:16px;">
     <h2 style="margin-bottom:12px;">Resultados por KAM <span style="font-size:11px;color:var(--text-dim);font-weight:400;">(clic fila=filtrar · clic columna=ordenar)</span></h2>
-    <table id="tabla-nps-kam" data-no-sort>
-      <thead><tr>
-        <th style="cursor:pointer;" data-col="0">KAM</th>
-        <th class="num" style="cursor:pointer;" data-col="1">Respuestas</th>
-        <th class="num" style="cursor:pointer;" data-col="2">Atención</th>
-        <th class="num" style="cursor:pointer;" data-col="3">Tiempos</th>
-        <th class="num" style="cursor:pointer;" data-col="4">Calidad</th>
-        <th class="num" style="cursor:pointer;" data-col="5">Cotización</th>
-        <th class="num" style="cursor:pointer;" data-col="6">NPS</th>
-      </tr></thead>
-      <tbody>
+    <table>
+      <tr>
+        <th>KAM</th>
+        <th class="num">Respuestas</th>
+        <th class="num">Atención</th>
+        <th class="num">Tiempos</th>
+        <th class="num">Calidad</th>
+        <th class="num">Cotización</th>
+        <th class="num">NPS</th>
+      </tr>
       ${porKam.map(k => {
         const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
         const npsC = k.nps >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
@@ -2479,26 +2478,23 @@ async function loadNps() {
           <td class="num" data-val="${k.nps}" style="color:${npsC};font-weight:700;">${k.nps}</td>
         </tr>`;
       }).join('')}
-      </tbody>
+      ${(() => {
+        const totR = porKam.reduce((s,k)=>s+(k.total||0),0);
+        const wavg = f => totR ? (porKam.reduce((s,k)=>s+(parseFloat(k[f])||0)*(k.total||0),0)/totR).toFixed(2) : '—';
+        const npsT = totR ? ((porKam.reduce((s,k)=>s+(parseFloat(k.nps)||0)*(k.total||0),0))/totR).toFixed(1) : '—';
+        const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
+        const npsC = parseFloat(npsT) >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
+        return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
+          <td>TOTAL</td>
+          <td class="num" data-val="${totR}">${totR}</td>
+          <td class="num" data-val="${wavg('atencion')}" style="color:${nc(wavg('atencion'))};">${wavg('atencion')}</td>
+          <td class="num" data-val="${wavg('tiempos')}" style="color:${nc(wavg('tiempos'))};">${wavg('tiempos')}</td>
+          <td class="num" data-val="${wavg('calidad')}" style="color:${nc(wavg('calidad'))};">${wavg('calidad')}</td>
+          <td class="num" data-val="${wavg('cotizacion')}" style="color:${nc(wavg('cotizacion'))};">${wavg('cotizacion')}</td>
+          <td class="num" data-val="${npsT}" style="color:${npsC};">${npsT}</td>
+        </tr>`;
+      })()}
     </table>
-    ${(() => {
-      const totR = porKam.reduce((s,k)=>s+(k.total||0),0);
-      const wavg = f => totR ? (porKam.reduce((s,k)=>s+(parseFloat(k[f])||0)*(k.total||0),0)/totR).toFixed(2) : '—';
-      const npsT = totR ? ((porKam.reduce((s,k)=>s+(parseFloat(k.nps)||0)*(k.total||0),0))/totR).toFixed(1) : '—';
-      const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
-      const npsC = parseFloat(npsT) >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
-      return `<table style="border-top:2px solid var(--neon);margin-top:0;">
-        <tr style="font-weight:700;">
-          <td style="padding:8px;">TOTAL</td>
-          <td class="num" style="padding:8px;">${totR}</td>
-          <td class="num" style="padding:8px;color:${nc(wavg('atencion'))};">${wavg('atencion')}</td>
-          <td class="num" style="padding:8px;color:${nc(wavg('tiempos'))};">${wavg('tiempos')}</td>
-          <td class="num" style="padding:8px;color:${nc(wavg('calidad'))};">${wavg('calidad')}</td>
-          <td class="num" style="padding:8px;color:${nc(wavg('cotizacion'))};">${wavg('cotizacion')}</td>
-          <td class="num" style="padding:8px;color:${npsC};">${npsT}</td>
-        </tr>
-      </table>`;
-    })()}
   </div>` : ''}
 
   <!-- COMENTARIOS -->
@@ -2525,32 +2521,6 @@ async function loadNps() {
   </div>` : ''}`;
 
   el.innerHTML = html;
-
-  // Sort tabla NPS por KAM
-  const tablaNpsKam = document.getElementById('tabla-nps-kam');
-  if (tablaNpsKam) {
-    let sortCol = -1, sortDir = 'desc';
-    tablaNpsKam.querySelectorAll('thead th[data-col]').forEach(th => {
-      th.addEventListener('click', () => {
-        const col = parseInt(th.dataset.col);
-        if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-        else { sortCol = col; sortDir = 'desc'; }
-        const tbody = tablaNpsKam.querySelector('tbody');
-        const filas = Array.from(tbody.querySelectorAll('tr'));
-        filas.sort((a, b) => {
-          const cA = a.children[col]; const cB = b.children[col];
-          const vA = cA?.dataset?.val !== undefined ? parseFloat(cA.dataset.val) : cA?.textContent?.trim();
-          const vB = cB?.dataset?.val !== undefined ? parseFloat(cB.dataset.val) : cB?.textContent?.trim();
-          if (typeof vA === 'number' && typeof vB === 'number') return sortDir === 'asc' ? vA-vB : vB-vA;
-          return sortDir === 'asc' ? String(vA).localeCompare(String(vB)) : String(vB).localeCompare(String(vA));
-        });
-        filas.forEach(f => tbody.appendChild(f));
-        // Indicador visual
-        tablaNpsKam.querySelectorAll('thead th').forEach(h => h.textContent = h.textContent.replace(/ [▲▼]$/,''));
-        th.textContent = th.textContent + (sortDir === 'asc' ? ' ▲' : ' ▼');
-      });
-    });
-  }
 
   // Clic en fila KAM — filtra todas las demás tablas
   el.querySelectorAll('.fila-nps-kam').forEach(fila => {
