@@ -2461,12 +2461,12 @@ async function loadNps() {
       const activo = NPS_KAM === k.kam;
       return `<tr class="fila-nps-kam" data-kam="${esc(k.kam)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
         <td>${esc(titleCase(k.kam))}</td>
-        <td class="num">${k.total}</td>
-        <td class="num" style="color:${nc(k.atencion)};font-weight:700;">${k.atencion}</td>
-        <td class="num" style="color:${nc(k.tiempos)};font-weight:700;">${k.tiempos}</td>
-        <td class="num" style="color:${nc(k.calidad)};font-weight:700;">${k.calidad}</td>
-        <td class="num" style="color:${nc(k.cotizacion)};font-weight:700;">${k.cotizacion}</td>
-        <td class="num" style="color:${npsC};font-weight:700;">${k.nps}</td></tr>`;
+        <td class="num" data-val="${k.total}">${k.total}</td>
+        <td class="num" data-val="${k.atencion}" style="color:${nc(k.atencion)};font-weight:700;">${k.atencion}</td>
+        <td class="num" data-val="${k.tiempos}" style="color:${nc(k.tiempos)};font-weight:700;">${k.tiempos}</td>
+        <td class="num" data-val="${k.calidad}" style="color:${nc(k.calidad)};font-weight:700;">${k.calidad}</td>
+        <td class="num" data-val="${k.cotizacion}" style="color:${nc(k.cotizacion)};font-weight:700;">${k.cotizacion}</td>
+        <td class="num" data-val="${k.nps}" style="color:${npsC};font-weight:700;">${k.nps}</td></tr>`;
     }).join('')}
     ${(() => {
       const totR = porKam.reduce((s,k)=>s+(k.total||0),0);
