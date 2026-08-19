@@ -121,9 +121,9 @@ document.querySelectorAll('#sub-oportunidades .tab').forEach(sub => {
 async function showApp() {
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  if (!ROL) ROL = 'admin';
+  if (!ROL) ROL = 'admin'; // sesiones antiguas antes de roles
   aplicarRestriccionesRol();
-  loadTab('tablerocontrol');
+  loadTab('ejecutivo');
   setTimeout(ajustarStickyResponsive, 50);
 }
 
@@ -177,7 +177,7 @@ async function loadTab(tab) {
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
   if (tab === 'remisiones') return loadRemisiones();
-  if (tab === 'tablerocontrol') { TABLERO_EXCLUIDAS_CACHE = null; return loadTableroControl(); }
+  if (tab === 'tablerocontrol') return loadTableroControl();
   if (tab === 'cartera') return loadCartera();
   if (tab === 'nps') return loadNps();
   if (tab === 'facilitadores') return loadFacilitadores();
@@ -1048,7 +1048,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   const total = data.reduce((s,c) => s + (c.total||0), 0);
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1213,7 +1213,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1316,7 +1316,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1461,7 +1461,7 @@ async function loadPerdidos(kam) {
     if (c.delta_liquidos < 0) detalles.push(`Líquidos ${money(c.delta_liquidos)}`);
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td>
       <td class="num money">${money(c.total_ant2)}</td><td class="num money">${money(c.total_ant1)}</td><td class="num money">${money(c.promedio_2m)}</td><td class="num money">${money(c.total_act)}</td>
-      <td class="num" style="color:#ff6b6b;font-weight:700;" data-val="${c.caida_total}">${money(c.caida_total)} (${c.caida_pct}%)</td>
+      <td class="num" style="color:#ff6b6b;font-weight:700;">${money(c.caida_total)} (${c.caida_pct}%)</td>
       <td style="font-size:11px;color:var(--text-dim);">${detalles.join(' · ') || '—'}</td></tr>`;
   });
   html += '</table></div>';
@@ -1595,16 +1595,8 @@ function ordenarTabla(table, colIdx, dir) {
   const totales = dataRows.filter(r => /TOTAL|EQUIPO BRK/i.test(r.textContent));
   const normales = dataRows.filter(r => !totales.includes(r));
   normales.sort((a, b) => {
-    const cA = a.children[colIdx];
-    const cB = b.children[colIdx];
-    const rawA = cA?.dataset?.val;
-    const rawB = cB?.dataset?.val;
-    if (rawA !== undefined && rawB !== undefined) {
-      const na = parseFloat(rawA), nb = parseFloat(rawB);
-      if (!isNaN(na) && !isNaN(nb)) return dir === 'asc' ? na - nb : nb - na;
-    }
-    const va = parseCeldaValor(cA?.textContent);
-    const vb = parseCeldaValor(cB?.textContent);
+    const va = parseCeldaValor(a.children[colIdx]?.textContent);
+    const vb = parseCeldaValor(b.children[colIdx]?.textContent);
     if (typeof va === 'string' || typeof vb === 'string') {
       return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     }
@@ -1974,19 +1966,7 @@ function barraSigno(items, labelKey, valueKey) {
 }
 
 let TABLERO_MES = null;
-let TABLERO_EXCLUIDAS_CACHE = null;
-
-async function cargarExcluidas() {
-  if (TABLERO_EXCLUIDAS_CACHE !== null) return TABLERO_EXCLUIDAS_CACHE;
-  const r = await rpc('dash_exclusiones_leer', { p_token: TOKEN });
-  TABLERO_EXCLUIDAS_CACHE = (r.ok && Array.isArray(r.excluidas)) ? r.excluidas : [];
-  return TABLERO_EXCLUIDAS_CACHE;
-}
-
-async function guardarExcluidas(arr) {
-  TABLERO_EXCLUIDAS_CACHE = arr;
-  await rpc('dash_exclusiones_guardar', { p_token: TOKEN, p_excluidas: arr });
-}
+let TABLERO_EXCLUIDAS_CACHE = {};
 
 function cargarExcluidasStorage(mes) {
   try { return JSON.parse(localStorage.getItem('brk_remisiones_excluidas_mes_' + mes) || '[]'); }
@@ -2002,10 +1982,9 @@ async function loadTableroControl(mesParam) {
   TABLERO_MES = mes;
   el.innerHTML = '<div class="loading">Cargando tablero de control...</div>';
 
-  let excluidas = [];
-  try { excluidas = await cargarExcluidas(); } catch(e) { excluidas = []; }
+  const excluidas = cargarExcluidasStorage(mes);
   const r = await rpc('dash_tablero_control', { p_token: TOKEN, p_mes: parseInt(mes), p_anio: 2026, p_remisiones_excluidas: excluidas });
-  if (!r.ok) { el.innerHTML = `<div class="loading">Error: ${r.error || 'Sesión expirada.'}</div>`; return; }
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   const factTotal = (r.general.facturado||0) + (r.general.remisiones||0);
   const deberiaHoy = r.dias_habiles_totales ? (r.presupuesto_mes / r.dias_habiles_totales) * r.dias_habiles_corridos : 0;
@@ -2089,22 +2068,22 @@ async function loadTableroControl(mesParam) {
   });
 
   el.querySelectorAll('.chk-remision-grupo').forEach(chk => {
-    chk.addEventListener('change', async () => {
+    chk.addEventListener('change', () => {
       const grupo = gruposRemArr[parseInt(chk.dataset.idx)];
-      const excluidasActuales = (TABLERO_EXCLUIDAS_CACHE || []).slice();
+      const excluidasActuales = cargarExcluidasStorage(mes);
       grupo.docs.forEach(doc => {
         const idx = excluidasActuales.indexOf(doc);
         if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
         if (!chk.checked && idx < 0) excluidasActuales.push(doc);
       });
-      await guardarExcluidas(excluidasActuales);
+      guardarExcluidasStorage(mes, excluidasActuales);
       loadTableroControl(mes);
     });
   });
   const btnMarcar = document.getElementById('tcMarcarTodas');
-  if (btnMarcar) btnMarcar.addEventListener('click', async () => { await guardarExcluidas([]); loadTableroControl(mes); });
+  if (btnMarcar) btnMarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, []); loadTableroControl(mes); });
   const btnDesmarcar = document.getElementById('tcDesmarcarTodas');
-  if (btnDesmarcar) btnDesmarcar.addEventListener('click', async () => { await guardarExcluidas(remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
+  if (btnDesmarcar) btnDesmarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
 }
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
@@ -2602,7 +2581,7 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: c }));
   const opcionesTipo = (f.tipos||[]).slice().sort().map(t => ({ value: t, label: t }));
 
@@ -2808,10 +2787,9 @@ let CLIENTES_CLIENTE = [];
 let CLIENTES_SUCURSAL = [];
 let CLIENTES_REFERENCIA = null;
 let CLIENTES_NRO_DOCUMENTO = null;
-let CLIENTES_FAMILIA = [];
 let CLIENTES_FILTROS_HTML = '';
 
-async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento, familia) {
+async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento) {
   const el = document.getElementById('view-clientes');
   el.innerHTML = '<div class="loading">Cargando clientes...</div>';
   CLIENTES_MES = mes !== undefined ? mes : CLIENTES_MES;
@@ -2820,7 +2798,6 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   CLIENTES_SUCURSAL = sucursal !== undefined ? sucursal : CLIENTES_SUCURSAL;
   CLIENTES_REFERENCIA = referencia !== undefined ? referencia : CLIENTES_REFERENCIA;
   CLIENTES_NRO_DOCUMENTO = nroDocumento !== undefined ? nroDocumento : CLIENTES_NRO_DOCUMENTO;
-  CLIENTES_FAMILIA = familia !== undefined ? familia : CLIENTES_FAMILIA;
 
   const r = await rpc('dash_clientes_resumen', {
     p_token: TOKEN,
@@ -2829,17 +2806,15 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     p_cliente: (CLIENTES_CLIENTE && CLIENTES_CLIENTE.length) ? CLIENTES_CLIENTE : null,
     p_sucursal: (CLIENTES_SUCURSAL && CLIENTES_SUCURSAL.length) ? CLIENTES_SUCURSAL : null,
     p_referencia: CLIENTES_REFERENCIA || null,
-    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null,
-    p_familia: (CLIENTES_FAMILIA && CLIENTES_FAMILIA.length) ? CLIENTES_FAMILIA : null
+    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null
   });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (f.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (f.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
-  const opcionesFamilia = (f.familias||[]).slice().sort().map(fam => ({ value: fam, label: fam }));
 
   const meses = [...new Set([
     ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
@@ -2851,7 +2826,6 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
     ${renderMultiSelect('clSucursal', opcionesSucursal, CLIENTES_SUCURSAL, 'Todas las sucursales')}
-    ${renderMultiSelect('clFamilia', opcionesFamilia, CLIENTES_FAMILIA, 'Todas las familias')}
   </div>`;
 
   html += renderBarraFiltros([
@@ -2859,69 +2833,36 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, etiquetaDe: v => titleCase(v) },
     { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
-    { id: 'familia', label: 'Familia', valor: CLIENTES_FAMILIA },
     { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
     { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO }
   ]);
 
-  // Promedio — meses finalizados (sin el mes actual)
-  const mesActual = new Date().getMonth() + 1;
-  const mesesFinalizados = meses.filter(m => m < mesActual);
-
-  function promedioCeldas(itemMeses, listaMeses, esMoneda) {
-    const mesesConVenta = listaMeses.filter(m => itemMeses[m] && itemMeses[m] > 0);
-    if (!mesesConVenta.length) return '';
-    const prom = mesesConVenta.reduce((s, m) => s + itemMeses[m], 0) / mesesConVenta.length;
-    return esMoneda ? money(prom) : Math.round(prom).toLocaleString('es-CO');
-  }
-
-  // Top Clientes
+  // Top Clientes — pivote por sucursal
   const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
-  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   topClientes.forEach(c => {
     const activo = (CLIENTES_SUCURSAL||[]).includes(c.sucursal_despacho);
-    const prom = promedioCeldas(c.meses, mesesFinalizados, true);
-    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${c.total}">${money(c.total)}</td></tr>`;
+    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}<td class="num money">${money(c.total)}</td></tr>`;
   });
-  {
-    const totMes = {}; meses.forEach(m => { totMes[m] = topClientes.reduce((s,c) => s+(c.meses[m]||0),0); });
-    const totGeneral = topClientes.reduce((s,c) => s+c.total, 0);
-    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
-  }
   html += '</table></div></div>';
 
-  // Productos más vendidos [$] y [#]
+  // Productos más vendidos [$] y [#] — lado a lado
   const prodValor = pivotarPorMes(r.productos_valor, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'valor');
   const prodUnidades = pivotarPorMes(r.productos_unidades, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'unidades');
 
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:16px;">';
-  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   prodValor.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    const prom = promedioCeldas(p.meses, mesesFinalizados, true);
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${p.total}">${money(p.total)}</td></tr>`;
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}<td class="num money">${money(p.total)}</td></tr>`;
   });
-  {
-    const totMes = {}; meses.forEach(m => { totMes[m] = prodValor.reduce((s,p) => s+(p.meses[m]||0),0); });
-    const totGeneral = prodValor.reduce((s,p) => s+p.total, 0);
-    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
-  }
   html += '</table></div></div>';
 
-  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
   prodUnidades.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    const prom = promedioCeldas(p.meses, mesesFinalizados, false);
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${prom}</td>`:''}<td class="num" data-val="${p.total}">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}<td class="num">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
   });
-  {
-    const totMes = {}; meses.forEach(m => { totMes[m] = prodUnidades.reduce((s,p) => s+(p.meses[m]||0),0); });
-    const totGeneral = prodUnidades.reduce((s,p) => s+p.total, 0);
-    const promTot = promedioCeldas(totMes, mesesFinalizados, false);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num" data-val="${totMes[m]}">${totMes[m]?Math.round(totMes[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${promTot}</td>`:''}<td class="num" data-val="${totGeneral}">${Math.round(totGeneral).toLocaleString('es-CO')}</td></tr>`;
-  }
   html += '</table></div></div></div>';
 
   // Facturas — pivote por nro_documento
@@ -2936,11 +2877,10 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   el.innerHTML = html;
   habilitarOrdenTablas(el);
 
-  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined, undefined));
-  activarMultiSelect('clFamilia', (vals) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, vals));
+  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined));
+  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined));
 
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-clKam');
@@ -2951,29 +2891,28 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     fila.addEventListener('click', () => {
       const actuales = CLIENTES_SUCURSAL || [];
       const nuevo = actuales.includes(fila.dataset.sucursal) ? actuales.filter(v=>v!==fila.dataset.sucursal) : [...actuales, fila.dataset.sucursal];
-      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined, undefined);
+      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-referencia').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined, undefined);
+      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-factura').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc, undefined);
+      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc);
     });
   });
 
   activarBarraFiltros(el, {
-    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined, undefined),
-    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined),
-    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
-    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined, undefined),
-    familia: (v) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, (CLIENTES_FAMILIA||[]).filter(x=>x!==v)),
-    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined, undefined),
-    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null, undefined)
-  }, () => loadClientes([], [], [], [], null, null, []));
+    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined),
+    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
+    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined),
+    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined),
+    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined),
+    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null)
+  }, () => loadClientes([], [], [], [], null, null));
 }
 
 function loadCargarVentas() {
@@ -3248,17 +3187,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Auto-login si hay token guardado
-if (TOKEN) {
-  if (ROL !== 'admin') {
-    rpc('dash_mis_permisos', { p_token: TOKEN }).then(rPermisos => {
-      MIS_PERMISOS = (rPermisos.ok && !rPermisos.admin) ? (rPermisos.tabs || {}) : null;
-      showApp();
-    }).catch(() => showApp());
-  } else {
-    MIS_PERMISOS = null;
-    showApp();
-  }
-}
+if (TOKEN) { showApp(); }
 
 // Registro de Service Worker para instalación como PWA
 if ('serviceWorker' in navigator) {
