@@ -121,8 +121,9 @@ document.querySelectorAll('#sub-oportunidades .tab').forEach(sub => {
 async function showApp() {
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  if (!ROL) ROL = 'admin'; // sesiones antiguas antes de roles
+  if (!ROL) ROL = 'admin';
   aplicarRestriccionesRol();
+  poblarSelectMeses();
   loadTab('tablerocontrol');
   setTimeout(ajustarStickyResponsive, 50);
 }
@@ -1990,7 +1991,7 @@ async function loadTableroControl(mesParam) {
   TABLERO_MES = mes;
   el.innerHTML = '<div class="loading">Cargando tablero de control...</div>';
 
-  const excluidas = cargarExcluidasStorage(mes);
+  const excluidas = await cargarExcluidas();
   const r = await rpc('dash_tablero_control', { p_token: TOKEN, p_mes: parseInt(mes), p_anio: 2026, p_remisiones_excluidas: excluidas });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
@@ -2076,22 +2077,22 @@ async function loadTableroControl(mesParam) {
   });
 
   el.querySelectorAll('.chk-remision-grupo').forEach(chk => {
-    chk.addEventListener('change', () => {
+    chk.addEventListener('change', async () => {
       const grupo = gruposRemArr[parseInt(chk.dataset.idx)];
-      const excluidasActuales = cargarExcluidasStorage(mes);
+      const excluidasActuales = (TABLERO_EXCLUIDAS_CACHE || []).slice();
       grupo.docs.forEach(doc => {
         const idx = excluidasActuales.indexOf(doc);
         if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
         if (!chk.checked && idx < 0) excluidasActuales.push(doc);
       });
-      guardarExcluidasStorage(mes, excluidasActuales);
+      await guardarExcluidas(excluidasActuales);
       loadTableroControl(mes);
     });
   });
   const btnMarcar = document.getElementById('tcMarcarTodas');
-  if (btnMarcar) btnMarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, []); loadTableroControl(mes); });
+  if (btnMarcar) btnMarcar.addEventListener('click', async () => { await guardarExcluidas([]); loadTableroControl(mes); });
   const btnDesmarcar = document.getElementById('tcDesmarcarTodas');
-  if (btnDesmarcar) btnDesmarcar.addEventListener('click', () => { guardarExcluidasStorage(mes, remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
+  if (btnDesmarcar) btnDesmarcar.addEventListener('click', async () => { await guardarExcluidas(remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
 }
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
