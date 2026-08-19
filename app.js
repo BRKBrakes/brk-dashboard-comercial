@@ -178,7 +178,7 @@ async function loadTab(tab) {
   if (tab === 'perdidos') return loadPerdidos();
   if (tab === 'planes') return loadPlanes();
   if (tab === 'remisiones') return loadRemisiones();
-  if (tab === 'tablerocontrol') return loadTableroControl();
+  if (tab === 'tablerocontrol') { TABLERO_EXCLUIDAS_CACHE = null; return loadTableroControl(); }
   if (tab === 'cartera') return loadCartera();
   if (tab === 'nps') return loadNps();
   if (tab === 'facilitadores') return loadFacilitadores();
@@ -1975,7 +1975,19 @@ function barraSigno(items, labelKey, valueKey) {
 }
 
 let TABLERO_MES = null;
-let TABLERO_EXCLUIDAS_CACHE = {};
+let TABLERO_EXCLUIDAS_CACHE = null;
+
+async function cargarExcluidas() {
+  if (TABLERO_EXCLUIDAS_CACHE !== null) return TABLERO_EXCLUIDAS_CACHE;
+  const r = await rpc('dash_exclusiones_leer', { p_token: TOKEN });
+  TABLERO_EXCLUIDAS_CACHE = (r.ok && Array.isArray(r.excluidas)) ? r.excluidas : [];
+  return TABLERO_EXCLUIDAS_CACHE;
+}
+
+async function guardarExcluidas(arr) {
+  TABLERO_EXCLUIDAS_CACHE = arr;
+  await rpc('dash_exclusiones_guardar', { p_token: TOKEN, p_excluidas: arr });
+}
 
 function cargarExcluidasStorage(mes) {
   try { return JSON.parse(localStorage.getItem('brk_remisiones_excluidas_mes_' + mes) || '[]'); }
