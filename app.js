@@ -2797,7 +2797,7 @@ let CLIENTES_REFERENCIA = null;
 let CLIENTES_NRO_DOCUMENTO = null;
 let CLIENTES_FILTROS_HTML = '';
 
-async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento) {
+async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento, familia) {
   const el = document.getElementById('view-clientes');
   el.innerHTML = '<div class="loading">Cargando clientes...</div>';
   CLIENTES_MES = mes !== undefined ? mes : CLIENTES_MES;
@@ -2806,6 +2806,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   CLIENTES_SUCURSAL = sucursal !== undefined ? sucursal : CLIENTES_SUCURSAL;
   CLIENTES_REFERENCIA = referencia !== undefined ? referencia : CLIENTES_REFERENCIA;
   CLIENTES_NRO_DOCUMENTO = nroDocumento !== undefined ? nroDocumento : CLIENTES_NRO_DOCUMENTO;
+  CLIENTES_FAMILIA = familia !== undefined ? familia : CLIENTES_FAMILIA;
 
   const r = await rpc('dash_clientes_resumen', {
     p_token: TOKEN,
@@ -2814,7 +2815,8 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     p_cliente: (CLIENTES_CLIENTE && CLIENTES_CLIENTE.length) ? CLIENTES_CLIENTE : null,
     p_sucursal: (CLIENTES_SUCURSAL && CLIENTES_SUCURSAL.length) ? CLIENTES_SUCURSAL : null,
     p_referencia: CLIENTES_REFERENCIA || null,
-    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null
+    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null,
+    p_familia: (CLIENTES_FAMILIA && CLIENTES_FAMILIA.length) ? CLIENTES_FAMILIA : null
   });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
