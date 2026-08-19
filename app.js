@@ -1048,7 +1048,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   const total = data.reduce((s,c) => s + (c.total||0), 0);
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1213,7 +1213,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1316,7 +1316,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1461,7 +1461,7 @@ async function loadPerdidos(kam) {
     if (c.delta_liquidos < 0) detalles.push(`Líquidos ${money(c.delta_liquidos)}`);
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td>
       <td class="num money">${money(c.total_ant2)}</td><td class="num money">${money(c.total_ant1)}</td><td class="num money">${money(c.promedio_2m)}</td><td class="num money">${money(c.total_act)}</td>
-      <td class="num" style="color:#ff6b6b;font-weight:700;">${money(c.caida_total)} (${c.caida_pct}%)</td>
+      <td class="num" style="color:#ff6b6b;font-weight:700;" data-val="${c.caida_total}">${money(c.caida_total)} (${c.caida_pct}%)</td>
       <td style="font-size:11px;color:var(--text-dim);">${detalles.join(' · ') || '—'}</td></tr>`;
   });
   html += '</table></div>';
@@ -2589,7 +2589,7 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: c }));
   const opcionesTipo = (f.tipos||[]).slice().sort().map(t => ({ value: t, label: t }));
 
@@ -2819,10 +2819,11 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (f.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (f.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
+  const opcionesFamilia = (f.familias||[]).slice().sort().map(fam => ({ value: fam, label: fam }));
 
   const meses = [...new Set([
     ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
@@ -2834,6 +2835,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
     ${renderMultiSelect('clSucursal', opcionesSucursal, CLIENTES_SUCURSAL, 'Todas las sucursales')}
+    ${renderMultiSelect('clFamilia', opcionesFamilia, CLIENTES_FAMILIA, 'Todas las familias')}
   </div>`;
 
   html += renderBarraFiltros([
@@ -2841,36 +2843,69 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, etiquetaDe: v => titleCase(v) },
     { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
+    { id: 'familia', label: 'Familia', valor: CLIENTES_FAMILIA },
     { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
     { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO }
   ]);
 
-  // Top Clientes — pivote por sucursal
+  // Promedio — meses finalizados (sin el mes actual)
+  const mesActual = new Date().getMonth() + 1;
+  const mesesFinalizados = meses.filter(m => m < mesActual);
+
+  function promedioCeldas(itemMeses, listaMeses, esMoneda) {
+    const mesesConVenta = listaMeses.filter(m => itemMeses[m] && itemMeses[m] > 0);
+    if (!mesesConVenta.length) return '';
+    const prom = mesesConVenta.reduce((s, m) => s + itemMeses[m], 0) / mesesConVenta.length;
+    return esMoneda ? money(prom) : Math.round(prom).toLocaleString('es-CO');
+  }
+
+  // Top Clientes
   const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
-  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   topClientes.forEach(c => {
     const activo = (CLIENTES_SUCURSAL||[]).includes(c.sucursal_despacho);
-    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}<td class="num money">${money(c.total)}</td></tr>`;
+    const prom = promedioCeldas(c.meses, mesesFinalizados, true);
+    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${c.total}">${money(c.total)}</td></tr>`;
   });
+  {
+    const totMes = {}; meses.forEach(m => { totMes[m] = topClientes.reduce((s,c) => s+(c.meses[m]||0),0); });
+    const totGeneral = topClientes.reduce((s,c) => s+c.total, 0);
+    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
+  }
   html += '</table></div></div>';
 
-  // Productos más vendidos [$] y [#] — lado a lado
+  // Productos más vendidos [$] y [#]
   const prodValor = pivotarPorMes(r.productos_valor, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'valor');
   const prodUnidades = pivotarPorMes(r.productos_unidades, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'unidades');
 
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:16px;">';
-  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   prodValor.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}<td class="num money">${money(p.total)}</td></tr>`;
+    const prom = promedioCeldas(p.meses, mesesFinalizados, true);
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${prom}</td>`:''}<td class="num money" data-val="${p.total}">${money(p.total)}</td></tr>`;
   });
+  {
+    const totMes = {}; meses.forEach(m => { totMes[m] = prodValor.reduce((s,p) => s+(p.meses[m]||0),0); });
+    const totGeneral = prodValor.reduce((s,p) => s+p.total, 0);
+    const promTot = promedioCeldas(totMes, mesesFinalizados, true);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMes[m]}">${totMes[m]?money(totMes[m]):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num money" style="color:var(--neon);">${promTot}</td>`:''}<td class="num money" data-val="${totGeneral}">${money(totGeneral)}</td></tr>`;
+  }
   html += '</table></div></div>';
 
-  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mesesFinalizados.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   prodUnidades.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}<td class="num">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
+    const prom = promedioCeldas(p.meses, mesesFinalizados, false);
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${prom}</td>`:''}<td class="num" data-val="${p.total}">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
   });
+  {
+    const totMes = {}; meses.forEach(m => { totMes[m] = prodUnidades.reduce((s,p) => s+(p.meses[m]||0),0); });
+    const totGeneral = prodUnidades.reduce((s,p) => s+p.total, 0);
+    const promTot = promedioCeldas(totMes, mesesFinalizados, false);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num" data-val="${totMes[m]}">${totMes[m]?Math.round(totMes[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mesesFinalizados.length?`<td class="num" style="color:var(--neon);">${promTot}</td>`:''}<td class="num" data-val="${totGeneral}">${Math.round(totGeneral).toLocaleString('es-CO')}</td></tr>`;
+  }
   html += '</table></div></div></div>';
 
   // Facturas — pivote por nro_documento
@@ -2885,10 +2920,11 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   el.innerHTML = html;
   habilitarOrdenTablas(el);
 
-  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined));
-  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined));
-  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined));
+  activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined, undefined));
+  activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined, undefined));
+  activarMultiSelect('clFamilia', (vals) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, vals));
 
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-clKam');
@@ -2899,28 +2935,29 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     fila.addEventListener('click', () => {
       const actuales = CLIENTES_SUCURSAL || [];
       const nuevo = actuales.includes(fila.dataset.sucursal) ? actuales.filter(v=>v!==fila.dataset.sucursal) : [...actuales, fila.dataset.sucursal];
-      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined);
+      loadClientes(undefined, undefined, undefined, nuevo, undefined, undefined, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-referencia').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined);
+      loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined, undefined);
     });
   });
   el.querySelectorAll('.fila-cl-factura').forEach(fila => {
     fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc);
+      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc, undefined);
     });
   });
 
   activarBarraFiltros(el, {
-    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined),
-    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
-    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined),
-    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined),
-    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined),
-    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null)
-  }, () => loadClientes([], [], [], [], null, null));
+    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined, undefined),
+    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined),
+    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
+    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined, undefined),
+    familia: (v) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, (CLIENTES_FAMILIA||[]).filter(x=>x!==v)),
+    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined, undefined),
+    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null, undefined)
+  }, () => loadClientes([], [], [], [], null, null, []));
 }
 
 function loadCargarVentas() {
