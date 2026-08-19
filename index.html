@@ -39,11 +39,13 @@
   </header>
   <main>
     <div class="tabs tabs-fila1">
+      <div class="tab" data-tab="okr">OKR</div>
       <div class="tab" data-tab="ejecutivo">Directivo</div>
       <div class="tab active" data-tab="tablerocontrol">Tablero de Control</div>
       <div class="tab" data-tab="remisiones">Remisiones</div>
       <div class="tab" data-tab="cartera">Cartera</div>
       <div class="tab" data-tab="facilitadores">Facilitadores</div>
+      <div class="tab" data-tab="nps">NPS</div>
     </div>
     <div class="tabs tabs-fila2">
       <div class="tab" data-tab="oportunidades">Oportunidades</div>
@@ -65,6 +67,7 @@
       <div id="opKam-holder"></div>
     </div>
 
+    <div id="view-okr" class="hidden"></div>
     <div id="view-ejecutivo">
       <div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
@@ -94,6 +97,7 @@
     <div id="view-tablerocontrol" class="hidden"></div>
     <div id="view-usuarios" class="hidden"></div>
     <div id="view-facilitadores" class="hidden"></div>
+    <div id="view-nps" class="hidden"></div>
     <div id="view-clientes" class="hidden"></div>
     <div id="view-cartera" class="hidden"></div>
     <div id="view-cargar" class="hidden"></div>
