@@ -123,7 +123,7 @@ async function showApp() {
   document.getElementById('app').classList.remove('hidden');
   if (!ROL) ROL = 'admin'; // sesiones antiguas antes de roles
   aplicarRestriccionesRol();
-  loadTab('ejecutivo');
+  loadTab('tablerocontrol');
   setTimeout(ajustarStickyResponsive, 50);
 }
 
@@ -2795,6 +2795,7 @@ let CLIENTES_CLIENTE = [];
 let CLIENTES_SUCURSAL = [];
 let CLIENTES_REFERENCIA = null;
 let CLIENTES_NRO_DOCUMENTO = null;
+let CLIENTES_FAMILIA = [];
 let CLIENTES_FILTROS_HTML = '';
 
 async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento, familia) {
