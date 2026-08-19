@@ -123,7 +123,6 @@ async function showApp() {
   document.getElementById('app').classList.remove('hidden');
   if (!ROL) ROL = 'admin';
   aplicarRestriccionesRol();
-  poblarSelectMeses();
   loadTab('tablerocontrol');
   setTimeout(ajustarStickyResponsive, 50);
 }
