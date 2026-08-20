@@ -1048,7 +1048,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   const total = data.reduce((s,c) => s + (c.total||0), 0);
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1213,7 +1213,7 @@ async function loadTicket(kam, cliente, sucursal, mes) {
   }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1316,7 +1316,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
 
   const fFiltros = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (fFiltros.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (fFiltros.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (fFiltros.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
@@ -1461,7 +1461,7 @@ async function loadPerdidos(kam) {
     if (c.delta_liquidos < 0) detalles.push(`Líquidos ${money(c.delta_liquidos)}`);
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor||''))}</td>
       <td class="num money">${money(c.total_ant2)}</td><td class="num money">${money(c.total_ant1)}</td><td class="num money">${money(c.promedio_2m)}</td><td class="num money">${money(c.total_act)}</td>
-      <td class="num" style="color:#ff6b6b;font-weight:700;">${money(c.caida_total)} (${c.caida_pct}%)</td>
+      <td class="num" style="color:#ff6b6b;font-weight:700;" data-val="${c.caida_total}">${money(c.caida_total)} (${c.caida_pct}%)</td>
       <td style="font-size:11px;color:var(--text-dim);">${detalles.join(' · ') || '—'}</td></tr>`;
   });
   html += '</table></div>';
@@ -2581,7 +2581,7 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: c }));
   const opcionesTipo = (f.tipos||[]).slice().sort().map(t => ({ value: t, label: t }));
 
@@ -2811,10 +2811,19 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
-  const opcionesMeses = MESES.slice(0,7).map((m,i) => ({ value: String(i+1), label: m }));
+  const opcionesMeses = MESES.slice(0, new Date().getMonth()+1).map((m,i) => ({ value: String(i+1), label: m }));
   const opcionesKam = (f.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (f.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
+
+  const mesActual = new Date().getMonth() + 1;
+  const mesesFinalizados = meses => meses.filter(m => m < mesActual);
+  const promedioCeldas = (itemMeses, listaMeses, esMoneda) => {
+    const conVenta = listaMeses.filter(m => itemMeses[m] && itemMeses[m] > 0);
+    if (!conVenta.length) return '';
+    const prom = conVenta.reduce((s,m) => s+itemMeses[m], 0) / conVenta.length;
+    return esMoneda ? money(prom) : Math.round(prom).toLocaleString('es-CO');
+  };
 
   const meses = [...new Set([
     ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
@@ -2839,10 +2848,12 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
 
   // Top Clientes — pivote por sucursal
   const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
-  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  const mFin = mesesFinalizados(meses);
+  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   topClientes.forEach(c => {
     const activo = (CLIENTES_SUCURSAL||[]).includes(c.sucursal_despacho);
-    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}<td class="num money">${money(c.total)}</td></tr>`;
+    const promTC = promedioCeldas(c.meses, mFin, true);
+    html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTC}</td>`:''}<td class="num money" data-val="${c.total}">${money(c.total)}</td></tr>`;
   });
   html += '</table></div></div>';
 
@@ -2851,17 +2862,19 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   const prodUnidades = pivotarPorMes(r.productos_unidades, f => ({ id: f.referencia, referencia: f.referencia, descripcion: f.descripcion }), 'unidades');
 
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:16px;">';
-  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [$] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   prodValor.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}<td class="num money">${money(p.total)}</td></tr>`;
+    const promPV = promedioCeldas(p.meses, mFin, true);
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promPV}</td>`:''}<td class="num money" data-val="${p.total}">${money(p.total)}</td></tr>`;
   });
   html += '</table></div></div>';
 
-  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   prodUnidades.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
-    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}<td class="num">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
+    const promPU = promedioCeldas(p.meses, mFin, false);
+    html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mFin.length?`<td class="num" style="color:var(--neon);">${promPU}</td>`:''}<td class="num" data-val="${p.total}">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
   });
   html += '</table></div></div></div>';
 
