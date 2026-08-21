@@ -2835,8 +2835,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   };
 
   const meses = [...new Set([
-    ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes),
-    ...(r.facturas||[]).map(x=>x.mes)
+    ...(r.top_clientes||[]).map(x=>x.mes), ...(r.productos_valor||[]).map(x=>x.mes)
   ])].sort((a,b)=>a-b);
 
   let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
@@ -2887,14 +2886,13 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   });
   html += '</table></div></div></div>';
 
-  // Facturas — pivote por nro_documento
-  const facturas = pivotarPorMes(r.facturas, f => ({ id: f.nro_documento, nro_documento: f.nro_documento }), 'valor');
-  html += `<div class="card"><h2>Facturas (clic para filtrar) — ${facturas.length} documentos</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Nro. documento</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
-  facturas.forEach(f => {
-    const activo = CLIENTES_NRO_DOCUMENTO === f.nro_documento;
-    html += `<tr class="fila-cl-factura" data-nrodoc="${esc(f.nro_documento)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(f.nro_documento)}</td>${meses.map(m => `<td class="num money">${f.meses[m]?money(f.meses[m]):''}</td>`).join('')}<td class="num money">${money(f.total)}</td></tr>`;
-  });
-  html += '</table></div></div>';
+  // Facturas — se cargan bajo demanda con botón (evita payload pesado en cada carga)
+  html += `<div class="card">
+    <h2>Facturas</h2>
+    <div id="cl-facturas-contenido">
+      <button id="btnCargarFacturas" style="width:auto;padding:8px 16px;">📄 Cargar facturas</button>
+    </div>
+  </div>`;
 
   el.innerHTML = html;
   habilitarOrdenTablas(el);
@@ -2921,11 +2919,40 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
       loadClientes(undefined, undefined, undefined, undefined, CLIENTES_REFERENCIA === fila.dataset.referencia ? null : fila.dataset.referencia, undefined);
     });
   });
-  el.querySelectorAll('.fila-cl-factura').forEach(fila => {
-    fila.addEventListener('click', () => {
-      loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc);
+  const btnCargarFacturas = document.getElementById('btnCargarFacturas');
+  if (btnCargarFacturas) {
+    btnCargarFacturas.addEventListener('click', async () => {
+      btnCargarFacturas.textContent = 'Cargando...';
+      btnCargarFacturas.disabled = true;
+      const rf = await rpc('dash_clientes_facturas', {
+        p_token: TOKEN,
+        p_mes: (CLIENTES_MES && CLIENTES_MES.length) ? CLIENTES_MES.map(m=>parseInt(m)) : null,
+        p_kam: (CLIENTES_KAM && CLIENTES_KAM.length) ? CLIENTES_KAM : null,
+        p_cliente: (CLIENTES_CLIENTE && CLIENTES_CLIENTE.length) ? CLIENTES_CLIENTE : null,
+        p_sucursal: (CLIENTES_SUCURSAL && CLIENTES_SUCURSAL.length) ? CLIENTES_SUCURSAL : null,
+        p_referencia: CLIENTES_REFERENCIA || null,
+        p_nro_documento: CLIENTES_NRO_DOCUMENTO || null,
+        p_familia: (CLIENTES_FAMILIA && CLIENTES_FAMILIA.length) ? CLIENTES_FAMILIA : null
+      });
+      const cont = document.getElementById('cl-facturas-contenido');
+      if (!rf.ok) { cont.innerHTML = `<div style="color:#ff6b6b;">${rf.error||'Error al cargar facturas'}</div>`; return; }
+      const mesesFact = [...new Set((rf.facturas||[]).map(x=>x.mes))].sort((a,b)=>a-b);
+      const facturas = pivotarPorMes(rf.facturas, f => ({ id: f.nro_documento, nro_documento: f.nro_documento }), 'valor');
+      let htmlF = `<div style="max-height:420px;overflow-y:auto;"><table><tr><th>Nro. documento</th>${mesesFact.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+      facturas.forEach(f => {
+        const activo = CLIENTES_NRO_DOCUMENTO === f.nro_documento;
+        htmlF += `<tr class="fila-cl-factura" data-nrodoc="${esc(f.nro_documento)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(f.nro_documento)}</td>${mesesFact.map(m => `<td class="num money">${f.meses[m]?money(f.meses[m]):''}</td>`).join('')}<td class="num money" data-val="${f.total}">${money(f.total)}</td></tr>`;
+      });
+      htmlF += '</table></div>';
+      cont.innerHTML = `<div style="margin-bottom:8px;font-size:12px;color:var(--text-dim);">${facturas.length} documentos</div>` + htmlF;
+      habilitarOrdenTablas(cont);
+      cont.querySelectorAll('.fila-cl-factura').forEach(fila => {
+        fila.addEventListener('click', () => {
+          loadClientes(undefined, undefined, undefined, undefined, undefined, CLIENTES_NRO_DOCUMENTO === fila.dataset.nrodoc ? null : fila.dataset.nrodoc, undefined);
+        });
+      });
     });
-  });
+  }
 
   activarBarraFiltros(el, {
     mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined),
