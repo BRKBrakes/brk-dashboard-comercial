@@ -218,8 +218,17 @@ async function loadTopKam() {
   const r = await rpc('dash_top5_kam', { p_token: TOKEN });
   if (!r.ok || !r.data || !r.data.length) { el.innerHTML = ''; return; }
 
-  // Para cada KAM, traer sus sucursales más afectadas (cayendo o sin compra)
-  const detalles = await Promise.all(r.data.map(k => rpc('dash_recuperacion', { p_token: TOKEN, p_kam: [k.nombre] })));
+  // Una sola llamada trae todos los KAMs, luego se agrupa en frontend
+  const detAll = await rpc('dash_recuperacion', { p_token: TOKEN, p_kam: null });
+  const detalles = r.data.map(k => {
+    if (!detAll.ok) return { ok: false };
+    const nombreNorm = (k.nombre||'').toUpperCase().trim();
+    return {
+      ok: true,
+      cayendo: (detAll.cayendo||[]).filter(c => (c.vendedor||'').toUpperCase().trim() === nombreNorm),
+      sin_compra_60d: (detAll.sin_compra_60d||[]).filter(c => (c.vendedor||'').toUpperCase().trim() === nombreNorm)
+    };
+  });
 
   let html = '<div class="card" style="border:1px solid var(--neon);height:100%;"><h2 style="color:var(--neon);">Top 5 · KAM con más oportunidad por cumplimiento</h2>';
   r.data.forEach((k, i) => {
