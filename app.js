@@ -1525,11 +1525,14 @@ function renderPlanes() {
     datos.forEach(p => {
       const activoTipo = (PLANES_TIPO_SEL||[]).includes(p.tipo_plan);
       const activoKam = (PLANES_KAM_SEL||[]).includes(p.vendedor);
+      const colorEstado = (p.estado === 'pendiente' || p.estado === 'descartado') ? '#ff6b6b'
+        : p.estado === 'gestionado' ? '#ff9f43'
+        : p.estado === 'ganado' ? '#4ade80' : 'var(--text)';
       html += `<tr><td>${esc(p.cliente)}</td><td>${esc(p.sucursal||'')}</td>
         <td class="fila-plan-tipo" data-tipo="${esc(p.tipo_plan)}" style="cursor:pointer;${activoTipo?'background:#2a2e24;':''}">${esc(p.tipo_plan)}</td>
         <td class="fila-plan-kam" data-kam="${esc(p.vendedor||'')}" style="cursor:pointer;${activoKam?'background:#2a2e24;':''}">${esc(titleCase(p.vendedor||''))}</td>
-        <td class="num money">${money(p.potencial_mes)}</td><td>
-        <select class="estado" data-id="${p.id}">
+        <td class="num money" data-val="${p.potencial_mes||0}">${money(p.potencial_mes)}</td><td data-val="${esc(p.estado||'')}">
+        <select class="fila-plan-estado" data-id="${p.id}" style="color:${colorEstado};font-weight:700;border-color:${colorEstado};">
           <option value="pendiente" ${p.estado==='pendiente'?'selected':''}>Pendiente</option>
           <option value="gestionado" ${p.estado==='gestionado'?'selected':''}>Gestionado</option>
           <option value="ganado" ${p.estado==='ganado'?'selected':''}>Ganado</option>
@@ -1543,9 +1546,17 @@ function renderPlanes() {
   el.innerHTML = html;
   habilitarOrdenTablas(el);
 
-  el.querySelectorAll('.estado').forEach(sel => {
+  el.querySelectorAll('.fila-plan-estado').forEach(sel => {
     sel.addEventListener('change', async () => {
       await rpc('dash_planes_actualizar_estado', { p_token: TOKEN, p_id: parseInt(sel.dataset.id), p_estado: sel.value });
+      const colorEstado = (sel.value === 'pendiente' || sel.value === 'descartado') ? '#ff6b6b'
+        : sel.value === 'gestionado' ? '#ff9f43'
+        : sel.value === 'ganado' ? '#4ade80' : 'var(--text)';
+      sel.style.color = colorEstado;
+      sel.style.borderColor = colorEstado;
+      if (sel.parentElement) sel.parentElement.dataset.val = sel.value;
+      const item = PLANES_DATA.find(p => p.id === parseInt(sel.dataset.id));
+      if (item) item.estado = sel.value;
     });
   });
   el.querySelectorAll('.fila-plan-tipo').forEach(fila => {
@@ -1604,8 +1615,16 @@ function ordenarTabla(table, colIdx, dir) {
   const totales = dataRows.filter(r => /TOTAL|EQUIPO BRK/i.test(r.textContent));
   const normales = dataRows.filter(r => !totales.includes(r));
   normales.sort((a, b) => {
-    const va = parseCeldaValor(a.children[colIdx]?.textContent);
-    const vb = parseCeldaValor(b.children[colIdx]?.textContent);
+    const cA = a.children[colIdx];
+    const cB = b.children[colIdx];
+    const rawA = cA?.dataset?.val;
+    const rawB = cB?.dataset?.val;
+    if (rawA !== undefined && rawB !== undefined) {
+      const na = parseFloat(rawA), nb = parseFloat(rawB);
+      if (!isNaN(na) && !isNaN(nb)) return dir === 'asc' ? na - nb : nb - na;
+    }
+    const va = parseCeldaValor(cA?.textContent);
+    const vb = parseCeldaValor(cB?.textContent);
     if (typeof va === 'string' || typeof vb === 'string') {
       return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     }
@@ -2863,6 +2882,12 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const promTC = promedioCeldas(c.meses, mFin, true);
     html += `<tr class="fila-cl-sucursal" data-sucursal="${esc(c.sucursal_despacho)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.sucursal_despacho)}</td>${meses.map(m => `<td class="num money">${c.meses[m]?money(c.meses[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTC}</td>`:''}<td class="num money" data-val="${c.total}">${money(c.total)}</td></tr>`;
   });
+  {
+    const totMesTC = {}; meses.forEach(m => { totMesTC[m] = topClientes.reduce((s,c)=>s+(c.meses[m]||0),0); });
+    const totGenTC = topClientes.reduce((s,c)=>s+c.total,0);
+    const promTotTC = promedioCeldas(totMesTC, mFin, true);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMesTC[m]}">${totMesTC[m]?money(totMesTC[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTotTC}</td>`:''}<td class="num money" data-val="${totGenTC}">${money(totGenTC)}</td></tr>`;
+  }
   html += '</table></div></div>';
 
   // Productos más vendidos [$] y [#] — lado a lado
@@ -2876,6 +2901,12 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const promPV = promedioCeldas(p.meses, mFin, true);
     html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num money">${p.meses[m]?money(p.meses[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promPV}</td>`:''}<td class="num money" data-val="${p.total}">${money(p.total)}</td></tr>`;
   });
+  {
+    const totMesPV = {}; meses.forEach(m => { totMesPV[m] = prodValor.reduce((s,p)=>s+(p.meses[m]||0),0); });
+    const totGenPV = prodValor.reduce((s,p)=>s+p.total,0);
+    const promTotPV = promedioCeldas(totMesPV, mFin, true);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMesPV[m]}">${totMesPV[m]?money(totMesPV[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTotPV}</td>`:''}<td class="num money" data-val="${totGenPV}">${money(totGenPV)}</td></tr>`;
+  }
   html += '</table></div></div>';
 
   html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
@@ -2884,6 +2915,12 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const promPU = promedioCeldas(p.meses, mFin, false);
     html += `<tr class="fila-cl-referencia" data-referencia="${esc(p.referencia)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td title="${esc(p.descripcion||'')}">${esc(p.referencia)}</td>${meses.map(m => `<td class="num">${p.meses[m]?Math.round(p.meses[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mFin.length?`<td class="num" style="color:var(--neon);">${promPU}</td>`:''}<td class="num" data-val="${p.total}">${Math.round(p.total).toLocaleString('es-CO')}</td></tr>`;
   });
+  {
+    const totMesPU = {}; meses.forEach(m => { totMesPU[m] = prodUnidades.reduce((s,p)=>s+(p.meses[m]||0),0); });
+    const totGenPU = prodUnidades.reduce((s,p)=>s+p.total,0);
+    const promTotPU = promedioCeldas(totMesPU, mFin, false);
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num" data-val="${totMesPU[m]}">${totMesPU[m]?Math.round(totMesPU[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mFin.length?`<td class="num" style="color:var(--neon);">${promTotPU}</td>`:''}<td class="num" data-val="${totGenPU}">${Math.round(totGenPU).toLocaleString('es-CO')}</td></tr>`;
+  }
   html += '</table></div></div></div>';
 
   // Facturas — se cargan bajo demanda con botón (evita payload pesado en cada carga)
