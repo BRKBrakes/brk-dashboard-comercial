@@ -44,7 +44,7 @@
   .tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;background:var(--bg);padding:6px 0;}
   .tabs-fila1{position:sticky;top:var(--header-h, 70px);z-index:91;margin-bottom:0;}
   .tabs-fila2{position:sticky;top:var(--header-fila1-bottom, 116px);z-index:90;margin-bottom:20px;}
-  .tab{padding:8px 16px;border-radius:6px;background:var(--card);color:var(--text-dim);cursor:pointer;font-size:13px;border:1px solid var(--dust);}
+  .tab{padding:8px 16px;border-radius:6px;background:var(--card);color:var(--text-dim);cursor:pointer;font-size:13px;border:1px solid var(--dust);text-transform:uppercase;font-weight:700;letter-spacing:0.5px;}
   .tab.active{background:var(--forest);color:var(--neon);border-color:var(--neon);}
 
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
