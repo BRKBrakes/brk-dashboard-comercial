@@ -35,7 +35,7 @@
   header .right img{height:26px;}
   header button{width:auto;padding:8px 16px;background:transparent;color:var(--silver);border:1px solid var(--dust);}
 
-  main{padding:24px;max-width:1200px;margin:0 auto;}
+  main{padding:24px 32px;width:100%;box-sizing:border-box;}
   @media (max-width: 640px){
     main{padding:12px;}
     .card{padding:12px;}
