@@ -1109,6 +1109,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
 let SEGMENTACION_DATA = [];
 let SEGMENTACION_FILTRO = [];
 let SEGMENTACION_KAM = [];
+let SEGMENTACION_DIAS = ''; // '', 'verde', 'naranja', 'rojo'
 
 function renderSegmentacionTabla() {
   const el = document.getElementById('view-segmentacion');
@@ -1122,14 +1123,22 @@ function renderSegmentacionTabla() {
 
   const kams = [...new Set(SEGMENTACION_DATA.map(c => c.vendedor))].sort();
   const opcionesKam = kams.map(k => ({ value: k, label: titleCase(k) }));
-  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <span style="font-size:12px;color:var(--text-dim);">KAM:</span>
     <div id="ms-wrap-segKam-holder">${renderMultiSelect('segKam', opcionesKam, SEGMENTACION_KAM, 'Todos')}</div>
+    <span style="font-size:12px;color:var(--text-dim);margin-left:12px;">Días sin comprar:</span>
+    <select id="segDias" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Todos</option>
+      <option value="verde" ${SEGMENTACION_DIAS==='verde'?'selected':''}>0-29 días</option>
+      <option value="naranja" ${SEGMENTACION_DIAS==='naranja'?'selected':''}>30-59 días</option>
+      <option value="rojo" ${SEGMENTACION_DIAS==='rojo'?'selected':''}>60+ días</option>
+    </select>
   </div>`;
 
   html += renderBarraFiltros([
     { id: 'kam', label: 'KAM', valor: SEGMENTACION_KAM, etiquetaDe: v => titleCase(v) },
-    { id: 'segmento', label: 'Segmento', valor: SEGMENTACION_FILTRO }
+    { id: 'segmento', label: 'Segmento', valor: SEGMENTACION_FILTRO },
+    { id: 'dias', label: 'Días sin comprar', valor: SEGMENTACION_DIAS ? [SEGMENTACION_DIAS] : [], etiquetaDe: v => v==='verde'?'0-29 días':v==='naranja'?'30-59 días':'60+ días' }
   ]);
 
   const totalGeneral = baseData.reduce((s,c) => s + (c.total||0), 0);
@@ -1144,12 +1153,17 @@ function renderSegmentacionTabla() {
   });
   html += '</div>';
 
-  const filtrados = (SEGMENTACION_FILTRO && SEGMENTACION_FILTRO.length) ? baseData.filter(c => SEGMENTACION_FILTRO.includes(c.segmento)) : baseData;
+  let filtrados = (SEGMENTACION_FILTRO && SEGMENTACION_FILTRO.length) ? baseData.filter(c => SEGMENTACION_FILTRO.includes(c.segmento)) : baseData;
+  if (SEGMENTACION_DIAS === 'verde') filtrados = filtrados.filter(c => (c.dias_sin_compra||0) <= 29);
+  if (SEGMENTACION_DIAS === 'naranja') filtrados = filtrados.filter(c => (c.dias_sin_compra||0) >= 30 && (c.dias_sin_compra||0) <= 59);
+  if (SEGMENTACION_DIAS === 'rojo') filtrados = filtrados.filter(c => (c.dias_sin_compra||0) >= 60);
   html += `<div class="card"><h2>Detalle por sucursal</h2>
     <table><tr><th>Cliente</th><th>Sucursal</th><th>Segmento</th><th>Vendedor</th><th>Ciudad</th><th class="num">Total 2026</th><th class="num">% del total</th><th class="num">Días sin comprar</th></tr>`;
   filtrados.forEach(c => {
     const pctFila = totalGeneral ? Math.round(((c.total||0)/totalGeneral)*1000)/10 : 0;
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${c.segmento}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td><td class="num">${c.dias_sin_compra}</td></tr>`;
+    const dias = c.dias_sin_compra||0;
+    const colorDias = dias >= 60 ? '#ff6b6b' : dias >= 30 ? '#ff9f43' : '#4ade80';
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${c.segmento}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num money" data-val="${c.total||0}">${money(c.total)}</td><td class="num" data-val="${pctFila}">${pctFila}%</td><td class="num" data-val="${dias}" style="color:${colorDias};font-weight:700;">${dias}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -1157,6 +1171,8 @@ function renderSegmentacionTabla() {
   autoFitKpis();
 
   activarMultiSelect('segKam', (vals) => { SEGMENTACION_KAM = vals; renderSegmentacionTabla(); });
+  const selDias = document.getElementById('segDias');
+  if (selDias) selDias.addEventListener('change', () => { SEGMENTACION_DIAS = selDias.value; renderSegmentacionTabla(); });
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-segKam');
     if (wrap) wrap.style.display = 'none';
@@ -1171,8 +1187,9 @@ function renderSegmentacionTabla() {
   });
   activarBarraFiltros(el, {
     kam: (v) => { SEGMENTACION_KAM = (SEGMENTACION_KAM||[]).filter(x=>x!==v); renderSegmentacionTabla(); },
-    segmento: (v) => { SEGMENTACION_FILTRO = (SEGMENTACION_FILTRO||[]).filter(x=>x!==v); renderSegmentacionTabla(); }
-  }, () => { SEGMENTACION_KAM = []; SEGMENTACION_FILTRO = []; renderSegmentacionTabla(); });
+    segmento: (v) => { SEGMENTACION_FILTRO = (SEGMENTACION_FILTRO||[]).filter(x=>x!==v); renderSegmentacionTabla(); },
+    dias: () => { SEGMENTACION_DIAS = ''; renderSegmentacionTabla(); }
+  }, () => { SEGMENTACION_KAM = []; SEGMENTACION_FILTRO = []; SEGMENTACION_DIAS = ''; renderSegmentacionTabla(); });
 }
 
 async function loadSegmentacion() {
@@ -1622,6 +1639,7 @@ function ordenarTabla(table, colIdx, dir) {
     if (rawA !== undefined && rawB !== undefined) {
       const na = parseFloat(rawA), nb = parseFloat(rawB);
       if (!isNaN(na) && !isNaN(nb)) return dir === 'asc' ? na - nb : nb - na;
+      return dir === 'asc' ? String(rawA).localeCompare(String(rawB)) : String(rawB).localeCompare(String(rawA));
     }
     const va = parseCeldaValor(cA?.textContent);
     const vb = parseCeldaValor(cB?.textContent);

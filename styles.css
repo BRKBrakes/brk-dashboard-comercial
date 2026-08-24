@@ -54,7 +54,7 @@
   .kpi .value-sub{font-size:11px;color:var(--text-dim);margin-top:4px;white-space:normal;word-break:break-word;}
 
   .card{background:var(--card);border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid var(--dust);overflow-x:auto;max-width:100%;box-sizing:border-box;}
-  .card h2{margin:0 0 16px;font-size:14px;color:var(--silver);text-transform:uppercase;letter-spacing:1px;text-align:center;}
+  .card h2{margin:0 0 16px;font-size:14px;font-weight:700;color:var(--silver);text-transform:uppercase;letter-spacing:1px;text-align:center;}
   .card h3{text-align:center;text-transform:uppercase;letter-spacing:0.5px;}
 
   table{width:100%;min-width:520px;border-collapse:collapse;font-size:13px;}
@@ -62,8 +62,8 @@
     table{font-size:11px;}
     th, td{padding:6px 4px !important;}
   }
-  th{text-align:center !important;color:var(--text-dim);font-weight:700 !important;padding:8px;border-bottom:1px solid var(--dust);font-size:11px;text-transform:uppercase !important;}
-  td{padding:8px;border-bottom:1px solid #333630;}
+  th{text-align:center !important;color:var(--text-dim);font-weight:700 !important;padding:8px;border-bottom:1px solid var(--dust);font-size:13px;text-transform:uppercase !important;}
+  td{padding:8px;border-bottom:1px solid #333630;font-size:11px;}
   tr:hover td{background:#2a2e24;}
   .num{text-align:right;font-variant-numeric:tabular-nums;}
 
