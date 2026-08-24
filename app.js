@@ -148,6 +148,8 @@ function aplicarRestriccionesRol() {
       if (ROL === 'gerencia') oculto = TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
       if (ROL === 'logistica') oculto = !TABS_LOGISTICA.includes(tab.dataset.tab);
       if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr' || tab.dataset.tab === 'nps';
+      if (ROL === 'gerencia' && tab.dataset.tab === 'okrkam') oculto = true;
+      if (ROL === 'logistica' && tab.dataset.tab === 'okrkam') oculto = true;
     }
     tab.classList.toggle('hidden', oculto);
   });
@@ -165,6 +167,7 @@ const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov'
 
 async function loadTab(tab) {
   if (tab === 'okr') return loadOkr();
+  if (tab === 'okrkam') return loadOkrKam();
   if (tab === 'ejecutivo') return loadEjecutivo();
   if (tab === 'oportunidades' || tab === 'gapdiscos') return loadGapDiscos();
   if (tab === 'gapliquidos') return loadGapLiquidos();
@@ -264,6 +267,224 @@ async function loadTopAliados() {
   });
   html += '</div>';
   el.innerHTML = html;
+  habilitarOrdenTablas(el);
+}
+
+// ============================================================
+// OKR KAM — admin y colaborador
+// ============================================================
+let OKRKAM_MES = [];
+let OKRKAM_KAM = null; // null = todos (solo admin)
+
+const OKR_META_CLIENTES_NUEVOS_DEFAULT = 125000000;
+
+function okrkamGaugeSimple(val, max, label, invertido) {
+  const pct = Math.max(0, Math.min(val / max, 1));
+  const bueno = invertido ? val <= max : val >= max;
+  const color = bueno ? '#4ade80' : (invertido ? (val <= max*1.3 ? '#ff9f43' : '#ff6b6b') : (val >= max*0.7 ? '#ff9f43' : '#ff6b6b'));
+  return `<div style="text-align:center;min-width:150px;">
+    <svg viewBox="0 0 120 70" width="150" height="90">
+      <path d="M10,65 A50,50 0 0,1 110,65" fill="none" stroke="#333" stroke-width="10" stroke-linecap="round"/>
+      <path d="M10,65 A50,50 0 0,1 110,65" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${pct*157} 157"/>
+      <text x="60" y="55" text-anchor="middle" fill="${color}" font-size="15" font-weight="bold" font-family="monospace">${label.valor}</text>
+      <text x="60" y="68" text-anchor="middle" fill="#888" font-size="7" font-family="monospace">${label.titulo}</text>
+    </svg>
+  </div>`;
+}
+
+async function loadOkrKam() {
+  const el = document.getElementById('view-okrkam');
+  el.innerHTML = '<div class="loading">Cargando OKR KAM...</div>';
+  const mesActual = new Date().getMonth() + 1;
+  const opcionesMeses = MESES.slice(0, mesActual).map((m, i) => ({ value: String(i + 1), label: m }));
+  await renderOkrKam(el, opcionesMeses, mesActual);
+}
+
+async function renderOkrKam(el, opcionesMeses, mesActual) {
+  const mesFiltro = OKRKAM_MES.length ? OKRKAM_MES.map(m => parseInt(m)).sort((a,b)=>a-b) : null;
+  const mesesAct = mesFiltro || Array.from({ length: mesActual }, (_, i) => i + 1);
+  const mesDesde = mesesAct[0];
+  const mesHasta = mesesAct[mesesAct.length - 1];
+  const label = mesesAct.map(m => MESES[m-1]).join(', ');
+
+  const r = await rpc('dash_okr_kam', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026, p_kam: OKRKAM_KAM });
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sin acceso.'}</div>`; return; }
+
+  const presupuesto = r.presupuesto || [];
+  const tipoA = r.tipo_a || [];
+  const clientesNuevos = r.clientes_nuevos || [];
+  const metasCN = r.metas_clientes_nuevos || [];
+  const cierres = r.cierres_mensuales || [];
+  const carteraActual = r.cartera_actual || [];
+  const kamsDisponibles = r.kams_disponibles || [];
+  const esColaborador = ROL === 'colaborador';
+
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
+    ${renderMultiSelect('okrkamMes', opcionesMeses, OKRKAM_MES, 'Todos los meses')}`;
+
+  if (!esColaborador) {
+    html += `<span style="font-size:12px;color:var(--text-dim);margin-left:8px;">KAM:</span>
+    <select id="okrkamSelKam" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Todos los KAM</option>
+      ${kamsDisponibles.map(k => `<option value="${esc(k)}" ${OKRKAM_KAM===k?'selected':''}>${titleCase(k)}</option>`).join('')}
+    </select>`;
+  }
+  html += `</div>`;
+
+  // ── Vista TODOS los KAM: tabla resumen ──────────────────────
+  if (!OKRKAM_KAM) {
+    html += `<div class="card">
+      <h2>Resumen OKR por KAM (${label})</h2>
+      <table>
+        <tr><th>KAM</th><th class="num">% Presupuesto</th><th class="num">Crec. Tipo A</th>
+        <th class="num">Clientes Nuevos $</th><th class="num">Cartera >60% Hoy</th><th class="num">DSO Últ. Cierre</th></tr>
+        ${kamsDisponibles.map(kam => {
+          const p = presupuesto.find(x => x.kam === kam) || {};
+          const t = tipoA.find(x => x.kam === kam) || {};
+          const cnKam = clientesNuevos.filter(x => x.kam === kam);
+          const cnTotal = cnKam.reduce((s,c) => s + (c.venta_periodo||0), 0);
+          const ca = carteraActual.find(x => x.kam === kam) || {};
+          const cierresKam = cierres.filter(x => x.kam === kam).sort((a,b) => b.mes - a.mes);
+          const ultDso = cierresKam.length ? cierresKam[0].dso : null;
+
+          const pctPres = p.presupuesto ? Math.round((p.facturado / p.presupuesto) * 100) : null;
+          const colorPres = pctPres === null ? 'var(--text-dim)' : pctPres >= 100 ? '#4ade80' : pctPres >= 80 ? '#ff9f43' : '#ff6b6b';
+          const crecTipoA = t.venta2025 ? Math.round(((t.venta2026 - t.venta2025)/t.venta2025)*100) : null;
+          const colorTipoA = crecTipoA === null ? 'var(--text-dim)' : crecTipoA >= 10 ? '#4ade80' : crecTipoA >= 0 ? '#ff9f43' : '#ff6b6b';
+          const colorCartera = ca.pct_60 === undefined ? 'var(--text-dim)' : ca.pct_60 <= 2.8 ? '#4ade80' : ca.pct_60 <= 5 ? '#ff9f43' : '#ff6b6b';
+          const colorDso = ultDso === null ? 'var(--text-dim)' : ultDso <= 60 ? '#4ade80' : ultDso <= 75 ? '#ff9f43' : '#ff6b6b';
+
+          return `<tr class="fila-okrkam" data-kam="${esc(kam)}" style="cursor:pointer;">
+            <td>${esc(titleCase(kam))}</td>
+            <td class="num" data-val="${pctPres||0}" style="color:${colorPres};font-weight:700;">${pctPres!==null?pctPres+'%':'—'}</td>
+            <td class="num" data-val="${crecTipoA||0}" style="color:${colorTipoA};font-weight:700;">${crecTipoA!==null?(crecTipoA>=0?'+':'')+crecTipoA+'%':'—'}</td>
+            <td class="num money" data-val="${cnTotal}">${money(cnTotal)}</td>
+            <td class="num" data-val="${ca.pct_60||0}" style="color:${colorCartera};font-weight:700;">${ca.pct_60!==undefined?ca.pct_60+'%':'—'}</td>
+            <td class="num" data-val="${ultDso||0}" style="color:${colorDso};font-weight:700;">${ultDso!==null?ultDso+'d':'—'}</td>
+          </tr>`;
+        }).join('')}
+      </table>
+      <p style="font-size:11px;color:var(--text-dim);margin-top:10px;">Clic en una fila para ver el detalle del KAM.</p>
+    </div>`;
+
+    el.innerHTML = html;
+    activarMultiSelect('okrkamMes', async (vals) => { OKRKAM_MES = vals; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
+    const selKam = document.getElementById('okrkamSelKam');
+    if (selKam) selKam.addEventListener('change', async () => { OKRKAM_KAM = selKam.value || null; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
+    el.querySelectorAll('.fila-okrkam').forEach(fila => {
+      fila.addEventListener('click', async () => { OKRKAM_KAM = fila.dataset.kam; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
+    });
+    habilitarOrdenTablas(el);
+    return;
+  }
+
+  // ── Vista KAM individual: detalle O1 y O2 ───────────────────
+  const kamNombre = OKRKAM_KAM;
+  const p = presupuesto.find(x => x.kam === kamNombre) || {};
+  const t = tipoA.find(x => x.kam === kamNombre) || {};
+  const cnKam = clientesNuevos.filter(x => x.kam === kamNombre);
+  const cnTotal = cnKam.reduce((s,c) => s + (c.venta_periodo||0), 0);
+  const metaCN = (metasCN.find(x => x.kam === kamNombre) || {}).meta_clientes_nuevos || OKR_META_CLIENTES_NUEVOS_DEFAULT;
+  const ca = carteraActual.find(x => x.kam === kamNombre) || {};
+  const cierresKam = cierres.filter(x => x.kam === kamNombre).sort((a,b) => a.mes - b.mes);
+  const ultimoCierre = cierresKam.length ? cierresKam[cierresKam.length-1] : null;
+
+  const pctPres = p.presupuesto ? Math.round((p.facturado / p.presupuesto) * 100) : null;
+  const crecTipoA = t.venta2025 ? Math.round(((t.venta2026 - t.venta2025)/t.venta2025)*100) : null;
+  const pctCN = metaCN ? Math.round((cnTotal / metaCN) * 100) : null;
+
+  if (!esColaborador) {
+    html += `<div style="margin-bottom:12px;">
+      <button id="btnVolverOkrKam" style="width:auto;padding:6px 14px;font-size:12px;">← Volver al resumen</button>
+    </div>`;
+  }
+
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">O1 · Crecimiento — ${esc(titleCase(kamNombre))} (${label})</h2>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:16px 0;">
+      ${okrkamGaugeSimple(p.facturado||0, p.presupuesto||1, {titulo:'% PRESUPUESTO', valor:(pctPres!==null?pctPres+'%':'—')}, false)}
+      ${okrkamGaugeSimple(t.venta2026||0, (t.venta2025||1)*1.1, {titulo:'CREC. TIPO A', valor:(crecTipoA!==null?(crecTipoA>=0?'+':'')+crecTipoA+'%':'—')}, false)}
+      ${okrkamGaugeSimple(cnTotal, metaCN, {titulo:'CLIENTES NUEVOS', valor:(pctCN!==null?pctCN+'%':'—')}, false)}
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Facturado / Presupuesto</div><div class="value" style="font-size:16px;">${money(p.facturado||0)} / ${money(p.presupuesto||0)}</div></div>
+      <div class="kpi"><div class="label">Tipo A: ${label} 2026 vs 2025</div><div class="value" style="font-size:16px;">${money(t.venta2026||0)} / ${money(t.venta2025||0)}</div></div>
+      <div class="kpi"><div class="label">Clientes Nuevos vs Meta</div><div class="value" style="font-size:16px;">${money(cnTotal)} / ${money(metaCN)}</div></div>
+    </div>
+  </div>`;
+
+  // Tabla de clientes nuevos
+  if (cnKam.length) {
+    html += `<div class="card" style="margin-bottom:16px;">
+      <h2>Detalle Clientes Nuevos</h2>
+      <table><tr><th>Cliente</th><th>Fecha ingreso</th><th class="num">Venta ${label}</th></tr>
+      ${cnKam.map(c => `<tr><td>${esc(c.cliente)}</td><td>${c.fecha_ingreso ? new Date(c.fecha_ingreso).toLocaleDateString('es-CO') : '—'}</td><td class="num money" data-val="${c.venta_periodo}">${money(c.venta_periodo)}</td></tr>`).join('')}
+      </table>
+    </div>`;
+  }
+
+  // O2 Cartera y DSO
+  const colorCarteraHoy = ca.pct_60 === undefined ? 'var(--text-dim)' : ca.pct_60 <= 2.8 ? '#4ade80' : ca.pct_60 <= 5 ? '#ff9f43' : '#ff6b6b';
+  const colorDsoUlt = !ultimoCierre ? 'var(--text-dim)' : ultimoCierre.dso <= 60 ? '#4ade80' : ultimoCierre.dso <= 75 ? '#ff9f43' : '#ff6b6b';
+
+  html += `<div class="card" style="margin-bottom:16px;">
+    <h2 style="color:var(--neon);">O2 · Cartera</h2>
+    <div class="kpis" style="margin-bottom:16px;">
+      <div class="kpi"><div class="label">Cartera >60 días (hoy en vivo)</div><div class="value" style="color:${colorCarteraHoy};">${ca.pct_60!==undefined?ca.pct_60+'%':'—'}</div></div>
+      <div class="kpi"><div class="label">DSO (último cierre guardado)</div><div class="value" style="color:${colorDsoUlt};">${ultimoCierre?ultimoCierre.dso+' días':'Sin cerrar aún'}</div></div>
+    </div>
+    ${cierresKam.length ? `<table><tr><th>Mes</th><th class="num">Cartera Total</th><th class="num">Cartera >60</th><th class="num">% >60</th><th class="num">DSO</th></tr>
+      ${cierresKam.map(c => {
+        const cp = c.cartera_60_pct <= 2.8 ? '#4ade80' : c.cartera_60_pct <= 5 ? '#ff9f43' : '#ff6b6b';
+        const dp = c.dso <= 60 ? '#4ade80' : c.dso <= 75 ? '#ff9f43' : '#ff6b6b';
+        return `<tr><td>${MESES[c.mes-1]}</td><td class="num money">${money(c.cartera_total)}</td><td class="num money">${money(c.cartera_60)}</td><td class="num" style="color:${cp};font-weight:700;">${c.cartera_60_pct}%</td><td class="num" style="color:${dp};font-weight:700;">${c.dso}d</td></tr>`;
+      }).join('')}
+    </table>` : `<p style="font-size:12px;color:var(--text-dim);">Aún no hay cierres guardados para este periodo.</p>`}
+  </div>`;
+
+  // Botón guardar cierre — solo admin
+  if (!esColaborador) {
+    html += `<div class="card">
+      <h2>📌 Guardar cierre de mes</h2>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Captura el estado actual de cartera (todos los KAM) y calcula el DSO del mes seleccionado. Se guarda de forma permanente y no se pierde aunque cargues cartera nueva después.</p>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <select id="okrkamCierreMes" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:8px 12px;font-family:inherit;font-size:12px;">
+          ${MESES.slice(0, mesActual).map((m,i) => `<option value="${i+1}" ${i+1===mesActual?'selected':''}>${m}</option>`).join('')}
+        </select>
+        <button id="btnGuardarCierre" style="width:auto;padding:8px 16px;">Guardar cierre de mes (todos los KAM)</button>
+        <span id="okrkamCierreEstado" style="font-size:12px;"></span>
+      </div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+
+  activarMultiSelect('okrkamMes', async (vals) => { OKRKAM_MES = vals; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
+  const selKam = document.getElementById('okrkamSelKam');
+  if (selKam) selKam.addEventListener('change', async () => { OKRKAM_KAM = selKam.value || null; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
+  const btnVolver = document.getElementById('btnVolverOkrKam');
+  if (btnVolver) btnVolver.addEventListener('click', async () => { OKRKAM_KAM = null; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
+
+  const btnGuardar = document.getElementById('btnGuardarCierre');
+  if (btnGuardar) {
+    btnGuardar.addEventListener('click', async () => {
+      const mesSel = parseInt(document.getElementById('okrkamCierreMes').value);
+      const estadoEl = document.getElementById('okrkamCierreEstado');
+      btnGuardar.disabled = true; btnGuardar.textContent = 'Guardando...';
+      const res = await rpc('dash_okr_kam_guardar_cierre', { p_token: TOKEN, p_anio: 2026, p_mes: mesSel });
+      if (res.ok) {
+        estadoEl.textContent = `✅ Cierre guardado (${res.filas} KAM)`;
+        estadoEl.style.color = '#4ade80';
+        setTimeout(async () => { el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); }, 1200);
+      } else {
+        estadoEl.textContent = `Error: ${res.error}`;
+        estadoEl.style.color = '#ff6b6b';
+        btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar cierre de mes (todos los KAM)';
+      }
+    });
+  }
+
   habilitarOrdenTablas(el);
 }
 
@@ -2286,7 +2507,7 @@ async function loadMatrizPermisos() {
   if (!r.ok) { el.innerHTML = `<div style="color:#ff6b6b;">${r.error}</div>`; return; }
 
   const TABS_LABELS = {
-    okr: 'OKR', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
+    okr: 'OKR', okrkam: 'OKR KAM', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
     remisiones: 'Remisiones', cartera: 'Cartera', facilitadores: 'Facilitadores',
     nps: 'NPS', oportunidades: 'Oportunidades', tipoa: 'Aliados Tipo A', clientes: 'Clientes',
     segmentacion: 'Segmentación', perdidos: 'Recuperación', ticket: 'Ticket Promedio',
