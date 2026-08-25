@@ -334,6 +334,52 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
 
   // ── Vista TODOS los KAM: tabla resumen ──────────────────────
   if (!OKRKAM_KAM) {
+    // ── Gauges de KR cumplidos por KAM ──────────────────────────
+    function gaugeKrKam(kam, cumplidos, total) {
+      const pct = total ? cumplidos/total : 0;
+      const color = cumplidos === total ? '#4ade80' : cumplidos === 0 ? '#ff6b6b' : '#ff9f43';
+      return `<div style="text-align:center;min-width:150px;">
+        <svg viewBox="0 0 120 70" width="150" height="90">
+          <path d="M10,65 A50,50 0 0,1 110,65" fill="none" stroke="#333" stroke-width="10" stroke-linecap="round"/>
+          <path d="M10,65 A50,50 0 0,1 110,65" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${pct*157} 157"/>
+          <text x="60" y="55" text-anchor="middle" fill="${color}" font-size="17" font-weight="bold" font-family="monospace">${cumplidos}/${total}</text>
+          <text x="60" y="68" text-anchor="middle" fill="#888" font-size="7" font-family="monospace">KR CUMPLIDOS</text>
+        </svg>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:-4px;">${esc(titleCase(kam))}</div>
+      </div>`;
+    }
+
+    html += `<div class="card">
+      <h2>Cumplimiento de KR por KAM (${label})</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+        ${kamsDisponibles.map(kam => {
+          const p = presupuesto.find(x => x.kam === kam) || {};
+          const t = tipoA.find(x => x.kam === kam) || {};
+          const cnKam = clientesNuevos.filter(x => x.kam === kam);
+          const cnTotalK = cnKam.reduce((s,c) => s + (c.venta_periodo||0), 0);
+          const metaCNK = (metasCN.find(x => x.kam === kam) || {}).meta_clientes_nuevos;
+          const ca = carteraActual.find(x => x.kam === kam) || {};
+          const cierresKam = cierres.filter(x => x.kam === kam).sort((a,b) => b.mes - a.mes);
+          const ultDsoK = cierresKam.length ? cierresKam[0].dso : null;
+          const esCarlos = kam === 'GOMEZ RODRIGUEZ CARLOS ANDRES';
+
+          let total = 0, cumplidos = 0;
+          // KR1 Presupuesto
+          total++; if (p.presupuesto && (p.facturado/p.presupuesto) >= 1) cumplidos++;
+          // KR2 Tipo A (no aplica a Carlos)
+          if (!esCarlos) { total++; if (t.venta2025 && ((t.venta2026-t.venta2025)/t.venta2025) >= 0.10) cumplidos++; }
+          // KR3 Clientes Nuevos (no aplica a Carlos)
+          if (!esCarlos) { total++; if (metaCNK && cnTotalK >= metaCNK) cumplidos++; }
+          // O2-KR1 Cartera <= 2.5%
+          total++; if (ca.pct_60 !== undefined && ca.pct_60 <= 2.5) cumplidos++;
+          // O2-KR2 DSO <= 60
+          total++; if (ultDsoK !== null && ultDsoK <= 60) cumplidos++;
+
+          return gaugeKrKam(kam, cumplidos, total);
+        }).join('')}
+      </div>
+    </div>`;
+
     html += `<div class="card">
       <h2>Resumen OKR por KAM (${label})</h2>
       <table>
