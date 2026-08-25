@@ -2225,7 +2225,7 @@ const MAPEO_REMISIONES = {
 const MAPEO_CARTERA = {
   'C.O.': 'co', 'Cliente': 'cliente_nit', 'Razón social vend. cliente': 'vendedor',
   'Razón social sucursal': 'sucursal', 'Número O.C. comercial': 'orden_compra',
-  'Nro. docto. cruce': 'nro_documento_cruce', 'Cond. pago cliente': 'cond_pago_cliente',
+  'Nro. docto. cruce': 'nro_documento_cruce', 'Cond. pago factura': 'cond_pago_cliente', 'Cond. pago cliente': 'cond_pago_cliente',
   'Fecha docto cruce': 'fecha_docto_cruce', 'Fecha vcto.': 'fecha_vcto_siesa',
   'Dias vencidos': 'dias_vencidos_siesa', 'Notas': 'notas', 'Total COP': 'total_cop'
 };
