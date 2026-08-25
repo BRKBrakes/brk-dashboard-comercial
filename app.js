@@ -352,7 +352,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
           const colorPres = pctPres === null ? 'var(--text-dim)' : pctPres >= 100 ? '#4ade80' : pctPres >= 80 ? '#ff9f43' : '#ff6b6b';
           const crecTipoA = t.venta2025 ? Math.round(((t.venta2026 - t.venta2025)/t.venta2025)*100) : null;
           const colorTipoA = crecTipoA === null ? 'var(--text-dim)' : crecTipoA >= 10 ? '#4ade80' : crecTipoA >= 0 ? '#ff9f43' : '#ff6b6b';
-          const colorCartera = ca.pct_60 === undefined ? 'var(--text-dim)' : ca.pct_60 <= 2.8 ? '#4ade80' : ca.pct_60 <= 5 ? '#ff9f43' : '#ff6b6b';
+          const colorCartera = ca.pct_60 === undefined ? 'var(--text-dim)' : ca.pct_60 <= 2.5 ? '#4ade80' : ca.pct_60 <= 5 ? '#ff9f43' : '#ff6b6b';
           const colorDso = ultDso === null ? 'var(--text-dim)' : ultDso <= 60 ? '#4ade80' : ultDso <= 75 ? '#ff9f43' : '#ff6b6b';
 
           return `<tr class="fila-okrkam" data-kam="${esc(kam)}" style="cursor:pointer;">
@@ -367,6 +367,120 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       </table>
       <p style="font-size:11px;color:var(--text-dim);margin-top:10px;">Clic en una fila para ver el detalle del KAM.</p>
     </div>`;
+
+    // ── 6 tablas mensuales detalladas ──────────────────────────
+    const ventasPorMes = r.ventas_por_mes || [];
+    const tipoAPorMes = r.tipo_a_por_mes || [];
+    const cnPorMes = r.clientes_nuevos_por_mes || [];
+
+    function tablaMensualPorKam(titulo, datosPorKamMes, campoValor, esMoneda, esPorcentaje) {
+      let h = `<div class="card" style="margin-top:16px;"><h2>${titulo}</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+      mesesAct.forEach(m => h += `<th class="num">${MESES[m-1]}</th>`);
+      h += `<th class="num" style="color:var(--neon);">Promedio</th><th class="num">Total</th></tr>`;
+      let sumaMeses = {}; mesesAct.forEach(m => sumaMeses[m] = 0);
+      let sumaTotalGeneral = 0;
+      kamsDisponibles.forEach(kam => {
+        const filaKam = datosPorKamMes.filter(x => x.kam === kam);
+        let total = 0, conDato = 0;
+        h += `<tr><td>${esc(titleCase(kam))}</td>`;
+        mesesAct.forEach(m => {
+          const reg = filaKam.find(x => x.mes === m);
+          const val = reg ? (reg[campoValor]||0) : null;
+          if (val !== null) { total += val; conDato++; sumaMeses[m] += val; }
+          h += `<td class="num ${esMoneda?'money':''}">${val!==null?(esMoneda?money(val):esPorcentaje?val+'%':Math.round(val).toLocaleString('es-CO')):''}</td>`;
+        });
+        const prom = conDato ? total/conDato : 0;
+        h += `<td class="num" style="color:var(--neon);">${esMoneda?money(prom):esPorcentaje?prom.toFixed(1)+'%':Math.round(prom).toLocaleString('es-CO')}</td>`;
+        h += `<td class="num ${esMoneda?'money':''}" data-val="${total}">${esMoneda?money(total):esPorcentaje?'—':Math.round(total).toLocaleString('es-CO')}</td>`;
+        h += `</tr>`;
+        sumaTotalGeneral += total;
+      });
+      h += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+      mesesAct.forEach(m => h += `<td class="num ${esMoneda?'money':''}">${esMoneda?money(sumaMeses[m]):esPorcentaje?'—':Math.round(sumaMeses[m]).toLocaleString('es-CO')}</td>`);
+      h += `<td class="num">—</td><td class="num ${esMoneda?'money':''}" data-val="${sumaTotalGeneral}">${esMoneda?money(sumaTotalGeneral):esPorcentaje?'—':Math.round(sumaTotalGeneral).toLocaleString('es-CO')}</td></tr>`;
+      h += `</table></div></div>`;
+      return h;
+    }
+
+    // 1. Ventas por KAM por mes
+    html += tablaMensualPorKam('1 · Ventas por KAM (facturado, por mes)', ventasPorMes, 'facturado', true, false);
+
+    // 2. Crecimiento de cada KAM por mes (vs 2025 usando dash_historico vía tipo_a no aplica aquí; usamos % cumplimiento presupuesto como proxy de crecimiento mensual real)
+    html += `<div class="card" style="margin-top:16px;"><h2>2 · % Cumplimiento de Presupuesto por KAM (por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
+    html += `<th class="num" style="color:var(--neon);">Promedio</th></tr>`;
+    kamsDisponibles.forEach(kam => {
+      const filaKam = ventasPorMes.filter(x => x.kam === kam);
+      let sumaPct = 0, n = 0;
+      html += `<tr><td>${esc(titleCase(kam))}</td>`;
+      mesesAct.forEach(m => {
+        const reg = filaKam.find(x => x.mes === m);
+        const pct = reg && reg.presupuesto ? Math.round((reg.facturado/reg.presupuesto)*100) : null;
+        const color = pct === null ? 'var(--text-dim)' : pct >= 100 ? '#4ade80' : pct >= 80 ? '#ff9f43' : '#ff6b6b';
+        if (pct !== null) { sumaPct += pct; n++; }
+        html += `<td class="num" style="color:${color};font-weight:700;">${pct!==null?pct+'%':'—'}</td>`;
+      });
+      const prom = n ? Math.round(sumaPct/n) : null;
+      html += `<td class="num" style="color:var(--neon);">${prom!==null?prom+'%':'—'}</td></tr>`;
+    });
+    html += `</table></div></div>`;
+
+    // 3. Crecimiento Tipo A por KAM por mes
+    html += `<div class="card" style="margin-top:16px;"><h2>3 · Crecimiento Clientes Tipo A por KAM (% vs 2025, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
+    html += `<th class="num" style="color:var(--neon);">Promedio</th></tr>`;
+    kamsDisponibles.forEach(kam => {
+      const filaKam = tipoAPorMes.filter(x => x.kam === kam);
+      let sumaPct = 0, n = 0;
+      html += `<tr><td>${esc(titleCase(kam))}</td>`;
+      mesesAct.forEach(m => {
+        const reg = filaKam.find(x => x.mes === m);
+        const pct = reg && reg.venta2025 ? Math.round(((reg.venta2026-reg.venta2025)/reg.venta2025)*100) : null;
+        const color = pct === null ? 'var(--text-dim)' : pct >= 10 ? '#4ade80' : pct >= 0 ? '#ff9f43' : '#ff6b6b';
+        if (pct !== null) { sumaPct += pct; n++; }
+        html += `<td class="num" style="color:${color};font-weight:700;">${pct!==null?(pct>=0?'+':'')+pct+'%':'—'}</td>`;
+      });
+      const prom = n ? Math.round(sumaPct/n) : null;
+      html += `<td class="num" style="color:var(--neon);">${prom!==null?(prom>=0?'+':'')+prom+'%':'—'}</td></tr>`;
+    });
+    html += `</table></div></div>`;
+
+    // 4. Ventas de clientes nuevos por KAM por mes
+    html += tablaMensualPorKam('4 · Ventas de Clientes Nuevos por KAM (por mes)', cnPorMes.map(x => ({kam:x.kam, mes:x.mes, venta:x.venta})), 'venta', true, false);
+
+    // 5. Cartera >60 días por mes (de cierres guardados)
+    html += `<div class="card" style="margin-top:16px;"><h2>5 · Cartera >60 días % por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
+    html += `</tr>`;
+    kamsDisponibles.forEach(kam => {
+      const filaKam = cierres.filter(x => x.kam === kam);
+      html += `<tr><td>${esc(titleCase(kam))}</td>`;
+      mesesAct.forEach(m => {
+        const reg = filaKam.find(x => x.mes === m);
+        const val = reg ? reg.cartera_60_pct : null;
+        const color = val === null ? 'var(--text-dim)' : val <= 2.5 ? '#4ade80' : val <= 5 ? '#ff9f43' : '#ff6b6b';
+        html += `<td class="num" style="color:${color};font-weight:700;">${val!==null?val+'%':'Sin cerrar'}</td>`;
+      });
+      html += `</tr>`;
+    });
+    html += `</table></div></div>`;
+
+    // 6. DSO por mes
+    html += `<div class="card" style="margin-top:16px;"><h2>6 · DSO por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
+    html += `</tr>`;
+    kamsDisponibles.forEach(kam => {
+      const filaKam = cierres.filter(x => x.kam === kam);
+      html += `<tr><td>${esc(titleCase(kam))}</td>`;
+      mesesAct.forEach(m => {
+        const reg = filaKam.find(x => x.mes === m);
+        const val = reg ? reg.dso : null;
+        const color = val === null ? 'var(--text-dim)' : val <= 60 ? '#4ade80' : val <= 75 ? '#ff9f43' : '#ff6b6b';
+        html += `<td class="num" style="color:${color};font-weight:700;">${val!==null?val+'d':'Sin cerrar'}</td>`;
+      });
+      html += `</tr>`;
+    });
+    html += `</table></div></div>`;
 
     el.innerHTML = html;
     activarMultiSelect('okrkamMes', async (vals) => { OKRKAM_MES = vals; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
@@ -425,7 +539,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
   }
 
   // O2 Cartera y DSO
-  const colorCarteraHoy = ca.pct_60 === undefined ? 'var(--text-dim)' : ca.pct_60 <= 2.8 ? '#4ade80' : ca.pct_60 <= 5 ? '#ff9f43' : '#ff6b6b';
+  const colorCarteraHoy = ca.pct_60 === undefined ? 'var(--text-dim)' : ca.pct_60 <= 2.5 ? '#4ade80' : ca.pct_60 <= 5 ? '#ff9f43' : '#ff6b6b';
   const colorDsoUlt = !ultimoCierre ? 'var(--text-dim)' : ultimoCierre.dso <= 60 ? '#4ade80' : ultimoCierre.dso <= 75 ? '#ff9f43' : '#ff6b6b';
 
   html += `<div class="card" style="margin-bottom:16px;">
@@ -436,7 +550,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
     </div>
     ${cierresKam.length ? `<table><tr><th>Mes</th><th class="num">Cartera Total</th><th class="num">Cartera >60</th><th class="num">% >60</th><th class="num">DSO</th></tr>
       ${cierresKam.map(c => {
-        const cp = c.cartera_60_pct <= 2.8 ? '#4ade80' : c.cartera_60_pct <= 5 ? '#ff9f43' : '#ff6b6b';
+        const cp = c.cartera_60_pct <= 2.5 ? '#4ade80' : c.cartera_60_pct <= 5 ? '#ff9f43' : '#ff6b6b';
         const dp = c.dso <= 60 ? '#4ade80' : c.dso <= 75 ? '#ff9f43' : '#ff6b6b';
         return `<tr><td>${MESES[c.mes-1]}</td><td class="num money">${money(c.cartera_total)}</td><td class="num money">${money(c.cartera_60)}</td><td class="num" style="color:${cp};font-weight:700;">${c.cartera_60_pct}%</td><td class="num" style="color:${dp};font-weight:700;">${c.dso}d</td></tr>`;
       }).join('')}
