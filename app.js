@@ -364,6 +364,21 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
             <td class="num" data-val="${ultDso||0}" style="color:${colorDso};font-weight:700;">${ultDso!==null?ultDso+'d':'—'}</td>
           </tr>`;
         }).join('')}
+        ${(() => {
+          const totCn = clientesNuevos.reduce((s,c) => s + (c.venta_periodo||0), 0);
+          const totFact = presupuesto.reduce((s,p) => s + (p.facturado||0), 0);
+          const totPres = presupuesto.reduce((s,p) => s + (p.presupuesto||0), 0);
+          const pctPresT = totPres ? Math.round((totFact/totPres)*100) : null;
+          const colorT = pctPresT === null ? 'var(--text-dim)' : pctPresT >= 100 ? '#4ade80' : pctPresT >= 80 ? '#ff9f43' : '#ff6b6b';
+          return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
+            <td>TOTAL</td>
+            <td class="num" style="color:${colorT};">${pctPresT!==null?pctPresT+'%':'—'}</td>
+            <td class="num">—</td>
+            <td class="num money" data-val="${totCn}">${money(totCn)}</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>`;
+        })()}
       </table>
       <p style="font-size:11px;color:var(--text-dim);margin-top:10px;">Clic en una fila para ver el detalle del KAM.</p>
     </div>`;
@@ -397,7 +412,8 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       });
       h += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
       mesesAct.forEach(m => h += `<td class="num ${esMoneda?'money':''}">${esMoneda?money(sumaMeses[m]):esPorcentaje?'—':Math.round(sumaMeses[m]).toLocaleString('es-CO')}</td>`);
-      h += `<td class="num">—</td><td class="num ${esMoneda?'money':''}" data-val="${sumaTotalGeneral}">${esMoneda?money(sumaTotalGeneral):esPorcentaje?'—':Math.round(sumaTotalGeneral).toLocaleString('es-CO')}</td></tr>`;
+      const promTotalGeneral = mesesAct.length ? sumaTotalGeneral/mesesAct.length : 0;
+      h += `<td class="num" style="color:var(--neon);">${esMoneda?money(promTotalGeneral):esPorcentaje?'—':Math.round(promTotalGeneral).toLocaleString('es-CO')}</td><td class="num ${esMoneda?'money':''}" data-val="${sumaTotalGeneral}">${esMoneda?money(sumaTotalGeneral):esPorcentaje?'—':Math.round(sumaTotalGeneral).toLocaleString('es-CO')}</td></tr>`;
       h += `</table></div></div>`;
       return h;
     }
@@ -426,11 +442,13 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
     });
     html += `</table></div></div>`;
 
-    // 3. Crecimiento Tipo A por KAM por mes
+    // 3. Crecimiento Tipo A por KAM por mes (Carlos Gómez no tiene clientes Tipo A asignados)
+    const kamsTipoA = kamsDisponibles.filter(k => k !== 'GOMEZ RODRIGUEZ CARLOS ANDRES');
     html += `<div class="card" style="margin-top:16px;"><h2>3 · Crecimiento Clientes Tipo A por KAM (% vs 2025, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
     mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
     html += `<th class="num" style="color:var(--neon);">Promedio</th></tr>`;
-    kamsDisponibles.forEach(kam => {
+    let totV26TipoA = {}, totV25TipoA = {}; mesesAct.forEach(m => { totV26TipoA[m]=0; totV25TipoA[m]=0; });
+    kamsTipoA.forEach(kam => {
       const filaKam = tipoAPorMes.filter(x => x.kam === kam);
       let sumaPct = 0, n = 0;
       html += `<tr><td>${esc(titleCase(kam))}</td>`;
@@ -439,16 +457,28 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
         const pct = reg && reg.venta2025 ? Math.round(((reg.venta2026-reg.venta2025)/reg.venta2025)*100) : null;
         const color = pct === null ? 'var(--text-dim)' : pct >= 10 ? '#4ade80' : pct >= 0 ? '#ff9f43' : '#ff6b6b';
         if (pct !== null) { sumaPct += pct; n++; }
+        if (reg) { totV26TipoA[m] += (reg.venta2026||0); totV25TipoA[m] += (reg.venta2025||0); }
         html += `<td class="num" style="color:${color};font-weight:700;">${pct!==null?(pct>=0?'+':'')+pct+'%':'—'}</td>`;
       });
       const prom = n ? Math.round(sumaPct/n) : null;
       const colorProm2 = prom === null ? 'var(--text-dim)' : prom >= 10 ? '#4ade80' : prom >= 0 ? '#ff9f43' : '#ff6b6b';
       html += `<td class="num" style="color:${colorProm2};font-weight:700;">${prom!==null?(prom>=0?'+':'')+prom+'%':'—'}</td></tr>`;
     });
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    let sumaPctTotalT3 = 0, nTotalT3 = 0;
+    mesesAct.forEach(m => {
+      const pctT = totV25TipoA[m] ? Math.round(((totV26TipoA[m]-totV25TipoA[m])/totV25TipoA[m])*100) : null;
+      const colorT = pctT === null ? 'var(--text-dim)' : pctT >= 10 ? '#4ade80' : pctT >= 0 ? '#ff9f43' : '#ff6b6b';
+      if (pctT !== null) { sumaPctTotalT3 += pctT; nTotalT3++; }
+      html += `<td class="num" style="color:${colorT};">${pctT!==null?(pctT>=0?'+':'')+pctT+'%':'—'}</td>`;
+    });
+    const promTotalT3 = nTotalT3 ? Math.round(sumaPctTotalT3/nTotalT3) : null;
+    const colorPromT3 = promTotalT3 === null ? 'var(--text-dim)' : promTotalT3 >= 10 ? '#4ade80' : promTotalT3 >= 0 ? '#ff9f43' : '#ff6b6b';
+    html += `<td class="num" style="color:${colorPromT3};">${promTotalT3!==null?(promTotalT3>=0?'+':'')+promTotalT3+'%':'—'}</td></tr>`;
     html += `</table></div></div>`;
 
-    // 4. Ventas de clientes nuevos por KAM por mes
-    html += tablaMensualPorKam('4 · Ventas de Clientes Nuevos por KAM (por mes)', cnPorMes.map(x => ({kam:x.kam, mes:x.mes, venta:x.venta})), 'venta', true, false);
+    // 4. Ventas de clientes nuevos por KAM por mes (Carlos Gómez no tiene clientes nuevos registrados)
+    html += tablaMensualPorKam('4 · Ventas de Clientes Nuevos por KAM (por mes)', cnPorMes.filter(x => x.kam !== 'GOMEZ RODRIGUEZ CARLOS ANDRES').map(x => ({kam:x.kam, mes:x.mes, venta:x.venta})), 'venta', true, false);
 
     // 5. Cartera >60 días por mes (de cierres guardados)
     html += `<div class="card" style="margin-top:16px;"><h2>5 · Cartera >60 días % por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
@@ -465,7 +495,16 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       });
       html += `</tr>`;
     });
-    html += `</table></div></div>`;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    mesesAct.forEach(m => {
+      const cierresMes = cierres.filter(x => x.mes === m);
+      const totCarteraM = cierresMes.reduce((s,c) => s + (c.cartera_total||0), 0);
+      const total60M = cierresMes.reduce((s,c) => s + (c.cartera_60||0), 0);
+      const pctM = cierresMes.length ? Math.round((total60M/totCarteraM)*100*100)/100 : null;
+      const colorM = pctM === null ? 'var(--text-dim)' : pctM <= 2.5 ? '#4ade80' : pctM <= 5 ? '#ff9f43' : '#ff6b6b';
+      html += `<td class="num" style="color:${colorM};">${pctM!==null?pctM+'%':'Sin cerrar'}</td>`;
+    });
+    html += `</tr></table></div></div>`;
 
     // 6. DSO por mes
     html += `<div class="card" style="margin-top:16px;"><h2>6 · DSO por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
@@ -482,7 +521,14 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       });
       html += `</tr>`;
     });
-    html += `</table></div></div>`;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    mesesAct.forEach(m => {
+      const cierresMes = cierres.filter(x => x.mes === m);
+      const promDso = cierresMes.length ? Math.round((cierresMes.reduce((s,c) => s+(c.dso||0),0)/cierresMes.length)*10)/10 : null;
+      const colorM = promDso === null ? 'var(--text-dim)' : promDso <= 60 ? '#4ade80' : promDso <= 75 ? '#ff9f43' : '#ff6b6b';
+      html += `<td class="num" style="color:${colorM};">${promDso!==null?promDso+'d':'Sin cerrar'}</td>`;
+    });
+    html += `</tr></table></div></div>`;
 
     el.innerHTML = html;
     activarMultiSelect('okrkamMes', async (vals) => { OKRKAM_MES = vals; el.innerHTML = '<div class="loading">Actualizando...</div>'; await renderOkrKam(el, opcionesMeses, mesActual); });
