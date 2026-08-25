@@ -374,8 +374,8 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
           // O2-KR2 DSO <= 60
           total++; if (ultDsoK !== null && ultDsoK <= 60) cumplidos++;
 
-          return gaugeKrKam(kam, cumplidos, total);
-        }).join('')}
+          return { kam, cumplidos, total };
+        }).sort((a, b) => b.cumplidos - a.cumplidos).map(x => gaugeKrKam(x.kam, x.cumplidos, x.total)).join('')}
       </div>
     </div>`;
 
@@ -486,10 +486,10 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
     }
 
     // 1. Ventas por KAM por mes
-    html += tablaMensualPorKam('1 · Ventas por KAM (facturado, por mes)', ventasPorMes, 'facturado', true, false);
+    html += tablaMensualPorKam('Ventas por KAM (facturado, por mes)', ventasPorMes, 'facturado', true, false);
 
     // 2. Crecimiento de cada KAM por mes (vs 2025 usando dash_historico vía tipo_a no aplica aquí; usamos % cumplimiento presupuesto como proxy de crecimiento mensual real)
-    html += `<div class="card" style="margin-top:16px;"><h2>2 · % Cumplimiento de Presupuesto por KAM (por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    html += `<div class="card" style="margin-top:16px;"><h2>1 · % Cumplimiento de Presupuesto por KAM (por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
     mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
     html += `<th class="num" style="color:var(--neon);">Promedio</th></tr>`;
     kamsDisponibles.forEach(kam => {
@@ -527,7 +527,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
 
     // 3. Crecimiento Tipo A por KAM por mes (Carlos Gómez no tiene clientes Tipo A asignados)
     const kamsTipoA = kamsDisponibles.filter(k => k !== 'GOMEZ RODRIGUEZ CARLOS ANDRES');
-    html += `<div class="card" style="margin-top:16px;"><h2>3 · Crecimiento Clientes Tipo A por KAM (% vs 2025, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    html += `<div class="card" style="margin-top:16px;"><h2>2 · Crecimiento Clientes Tipo A por KAM (% vs 2025, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
     mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
     html += `<th class="num" style="color:var(--neon);">Promedio</th></tr>`;
     let totV26TipoA = {}, totV25TipoA = {}; mesesAct.forEach(m => { totV26TipoA[m]=0; totV25TipoA[m]=0; });
@@ -561,10 +561,10 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
     html += `</table></div></div>`;
 
     // 4. Ventas de clientes nuevos por KAM por mes (Carlos Gómez no tiene clientes nuevos registrados)
-    html += tablaMensualPorKam('4 · Ventas de Clientes Nuevos por KAM (por mes)', cnPorMes.filter(x => x.kam !== 'GOMEZ RODRIGUEZ CARLOS ANDRES').map(x => ({kam:x.kam, mes:x.mes, venta:x.venta})), 'venta', true, false);
+    html += tablaMensualPorKam('3 · Ventas de Clientes Nuevos por KAM (por mes)', cnPorMes.filter(x => x.kam !== 'GOMEZ RODRIGUEZ CARLOS ANDRES').map(x => ({kam:x.kam, mes:x.mes, venta:x.venta})), 'venta', true, false);
 
     // 5. Cartera >60 días por mes (de cierres guardados)
-    html += `<div class="card" style="margin-top:16px;"><h2>5 · Cartera >60 días % por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    html += `<div class="card" style="margin-top:16px;"><h2>4 · Cartera >60 días % por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
     mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
     html += `</tr>`;
     kamsDisponibles.forEach(kam => {
@@ -590,7 +590,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
     html += `</tr></table></div></div>`;
 
     // 6. DSO por mes
-    html += `<div class="card" style="margin-top:16px;"><h2>6 · DSO por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
+    html += `<div class="card" style="margin-top:16px;"><h2>5 · DSO por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
     mesesAct.forEach(m => html += `<th class="num">${MESES[m-1]}</th>`);
     html += `</tr>`;
     kamsDisponibles.forEach(kam => {
