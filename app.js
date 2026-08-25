@@ -370,13 +370,35 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
           const totPres = presupuesto.reduce((s,p) => s + (p.presupuesto||0), 0);
           const pctPresT = totPres ? Math.round((totFact/totPres)*100) : null;
           const colorT = pctPresT === null ? 'var(--text-dim)' : pctPresT >= 100 ? '#4ade80' : pctPresT >= 80 ? '#ff9f43' : '#ff6b6b';
+
+          // Crec. Tipo A total (excluye Carlos Gómez, que no tiene Tipo A asignado)
+          const tipoASinCarlos = tipoA.filter(x => x.kam !== 'GOMEZ RODRIGUEZ CARLOS ANDRES');
+          const totV26TA = tipoASinCarlos.reduce((s,t) => s + (t.venta2026||0), 0);
+          const totV25TA = tipoASinCarlos.reduce((s,t) => s + (t.venta2025||0), 0);
+          const crecTipoAT = totV25TA ? Math.round(((totV26TA-totV25TA)/totV25TA)*100) : null;
+          const colorTipoAT = crecTipoAT === null ? 'var(--text-dim)' : crecTipoAT >= 10 ? '#4ade80' : crecTipoAT >= 0 ? '#ff9f43' : '#ff6b6b';
+
+          // Cartera >60% total (ponderada)
+          const totCarteraGen = carteraActual.reduce((s,c) => s + (c.total||0), 0);
+          const tot60Gen = carteraActual.reduce((s,c) => s + (c.vencido_60||0), 0);
+          const pctCarteraT = totCarteraGen ? Math.round((tot60Gen/totCarteraGen)*100*100)/100 : null;
+          const colorCarteraT = pctCarteraT === null ? 'var(--text-dim)' : pctCarteraT <= 2.5 ? '#4ade80' : pctCarteraT <= 5 ? '#ff9f43' : '#ff6b6b';
+
+          // DSO total (promedio del último cierre de cada KAM)
+          const ultimosCierresPorKam = kamsDisponibles.map(kam => {
+            const ck = cierres.filter(x => x.kam === kam).sort((a,b) => b.mes - a.mes);
+            return ck.length ? ck[0].dso : null;
+          }).filter(v => v !== null);
+          const dsoT = ultimosCierresPorKam.length ? Math.round((ultimosCierresPorKam.reduce((s,v) => s+v, 0)/ultimosCierresPorKam.length)*10)/10 : null;
+          const colorDsoT = dsoT === null ? 'var(--text-dim)' : dsoT <= 60 ? '#4ade80' : dsoT <= 75 ? '#ff9f43' : '#ff6b6b';
+
           return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
             <td>TOTAL</td>
             <td class="num" style="color:${colorT};">${pctPresT!==null?pctPresT+'%':'—'}</td>
-            <td class="num">—</td>
+            <td class="num" style="color:${colorTipoAT};">${crecTipoAT!==null?(crecTipoAT>=0?'+':'')+crecTipoAT+'%':'—'}</td>
             <td class="num money" data-val="${totCn}">${money(totCn)}</td>
-            <td class="num">—</td>
-            <td class="num">—</td>
+            <td class="num" style="color:${colorCarteraT};">${pctCarteraT!==null?pctCarteraT+'%':'—'}</td>
+            <td class="num" style="color:${colorDsoT};">${dsoT!==null?dsoT+'d':'—'}</td>
           </tr>`;
         })()}
       </table>
@@ -440,6 +462,22 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       const colorProm = prom === null ? 'var(--text-dim)' : prom >= 100 ? '#4ade80' : prom >= 80 ? '#ff9f43' : '#ff6b6b';
       html += `<td class="num" style="color:${colorProm};font-weight:700;">${prom!==null?prom+'%':'—'}</td></tr>`;
     });
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    let sumaPctTotalFilaT2 = 0, nTotalT2 = 0;
+    mesesAct.forEach(m => {
+      const regsMes = ventasPorMes.filter(x => x.mes === m);
+      const totFactM = regsMes.reduce((s,r) => s + (r.facturado||0), 0);
+      const totPresM = regsMes.reduce((s,r) => s + (r.presupuesto||0), 0);
+      const pctM = totPresM ? Math.round((totFactM/totPresM)*100) : null;
+      const colorM = pctM === null ? 'var(--text-dim)' : pctM >= 100 ? '#4ade80' : pctM >= 80 ? '#ff9f43' : '#ff6b6b';
+      if (pctM !== null) { sumaPctTotalFilaT2 += pctM; nTotalT2++; }
+      html += `<td class="num" style="color:${colorM};">${pctM!==null?pctM+'%':'—'}</td>`;
+    });
+    const totFactGen = ventasPorMes.reduce((s,r) => s + (r.facturado||0), 0);
+    const totPresGen = ventasPorMes.reduce((s,r) => s + (r.presupuesto||0), 0);
+    const promTotalT2 = totPresGen ? Math.round((totFactGen/totPresGen)*100) : null;
+    const colorPromT2 = promTotalT2 === null ? 'var(--text-dim)' : promTotalT2 >= 100 ? '#4ade80' : promTotalT2 >= 80 ? '#ff9f43' : '#ff6b6b';
+    html += `<td class="num" style="color:${colorPromT2};">${promTotalT2!==null?promTotalT2+'%':'—'}</td></tr>`;
     html += `</table></div></div>`;
 
     // 3. Crecimiento Tipo A por KAM por mes (Carlos Gómez no tiene clientes Tipo A asignados)
