@@ -421,7 +421,8 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
         html += `<td class="num" style="color:${color};font-weight:700;">${pct!==null?pct+'%':'—'}</td>`;
       });
       const prom = n ? Math.round(sumaPct/n) : null;
-      html += `<td class="num" style="color:var(--neon);">${prom!==null?prom+'%':'—'}</td></tr>`;
+      const colorProm = prom === null ? 'var(--text-dim)' : prom >= 100 ? '#4ade80' : prom >= 80 ? '#ff9f43' : '#ff6b6b';
+      html += `<td class="num" style="color:${colorProm};font-weight:700;">${prom!==null?prom+'%':'—'}</td></tr>`;
     });
     html += `</table></div></div>`;
 
@@ -441,7 +442,8 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
         html += `<td class="num" style="color:${color};font-weight:700;">${pct!==null?(pct>=0?'+':'')+pct+'%':'—'}</td>`;
       });
       const prom = n ? Math.round(sumaPct/n) : null;
-      html += `<td class="num" style="color:var(--neon);">${prom!==null?(prom>=0?'+':'')+prom+'%':'—'}</td></tr>`;
+      const colorProm2 = prom === null ? 'var(--text-dim)' : prom >= 10 ? '#4ade80' : prom >= 0 ? '#ff9f43' : '#ff6b6b';
+      html += `<td class="num" style="color:${colorProm2};font-weight:700;">${prom!==null?(prom>=0?'+':'')+prom+'%':'—'}</td></tr>`;
     });
     html += `</table></div></div>`;
 
