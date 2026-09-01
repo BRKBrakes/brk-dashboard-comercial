@@ -565,7 +565,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
     html += `</table></div></div>`;
 
     // 4. Ventas de clientes nuevos por KAM por mes (Carlos Gómez no tiene clientes nuevos registrados)
-    html += tablaMensualPorKam('3 · Ventas de Clientes Nuevos por KAM (por mes)', cnPorMes.filter(x => x.kam !== 'GOMEZ RODRIGUEZ CARLOS ANDRES').map(x => ({kam:x.kam, mes:x.mes, venta:x.venta})), 'venta', true, false);
+    html += tablaMensualPorKam('3 · Ventas de Clientes Nuevos por KAM (por mes)', cnPorMes.map(x => ({kam:x.kam, mes:x.mes, venta:x.venta})), 'venta', true, false);
 
     // 5. Cartera >60 días por mes (de cierres guardados)
     html += `<div class="card" style="margin-top:16px;"><h2>4 · Cartera >60 días % por KAM (cierres guardados, por mes)</h2><div style="overflow-x:auto;"><table><tr><th>KAM</th>`;
