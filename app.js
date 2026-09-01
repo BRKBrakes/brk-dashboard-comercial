@@ -191,11 +191,15 @@ function poblarSelectMeses() {
   const mesActual = new Date().getMonth() + 1; // se actualiza solo cada mes
   const dSel = document.getElementById('mesDesde');
   const hSel = document.getElementById('mesHasta');
-  if (dSel.options.length) return; // ya poblado
+  if (dSel.dataset.pobladoHasta == mesActual) return; // ya poblado para el mes actual, no repetir
+  dSel.innerHTML = '';
+  hSel.innerHTML = '';
   MESES.slice(0, mesActual).forEach((m, i) => {
     dSel.innerHTML += `<option value="${i+1}" ${i===0?'selected':''}>${m}</option>`;
     hSel.innerHTML += `<option value="${i+1}" ${i+1===mesActual?'selected':''}>${m}</option>`;
   });
+  dSel.dataset.pobladoHasta = mesActual;
+  hSel.dataset.pobladoHasta = mesActual;
 }
 
 const ICONOS_TIPO = {
