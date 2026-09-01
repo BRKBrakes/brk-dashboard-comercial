@@ -2402,16 +2402,17 @@ function renderCartera() {
   let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: CARTERA_KAM_SEL, etiquetaDe: v => titleCase(v) }]) +
   `<div class="kpis">
     <div class="kpi"><div class="label">Cartera Total</div><div class="value">${money(g.total)}</div></div>
-    <div class="kpi"><div class="label">Cartera Vencida</div><div class="value">${money(g.vencida_total)}</div></div>
+    <div class="kpi"><div class="label">Cartera Vencida</div><div class="value">${money(g.vencida_total)} - ${g.total ? Math.round((g.vencida_total/g.total)*1000)/10 : 0}%</div></div>
     <div class="kpi"><div class="label">Cartera &gt; 60 días</div><div class="value">${money(g.vencido_60)}</div></div>
     <div class="kpi"><div class="label">KPI (meta &lt; 2.5%)</div><div class="value" style="color:${colorGeneral};">${g.kpi_pct}%</div></div>
   </div>`;
 
-  html += `<div class="card"><h2>KPI por KAM (meta &lt; 2.5%) (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera Vencida</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>`;
+  html += `<div class="card"><h2>KPI por KAM (meta &lt; 2.5%) (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Cartera Total</th><th class="num">Cartera Vencida</th><th class="num">% Cartera Vencida</th><th class="num">Cartera &gt;60 días</th><th class="num">KPI %</th></tr>`;
   (r.por_kam || []).forEach(k => {
     const color = colorKpiCartera(k.kpi_pct);
+    const pctVencidaKam = k.total ? Math.round((k.vencida_total/k.total)*1000)/10 : 0;
     const activo = (CARTERA_KAM_SEL||[]).includes(k.vendedor);
-    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencida_total)}</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencida_total)}</td><td class="num" data-val="${pctVencidaKam}">${pctVencidaKam}%</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
 
