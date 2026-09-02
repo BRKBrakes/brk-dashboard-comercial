@@ -2445,7 +2445,7 @@ function renderCartera() {
   });
   activarBarraFiltros(el, {
     kam: (v) => { CARTERA_KAM_SEL = (CARTERA_KAM_SEL||[]).filter(x=>x!==v); renderCartera(); },
-    sucursal: (v) => { const [ven,suc] = v.split('|||'); CARTERA_SUCURSAL_SEL = CARTERA_SUCURSAL_SEL.filter(x => !(x.vendedor===ven && x.sucursal===suc)); mostrarFacturasCarteraMulti(); }
+    sucursal: (v) => { const [ven,suc] = v.split('|||'); CARTERA_SUCURSAL_SEL = CARTERA_SUCURSAL_SEL.filter(x => !(x.vendedor===ven && x.sucursal===suc)); renderCartera(); }
   }, () => { CARTERA_KAM_SEL = []; CARTERA_SUCURSAL_SEL = []; renderCartera(); });
 
   el.querySelectorAll('.fila-cartera').forEach(fila => {
