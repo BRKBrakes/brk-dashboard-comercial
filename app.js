@@ -2386,6 +2386,7 @@ function colorDiasVencido(dias) {
 
 let CARTERA_DATA = null;
 let CARTERA_KAM_SEL = [];
+let CARTERA_SUCURSAL_SEL = []; // array de {vendedor, sucursal}
 
 async function loadCartera() {
   const el = document.getElementById('view-cartera');
@@ -2421,11 +2422,13 @@ function renderCartera() {
   html += '</table></div>';
 
   const detalleFiltrado = (CARTERA_KAM_SEL && CARTERA_KAM_SEL.length) ? (r.detalle||[]).filter(d => CARTERA_KAM_SEL.includes(d.vendedor)) : (r.detalle||[]);
-  html += '<div class="card"><h2>Detalle por sucursal (clic en una fila para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
+  html += renderBarraFiltros([{ id: 'sucursal', label: 'Sucursal', valor: CARTERA_SUCURSAL_SEL.map(x => `${x.vendedor}|||${x.sucursal}`), etiquetaDe: v => v.split('|||')[1] }]);
+  html += '<div class="card"><h2>Detalle por sucursal (clic en una o varias filas para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
   detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorKpi = colorKpiCartera(d.kpi_pct);
     const colorDias = colorDiasVencido(d.dias_max);
-    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
+    const activo = CARTERA_SUCURSAL_SEL.some(x => x.vendedor === d.vendedor && x.sucursal === d.sucursal);
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
@@ -2440,28 +2443,68 @@ function renderCartera() {
       renderCartera();
     });
   });
-  activarBarraFiltros(el, { kam: (v) => { CARTERA_KAM_SEL = (CARTERA_KAM_SEL||[]).filter(x=>x!==v); renderCartera(); } }, () => { CARTERA_KAM_SEL = []; renderCartera(); });
+  activarBarraFiltros(el, {
+    kam: (v) => { CARTERA_KAM_SEL = (CARTERA_KAM_SEL||[]).filter(x=>x!==v); renderCartera(); },
+    sucursal: (v) => { const [ven,suc] = v.split('|||'); CARTERA_SUCURSAL_SEL = CARTERA_SUCURSAL_SEL.filter(x => !(x.vendedor===ven && x.sucursal===suc)); mostrarFacturasCarteraMulti(); }
+  }, () => { CARTERA_KAM_SEL = []; CARTERA_SUCURSAL_SEL = []; renderCartera(); });
 
   el.querySelectorAll('.fila-cartera').forEach(fila => {
-    fila.addEventListener('click', () => mostrarFacturasCartera(fila.dataset.vendedor, fila.dataset.sucursal));
+    fila.addEventListener('click', () => {
+      const ven = fila.dataset.vendedor, suc = fila.dataset.sucursal;
+      const idx = CARTERA_SUCURSAL_SEL.findIndex(x => x.vendedor===ven && x.sucursal===suc);
+      if (idx >= 0) CARTERA_SUCURSAL_SEL.splice(idx,1);
+      else CARTERA_SUCURSAL_SEL.push({ vendedor: ven, sucursal: suc });
+      renderCartera();
+    });
   });
+
+  if (CARTERA_SUCURSAL_SEL.length) mostrarFacturasCarteraMulti();
 }
 
-async function mostrarFacturasCartera(vendedor, sucursal) {
+async function mostrarFacturasCarteraMulti() {
   const el = document.getElementById('cartera-facturas');
+  if (!el) return;
+  if (!CARTERA_SUCURSAL_SEL.length) { el.innerHTML = ''; return; }
   el.innerHTML = '<div class="loading">Cargando facturas...</div>';
-  const r = await rpc('dash_cartera_facturas', { p_token: TOKEN, p_vendedor: vendedor, p_sucursal: sucursal });
+  const vendedores = CARTERA_SUCURSAL_SEL.map(x => x.vendedor);
+  const sucursales = CARTERA_SUCURSAL_SEL.map(x => x.sucursal);
+  const r = await rpc('dash_cartera_facturas_multi', { p_token: TOKEN, p_vendedores: vendedores, p_sucursales: sucursales });
   if (!r.ok) { el.innerHTML = ''; return; }
   const facturas = r.data || [];
-  let html = `<div class="card"><h2>Facturas — ${sucursal} (${titleCase(vendedor)})</h2><table><tr><th>Nro. documento</th><th>Fecha factura</th><th>Fecha real vencimiento</th><th class="num">Valor</th><th class="num">Días vencido</th></tr>`;
+  const titulo = CARTERA_SUCURSAL_SEL.length === 1
+    ? `${CARTERA_SUCURSAL_SEL[0].sucursal} (${titleCase(CARTERA_SUCURSAL_SEL[0].vendedor)})`
+    : `${CARTERA_SUCURSAL_SEL.length} sucursales seleccionadas`;
+  let html = `<div class="card"><h2>Facturas — ${esc(titulo)}</h2>
+    <div style="margin-bottom:10px;"><button id="btnExportarCarteraSel" style="width:auto;padding:8px 16px;">📥 Exportar cartera seleccionada</button></div>
+    <table><tr><th>Sucursal</th><th>Nro. documento</th><th>Fecha factura</th><th>Fecha real vencimiento</th><th class="num">Valor</th><th class="num">Días vencido</th></tr>`;
   facturas.forEach(f => {
     const color = colorDiasVencido(f.dias_real_vencido);
-    html += `<tr><td>${esc(f.nro_documento_cruce||'')}</td><td>${f.fecha_docto_cruce||''}</td><td>${f.fecha_real_vencimiento||''}</td><td class="num money">${money(f.total_cop)}</td><td class="num" style="color:${color};font-weight:700;">${f.dias_real_vencido}</td></tr>`;
+    html += `<tr><td>${esc(f.sucursal||'')}</td><td>${esc(f.nro_documento_cruce||'')}</td><td>${f.fecha_docto_cruce||''}</td><td>${f.fecha_real_vencimiento||''}</td><td class="num money">${money(f.total_cop)}</td><td class="num" style="color:${color};font-weight:700;">${f.dias_real_vencido}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
   habilitarOrdenTablas(el);
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const btnExportar = document.getElementById('btnExportarCarteraSel');
+  if (btnExportar) {
+    btnExportar.addEventListener('click', () => {
+      const filas = facturas.map(f => ({
+        'Sucursal': f.sucursal || '',
+        'Vendedor': titleCase(f.vendedor || ''),
+        'Nro. documento': f.nro_documento_cruce || '',
+        'Fecha factura': f.fecha_docto_cruce || '',
+        'Fecha real vencimiento': f.fecha_real_vencimiento || '',
+        'Valor': f.total_cop || 0,
+        'Días vencido': f.dias_real_vencido
+      }));
+      const ws = XLSX.utils.json_to_sheet(filas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Cartera Seleccionada');
+      const fecha = new Date().toISOString().slice(0,10);
+      XLSX.writeFile(wb, `Cartera_Seleccionada_${fecha}.xlsx`);
+    });
+  }
 }
 
 function barraSigno(items, labelKey, valueKey) {
