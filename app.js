@@ -3359,9 +3359,11 @@ let CLIENTES_CLIENTE = [];
 let CLIENTES_SUCURSAL = [];
 let CLIENTES_REFERENCIA = null;
 let CLIENTES_NRO_DOCUMENTO = null;
+let CLIENTES_FAMILIA = [];
+let CLIENTES_MARCA = null; // null=todas, 'BRK', 'OTROS'
 let CLIENTES_FILTROS_HTML = '';
 
-async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento) {
+async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocumento, familia, marca) {
   const el = document.getElementById('view-clientes');
   el.innerHTML = '<div class="loading">Cargando clientes...</div>';
   CLIENTES_MES = mes !== undefined ? mes : CLIENTES_MES;
@@ -3370,6 +3372,8 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   CLIENTES_SUCURSAL = sucursal !== undefined ? sucursal : CLIENTES_SUCURSAL;
   CLIENTES_REFERENCIA = referencia !== undefined ? referencia : CLIENTES_REFERENCIA;
   CLIENTES_NRO_DOCUMENTO = nroDocumento !== undefined ? nroDocumento : CLIENTES_NRO_DOCUMENTO;
+  CLIENTES_FAMILIA = familia !== undefined ? familia : CLIENTES_FAMILIA;
+  CLIENTES_MARCA = marca !== undefined ? marca : CLIENTES_MARCA;
 
   const r = await rpc('dash_clientes_resumen', {
     p_token: TOKEN,
@@ -3378,7 +3382,9 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     p_cliente: (CLIENTES_CLIENTE && CLIENTES_CLIENTE.length) ? CLIENTES_CLIENTE : null,
     p_sucursal: (CLIENTES_SUCURSAL && CLIENTES_SUCURSAL.length) ? CLIENTES_SUCURSAL : null,
     p_referencia: CLIENTES_REFERENCIA || null,
-    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null
+    p_nro_documento: CLIENTES_NRO_DOCUMENTO || null,
+    p_familia: (CLIENTES_FAMILIA && CLIENTES_FAMILIA.length) ? CLIENTES_FAMILIA : null,
+    p_marca: CLIENTES_MARCA || null
   });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
@@ -3406,6 +3412,11 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
     ${renderMultiSelect('clSucursal', opcionesSucursal, CLIENTES_SUCURSAL, 'Todas las sucursales')}
+    <select id="clMarca" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Marca: Todas</option>
+      <option value="BRK" ${CLIENTES_MARCA==='BRK'?'selected':''}>Marca: BRK</option>
+      <option value="OTROS" ${CLIENTES_MARCA==='OTROS'?'selected':''}>Marca: Otros</option>
+    </select>
   </div>`;
 
   html += renderBarraFiltros([
@@ -3414,7 +3425,8 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
     { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
-    { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO }
+    { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO },
+    { id: 'marca', label: 'Marca', valor: CLIENTES_MARCA ? [CLIENTES_MARCA] : [], etiquetaDe: v => v==='BRK'?'BRK':'Otros' }
   ]);
 
   // Top Clientes — pivote por sucursal
@@ -3453,7 +3465,9 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   }
   html += '</table></div></div>';
 
-  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2><div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Productos más vendidos [#] (clic para filtrar)</h2>
+    <div style="margin-bottom:10px;"><button id="btnExportarProductosUnidades" style="width:auto;padding:8px 16px;">📥 Exportar a Excel</button></div>
+    <div style="max-height:380px;overflow-y:auto;"><table><tr><th>Referencia</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   prodUnidades.forEach(p => {
     const activo = CLIENTES_REFERENCIA === p.referencia;
     const promPU = promedioCeldas(p.meses, mFin, false);
@@ -3535,14 +3549,38 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     });
   }
 
+  const selMarca = document.getElementById('clMarca');
+  if (selMarca) selMarca.addEventListener('change', () => {
+    loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, undefined, selMarca.value || null);
+  });
+
+  const btnExportarPU = document.getElementById('btnExportarProductosUnidades');
+  if (btnExportarPU) {
+    btnExportarPU.addEventListener('click', () => {
+      const filas = prodUnidades.map(p => {
+        const fila = { 'Referencia': p.referencia, 'Descripción': p.descripcion || '' };
+        meses.forEach(m => { fila[MESES[m-1]] = Math.round(p.meses[m] || 0); });
+        fila['Total'] = Math.round(p.total || 0);
+        return fila;
+      });
+      const ws = XLSX.utils.json_to_sheet(filas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Productos Más Vendidos');
+      const fecha = new Date().toISOString().slice(0,10);
+      const sufijoMarca = CLIENTES_MARCA ? `_${CLIENTES_MARCA}` : '';
+      XLSX.writeFile(wb, `Productos_Mas_Vendidos${sufijoMarca}_${fecha}.xlsx`);
+    });
+  }
+
   activarBarraFiltros(el, {
-    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined),
-    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
-    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined),
-    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined),
-    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined),
-    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null)
-  }, () => loadClientes([], [], [], [], null, null));
+    mes: (v) => loadClientes((CLIENTES_MES||[]).filter(x=>String(x)!==String(v)), undefined, undefined, undefined, undefined, undefined, undefined, undefined),
+    kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined, undefined),
+    cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined),
+    sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
+    referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined, undefined, undefined),
+    nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null, undefined, undefined),
+    marca: () => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, undefined, null)
+  }, () => loadClientes([], [], [], [], null, null, [], null));
 }
 
 function loadCargarVentas() {
