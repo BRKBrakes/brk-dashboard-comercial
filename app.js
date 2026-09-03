@@ -3181,7 +3181,7 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
     <div class="kpi"><div class="label">Promedio por Día</div><div class="value">${r.promedio_por_dia||0}</div></div>
     <div class="kpi"><div class="label">Servicios por KAM (teórico, total/3)</div><div class="value">${r.servicios_por_kam_teorico||0}</div></div>
     <div class="kpi"><div class="label">Servicios x KAM x Día</div><div class="value">${r.servicios_por_kam_por_dia_habil||0}</div></div>
-    <div class="kpi"><div class="label">Costo del Periodo</div><div class="value" style="font-size:20px;">${money(r.costo_periodo)}</div><div class="value-sub">${(r.costo_con_dato||0).toLocaleString('es-CO')} servicios con tarifa</div>${r.costo_sin_dato ? `<div class="value-sub" style="color:#ff9f43;">${r.costo_sin_dato} por km sin dato de costo</div>` : ''}</div>
+    <div class="kpi"><div class="label">Costo del Periodo</div><div class="value" style="font-size:20px;">${money(r.costo_periodo)}</div><div class="value-sub">${(r.costo_con_dato||0).toLocaleString('es-CO')} servicios con tarifa</div>${r.costo_sin_dato ? `<div class="value-sub" style="color:#ff9f43;">${r.costo_sin_dato} por km sin dato de costo</div>` : ''}${r.costo_parcial_km ? `<div class="value-sub" style="color:#ff9f43;">⚠️ ${r.costo_parcial_km} servicios (LEJOS KILOMETRAJE/AFUERAS) con costo parcial — falta el recargo por km</div>` : ''}</div>
   </div>`;
 
   // Análisis de capacidad: ¿nos alcanza con 3 facilitadores?
