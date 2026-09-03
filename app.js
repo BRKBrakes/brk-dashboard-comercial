@@ -3674,7 +3674,9 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     estado.textContent = `Leyendo ${archivo.name}...`;
     const buffer = await archivo.arrayBuffer();
     const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-    const hoja = wb.Sheets[wb.SheetNames[0]];
+    // Archivos multi-pestaña (una hoja por periodo) suelen traer la más reciente al final
+    const nombreHoja = wb.SheetNames[wb.SheetNames.length - 1];
+    const hoja = wb.Sheets[nombreHoja];
     const filas = XLSX.utils.sheet_to_json(hoja, { defval: null });
 
     if (!filas.length) { estado.textContent = 'El archivo no tiene datos.'; progreso.style.display = 'none'; return; }
@@ -3691,7 +3693,7 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     });
 
     if (mejorFaltantes.length > 3) {
-      estado.innerHTML = `<span style="color:#ff6b6b;">El archivo no tiene el formato esperado de ${fuente.titulo}. Faltan columnas: ${mejorFaltantes.join(', ')}</span>`;
+      estado.innerHTML = `<span style="color:#ff6b6b;">El archivo no tiene el formato esperado de ${fuente.titulo} (hoja leída: "${nombreHoja}"). Faltan columnas: ${mejorFaltantes.join(', ')}</span>`;
       progreso.style.display = 'none';
       return;
     }
