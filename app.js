@@ -3223,21 +3223,22 @@ async function loadFacilitadores(mes, cliente, tipo, kam, facilitador, diaSemana
   html += '</table></div>';
 
   // Tipos de servicio: cantidad, promedio/día, valor total y valor/día
-  const TARIFA = { 'metrofrenos cerca': 10588, 'Metrofrenos lejos': 16688 };
   html += `<div class="card"><h2>Servicios por Tipo (clic para filtrar, varios a la vez)</h2>
     <table><tr><th>Tipo</th><th class="num">Total servicios</th><th class="num">Servicios/día</th><th class="num">Valor total</th><th class="num">Valor/día</th></tr>`;
   (r.por_tipo || []).forEach(t => {
     const activo = (FACILITADORES_TIPO||[]).includes(t.tipo_servicio);
-    const tarifa = TARIFA[t.tipo_servicio];
     const dias = r.dias_habiles_periodo || 1;
-    const valorTotal = tarifa ? tarifa * t.n : null;
-    const valorDia = tarifa ? Math.round(valorTotal / dias) : null;
+    const valorTotal = t.costo_total;
+    const valorDia = valorTotal ? Math.round(valorTotal / dias) : null;
     const promDia = (t.n / dias).toFixed(1);
+    const etiquetaValor = valorTotal
+      ? (t.todos_con_costo ? money(valorTotal) : `${money(valorTotal)} <span style="color:#ff9f43;font-size:10px;">(parcial)</span>`)
+      : '<span style="color:var(--text-dim);font-size:11px;">sin dato</span>';
     html += `<tr class="fila-fz-tipo" data-tipo="${esc(t.tipo_servicio)}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}">
       <td>${esc(t.tipo_servicio)}</td>
       <td class="num">${t.n}</td>
       <td class="num">${promDia}</td>
-      <td class="num">${valorTotal !== null ? money(valorTotal) : '<span style="color:var(--text-dim);font-size:11px;">sin dato (por km)</span>'}</td>
+      <td class="num">${etiquetaValor}</td>
       <td class="num">${valorDia !== null ? money(valorDia) : '—'}</td>
     </tr>`;
   });
