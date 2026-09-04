@@ -2472,11 +2472,24 @@ function renderCartera() {
   if (CARTERA_SUCURSAL_SEL.length) mostrarFacturasCarteraMulti();
 }
 
+function inicioSemanaISO(fechaISO) {
+  // Devuelve 'YYYY-MM-DD' del lunes de la semana a la que pertenece fechaISO ('YYYY-MM-DD')
+  const d = new Date(fechaISO + 'T00:00:00');
+  const diaSemana = d.getDay(); // 0=domingo, 1=lunes...6=sábado
+  const offset = diaSemana === 0 ? 6 : diaSemana - 1; // días desde el lunes
+  d.setDate(d.getDate() - offset);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
 // ---- Recaudo ----
 let RECAUDO_DATA = null;
 let RECAUDO_MES_SEL = null; // 1-12 o null = todos
+let RECAUDO_SEMANA_SEL = null; // fecha lunes ISO de la semana, o null = todas
 let RECAUDO_KAM_SEL = [];
-let RECAUDO_RAZON_SOCIAL = '';
+let RECAUDO_RAZON_SOCIAL = ''; // valor exacto elegido en el select
 
 async function loadRecaudo() {
   const el = document.getElementById('view-recaudo');
@@ -2485,6 +2498,7 @@ async function loadRecaudo() {
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   RECAUDO_DATA = r;
   RECAUDO_MES_SEL = null;
+  RECAUDO_SEMANA_SEL = null;
   RECAUDO_KAM_SEL = [];
   RECAUDO_RAZON_SOCIAL = '';
   renderRecaudo();
@@ -2516,11 +2530,12 @@ function renderGraficaRecaudoSemanal(semanal) {
     const y = altoMax - alto;
     const label = `S${i + 1}`;
     const fechaLabel = formatearSemanaLabel(s.semana);
+    const activa = RECAUDO_SEMANA_SEL === s.semana;
     barras += `
-      <g>
-        <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="var(--neon)" rx="2"></rect>
+      <g class="barra-recaudo-semana" data-semana="${s.semana}" style="cursor:pointer;">
+        <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="${activa ? 'var(--text)' : 'var(--neon)'}" rx="2"></rect>
         <text x="${x + anchoBarra / 2}" y="${y - 6}" text-anchor="middle" font-size="10" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(s.total)}</text>
-        <text x="${x + anchoBarra / 2}" y="${altoMax + 16}" text-anchor="middle" font-size="11" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${label}</text>
+        <text x="${x + anchoBarra / 2}" y="${altoMax + 16}" text-anchor="middle" font-size="11" fill="${activa ? 'var(--neon)' : 'var(--text)'}" font-weight="700" font-family="Geist Mono, monospace">${label}</text>
         <text x="${x + anchoBarra / 2}" y="${altoMax + 30}" text-anchor="middle" font-size="9" fill="var(--text-dim)" font-family="Geist Mono, monospace">${fechaLabel}</text>
       </g>`;
   });
@@ -2536,27 +2551,31 @@ function renderGraficaRecaudoSemanal(semanal) {
 function renderRecaudo() {
   const el = document.getElementById('view-recaudo');
   const r = RECAUDO_DATA;
-  const detalle = r.detalle || [];
+  const detalle = r.detalle || []; // ya viene agrupado por fecha+cliente+kam desde el backend
 
-  // Filtro por mes (sobre el detalle, para tabla y chips; las tarjetas superiores son fijas: año/mes/semana actual/promedio histórico)
   let filas = detalle;
   if (RECAUDO_MES_SEL) {
     filas = filas.filter(f => f.fecha_recaudo && (new Date(f.fecha_recaudo + 'T00:00:00').getMonth() + 1) === RECAUDO_MES_SEL);
   }
+  if (RECAUDO_SEMANA_SEL) {
+    filas = filas.filter(f => f.fecha_recaudo && inicioSemanaISO(f.fecha_recaudo) === RECAUDO_SEMANA_SEL);
+  }
   if (RECAUDO_KAM_SEL && RECAUDO_KAM_SEL.length) {
     filas = filas.filter(f => RECAUDO_KAM_SEL.includes(f.vendedor));
   }
-  if (RECAUDO_RAZON_SOCIAL && RECAUDO_RAZON_SOCIAL.trim()) {
-    const q = RECAUDO_RAZON_SOCIAL.trim().toLowerCase();
-    filas = filas.filter(f => (f.razon_social_cliente || '').toLowerCase().includes(q));
+  if (RECAUDO_RAZON_SOCIAL) {
+    filas = filas.filter(f => f.razon_social_cliente === RECAUDO_RAZON_SOCIAL);
   }
 
   const mesesConDatos = [...new Set(detalle.filter(f => f.fecha_recaudo).map(f => new Date(f.fecha_recaudo + 'T00:00:00').getMonth() + 1))].sort((a, b) => a - b);
   const kamsDisponibles = [...new Set(detalle.map(f => f.vendedor).filter(Boolean))].sort();
+  const razonesSociales = [...new Set(detalle.map(f => f.razon_social_cliente).filter(Boolean))].sort();
+  const semanas = r.semanal || [];
 
   let html = renderBarraFiltros([
     { id: 'kam', label: 'KAM', valor: RECAUDO_KAM_SEL, etiquetaDe: v => titleCase(v) },
-    { id: 'razonsocial', label: 'Razón social', valor: RECAUDO_RAZON_SOCIAL || null }
+    { id: 'razonsocial', label: 'Razón social', valor: RECAUDO_RAZON_SOCIAL || null },
+    { id: 'semana', label: 'Semana', valor: RECAUDO_SEMANA_SEL || null, valorMostrar: RECAUDO_SEMANA_SEL ? `S${semanas.findIndex(s => s.semana === RECAUDO_SEMANA_SEL) + 1}` : null }
   ]);
 
   html += `<div class="kpis">
@@ -2567,21 +2586,31 @@ function renderRecaudo() {
   </div>`;
 
   html += `<div class="card">
-    <h2>Recaudo semanal (lunes a viernes)</h2>
-    ${renderGraficaRecaudoSemanal(r.semanal)}
+    <h2>Recaudo semanal (lunes a domingo) — clic en una barra para filtrar</h2>
+    ${renderGraficaRecaudoSemanal(semanas)}
   </div>`;
 
   html += `<div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
-    <div>
-      <label style="display:block;font-size:10px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">MES</label>
-      <select id="recaudoMesSel" style="padding:8px 10px;">
+    <div style="display:flex;flex-direction:column;">
+      <label style="font-size:10px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">MES</label>
+      <select id="recaudoMesSel" style="padding:8px 10px;height:38px;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;font-family:inherit;font-size:13px;">
         <option value="">Todos</option>
         ${mesesConDatos.map(m => `<option value="${m}" ${RECAUDO_MES_SEL === m ? 'selected' : ''}>${MESES[m - 1]}</option>`).join('')}
       </select>
     </div>
-    <div>
-      <label style="display:block;font-size:10px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">RAZÓN SOCIAL CLIENTE</label>
-      <input id="recaudoRazonSocialInput" type="text" placeholder="Buscar cliente..." value="${esc(RECAUDO_RAZON_SOCIAL)}" style="padding:8px 10px;min-width:220px;">
+    <div style="display:flex;flex-direction:column;">
+      <label style="font-size:10px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">SEMANA</label>
+      <select id="recaudoSemanaSel" style="padding:8px 10px;height:38px;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;font-family:inherit;font-size:13px;">
+        <option value="">Todas</option>
+        ${semanas.map((s, i) => `<option value="${s.semana}" ${RECAUDO_SEMANA_SEL === s.semana ? 'selected' : ''}>S${i + 1} · ${formatearSemanaLabel(s.semana)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;">
+      <label style="font-size:10px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">RAZÓN SOCIAL CLIENTE</label>
+      <select id="recaudoRazonSocialSel" style="padding:8px 10px;height:38px;min-width:260px;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;font-family:inherit;font-size:13px;">
+        <option value="">Todos</option>
+        ${razonesSociales.map(rs => `<option value="${esc(rs)}" ${RECAUDO_RAZON_SOCIAL === rs ? 'selected' : ''}>${esc(rs)}</option>`).join('')}
+      </select>
     </div>
   </div>`;
 
@@ -2594,13 +2623,12 @@ function renderRecaudo() {
   });
   html += '</table></div>';
 
-  html += `<div class="card"><h2>Detalle de recaudo (${filas.length.toLocaleString('es-CO')} registros)</h2><table><tr><th>Fecha</th><th>Nit Cliente</th><th>Razón Social Cliente</th><th>KAM</th><th class="num">Crédito PCGA</th></tr>`;
-  filas.sort((a, b) => (b.fecha_recaudo || '').localeCompare(a.fecha_recaudo || '')).slice(0, 500).forEach(f => {
+  const filasOrdenadas = [...filas].sort((a, b) => (b.fecha_recaudo || '').localeCompare(a.fecha_recaudo || ''));
+  html += `<div class="card"><h2>Detalle de recaudo por cliente y día (${filasOrdenadas.length.toLocaleString('es-CO')} registros)</h2><table><tr><th>Fecha</th><th>Nit Cliente</th><th>Razón Social Cliente</th><th>KAM</th><th class="num">Crédito PCGA</th></tr>`;
+  filasOrdenadas.forEach(f => {
     html += `<tr><td>${esc(f.fecha_recaudo || '')}</td><td>${esc(f.cliente_nit || '')}</td><td>${esc(f.razon_social_cliente || '')}</td><td>${esc(titleCase(f.vendedor || ''))}</td><td class="num money">${money(f.credito_pcga)}</td></tr>`;
   });
-  html += '</table>';
-  if (filas.length > 500) html += `<div style="padding:8px;font-size:11px;color:var(--text-dim);">Mostrando 500 de ${filas.length.toLocaleString('es-CO')} registros. Usa los filtros para acotar.</div>`;
-  html += '</div>';
+  html += '</table></div>';
 
   el.innerHTML = html;
   autoFitKpis();
@@ -2614,21 +2642,27 @@ function renderRecaudo() {
     });
   });
 
+  el.querySelectorAll('.barra-recaudo-semana').forEach(g => {
+    g.addEventListener('click', () => {
+      RECAUDO_SEMANA_SEL = (RECAUDO_SEMANA_SEL === g.dataset.semana) ? null : g.dataset.semana;
+      renderRecaudo();
+    });
+  });
+
   activarBarraFiltros(el, {
     kam: (v) => { RECAUDO_KAM_SEL = (RECAUDO_KAM_SEL || []).filter(x => x !== v); renderRecaudo(); },
-    razonsocial: () => { RECAUDO_RAZON_SOCIAL = ''; renderRecaudo(); }
-  }, () => { RECAUDO_KAM_SEL = []; RECAUDO_MES_SEL = null; RECAUDO_RAZON_SOCIAL = ''; renderRecaudo(); });
+    razonsocial: () => { RECAUDO_RAZON_SOCIAL = ''; renderRecaudo(); },
+    semana: () => { RECAUDO_SEMANA_SEL = null; renderRecaudo(); }
+  }, () => { RECAUDO_KAM_SEL = []; RECAUDO_MES_SEL = null; RECAUDO_SEMANA_SEL = null; RECAUDO_RAZON_SOCIAL = ''; renderRecaudo(); });
 
   const selMes = document.getElementById('recaudoMesSel');
   if (selMes) selMes.addEventListener('change', () => { RECAUDO_MES_SEL = selMes.value ? parseInt(selMes.value) : null; renderRecaudo(); });
 
-  const inputRazon = document.getElementById('recaudoRazonSocialInput');
-  if (inputRazon) {
-    inputRazon.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { RECAUDO_RAZON_SOCIAL = inputRazon.value; renderRecaudo(); }
-    });
-    inputRazon.addEventListener('blur', () => { RECAUDO_RAZON_SOCIAL = inputRazon.value; renderRecaudo(); });
-  }
+  const selSemana = document.getElementById('recaudoSemanaSel');
+  if (selSemana) selSemana.addEventListener('change', () => { RECAUDO_SEMANA_SEL = selSemana.value || null; renderRecaudo(); });
+
+  const selRazon = document.getElementById('recaudoRazonSocialSel');
+  if (selRazon) selRazon.addEventListener('change', () => { RECAUDO_RAZON_SOCIAL = selRazon.value || ''; renderRecaudo(); });
 }
 
 async function mostrarFacturasCarteraMulti() {
@@ -3809,6 +3843,7 @@ async function mostrarUltimaCarga() {
     { key: 'facturacion',   label: '📄 Facturación' },
     { key: 'remisiones',    label: '🚚 Remisiones' },
     { key: 'cartera',       label: '💰 Cartera' },
+    { key: 'recaudo',       label: '🏦 Recaudo' },
     { key: 'facilitadores', label: '🏍️ Facilitadores' }
   ];
 
