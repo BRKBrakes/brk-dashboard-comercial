@@ -182,6 +182,7 @@ async function loadTab(tab) {
   if (tab === 'remisiones') return loadRemisiones();
   if (tab === 'tablerocontrol') return loadTableroControl();
   if (tab === 'cartera') return loadCartera();
+  if (tab === 'recaudo') return loadRecaudo();
   if (tab === 'nps') return loadNps();
   if (tab === 'facilitadores') return loadFacilitadores();
   if (tab === 'cargar') return loadCargarVentas();
@@ -2278,6 +2279,11 @@ const MAPEO_FACILITADORES_V2 = { // formato julio en adelante
   'Destino 1 - dirección': 'destino_direccion', 'Destino 1 - fecha finalización': 'fecha_finalizacion'
 };
 
+const MAPEO_RECAUDO = {
+  'Fecha recaudo': 'fecha_recaudo', 'Nit Cliente': 'cliente_nit', 'Razón social cliente': 'razon_social_cliente',
+  'Razón social vendedor': 'vendedor', 'Crédito PCGA': 'credito_pcga'
+};
+
 const FUENTES_DATA = {
   facturacion: {
     titulo: 'Facturación', prefijoArchivo: '1 facturacion', mapeo: MAPEO_COLUMNAS_SIESA,
@@ -2296,6 +2302,11 @@ const FUENTES_DATA = {
     titulo: 'Facilitadores', prefijoArchivo: 'entregas', mapeos: [MAPEO_FACILITADORES_V1, MAPEO_FACILITADORES_V2],
     camposFecha: [], camposFechaHora: ['fecha_creacion', 'fecha_finalizacion'], rpc: 'dash_facilitadores_cargar_lote',
     filtro: f => f.consecutivo && f.fecha_creacion, sinPrimerLote: true
+  },
+  recaudo: {
+    titulo: 'Recaudo', prefijoArchivo: 'Recaudo', mapeo: MAPEO_RECAUDO,
+    camposFecha: ['fecha_recaudo'], rpc: 'dash_recaudo_cargar_lote',
+    filtro: f => f.credito_pcga !== null && f.credito_pcga !== 0
   }
 };
 
@@ -2459,6 +2470,165 @@ function renderCartera() {
   });
 
   if (CARTERA_SUCURSAL_SEL.length) mostrarFacturasCarteraMulti();
+}
+
+// ---- Recaudo ----
+let RECAUDO_DATA = null;
+let RECAUDO_MES_SEL = null; // 1-12 o null = todos
+let RECAUDO_KAM_SEL = [];
+let RECAUDO_RAZON_SOCIAL = '';
+
+async function loadRecaudo() {
+  const el = document.getElementById('view-recaudo');
+  el.innerHTML = '<div class="loading">Cargando recaudo...</div>';
+  const r = await rpc('dash_recaudo_resumen', { p_token: TOKEN });
+  if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
+  RECAUDO_DATA = r;
+  RECAUDO_MES_SEL = null;
+  RECAUDO_KAM_SEL = [];
+  RECAUDO_RAZON_SOCIAL = '';
+  renderRecaudo();
+}
+
+function formatearSemanaLabel(fechaSemanaLunesISO) {
+  // fechaSemanaLunesISO: 'YYYY-MM-DD' del lunes de esa semana
+  const d = new Date(fechaSemanaLunesISO + 'T00:00:00');
+  const dia = String(d.getDate()).padStart(2, '0');
+  const mes = MESES[d.getMonth()];
+  return `${dia} ${mes}`;
+}
+
+function renderGraficaRecaudoSemanal(semanal) {
+  if (!semanal || !semanal.length) return '<div style="padding:20px;color:var(--text-dim);font-size:12px;">Sin datos suficientes para graficar.</div>';
+
+  const maxVal = Math.max(...semanal.map(s => s.total || 0), 1);
+  const anchoBarra = 26;
+  const gapBarra = 14;
+  const altoMax = 220;
+  const margenIzq = 10;
+  const altoTotal = altoMax + 60;
+  const anchoTotal = margenIzq + semanal.length * (anchoBarra + gapBarra) + 20;
+
+  let barras = '';
+  semanal.forEach((s, i) => {
+    const alto = Math.round(((s.total || 0) / maxVal) * altoMax);
+    const x = margenIzq + i * (anchoBarra + gapBarra);
+    const y = altoMax - alto;
+    const label = `S${i + 1}`;
+    const fechaLabel = formatearSemanaLabel(s.semana);
+    barras += `
+      <g>
+        <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="var(--neon)" rx="2"></rect>
+        <text x="${x + anchoBarra / 2}" y="${y - 6}" text-anchor="middle" font-size="10" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(s.total)}</text>
+        <text x="${x + anchoBarra / 2}" y="${altoMax + 16}" text-anchor="middle" font-size="11" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${label}</text>
+        <text x="${x + anchoBarra / 2}" y="${altoMax + 30}" text-anchor="middle" font-size="9" fill="var(--text-dim)" font-family="Geist Mono, monospace">${fechaLabel}</text>
+      </g>`;
+  });
+
+  return `<div style="overflow-x:auto;padding:10px 0;">
+    <svg width="${anchoTotal}" height="${altoTotal}" viewBox="0 0 ${anchoTotal} ${altoTotal}">
+      <line x1="0" y1="${altoMax}" x2="${anchoTotal}" y2="${altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
+      ${barras}
+    </svg>
+  </div>`;
+}
+
+function renderRecaudo() {
+  const el = document.getElementById('view-recaudo');
+  const r = RECAUDO_DATA;
+  const detalle = r.detalle || [];
+
+  // Filtro por mes (sobre el detalle, para tabla y chips; las tarjetas superiores son fijas: año/mes/semana actual/promedio histórico)
+  let filas = detalle;
+  if (RECAUDO_MES_SEL) {
+    filas = filas.filter(f => f.fecha_recaudo && (new Date(f.fecha_recaudo + 'T00:00:00').getMonth() + 1) === RECAUDO_MES_SEL);
+  }
+  if (RECAUDO_KAM_SEL && RECAUDO_KAM_SEL.length) {
+    filas = filas.filter(f => RECAUDO_KAM_SEL.includes(f.vendedor));
+  }
+  if (RECAUDO_RAZON_SOCIAL && RECAUDO_RAZON_SOCIAL.trim()) {
+    const q = RECAUDO_RAZON_SOCIAL.trim().toLowerCase();
+    filas = filas.filter(f => (f.razon_social_cliente || '').toLowerCase().includes(q));
+  }
+
+  const mesesConDatos = [...new Set(detalle.filter(f => f.fecha_recaudo).map(f => new Date(f.fecha_recaudo + 'T00:00:00').getMonth() + 1))].sort((a, b) => a - b);
+  const kamsDisponibles = [...new Set(detalle.map(f => f.vendedor).filter(Boolean))].sort();
+
+  let html = renderBarraFiltros([
+    { id: 'kam', label: 'KAM', valor: RECAUDO_KAM_SEL, etiquetaDe: v => titleCase(v) },
+    { id: 'razonsocial', label: 'Razón social', valor: RECAUDO_RAZON_SOCIAL || null }
+  ]);
+
+  html += `<div class="kpis">
+    <div class="kpi"><div class="label">Recaudo Total Año</div><div class="value">${money(r.total_anio)}</div></div>
+    <div class="kpi"><div class="label">Recaudo Total Mes</div><div class="value">${money(r.total_mes)}</div></div>
+    <div class="kpi"><div class="label">Recaudo Última Semana</div><div class="value">${money(r.total_semana)}</div></div>
+    <div class="kpi"><div class="label">Promedio Recaudo Semanal</div><div class="value">${money(r.promedio_semanal)}</div></div>
+  </div>`;
+
+  html += `<div class="card">
+    <h2>Recaudo semanal (lunes a viernes)</h2>
+    ${renderGraficaRecaudoSemanal(r.semanal)}
+  </div>`;
+
+  html += `<div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
+    <div>
+      <label style="display:block;font-size:10px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">MES</label>
+      <select id="recaudoMesSel" style="padding:8px 10px;">
+        <option value="">Todos</option>
+        ${mesesConDatos.map(m => `<option value="${m}" ${RECAUDO_MES_SEL === m ? 'selected' : ''}>${MESES[m - 1]}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label style="display:block;font-size:10px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">RAZÓN SOCIAL CLIENTE</label>
+      <input id="recaudoRazonSocialInput" type="text" placeholder="Buscar cliente..." value="${esc(RECAUDO_RAZON_SOCIAL)}" style="padding:8px 10px;min-width:220px;">
+    </div>
+  </div>`;
+
+  const totalesPorKam = {};
+  detalle.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor] || 0) + (f.credito_pcga || 0); });
+  html += `<div class="card"><h2>Totales por KAM (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Recaudo</th></tr>`;
+  kamsDisponibles.sort((a, b) => (totalesPorKam[b] || 0) - (totalesPorKam[a] || 0)).forEach(k => {
+    const activo = (RECAUDO_KAM_SEL || []).includes(k);
+    html += `<tr class="fila-kam-recaudo" data-kam="${(k || '').replace(/"/g, '&quot;')}" style="cursor:pointer;${activo ? 'background:#2a2e24;border-left:3px solid var(--neon);' : ''}"><td>${esc(titleCase(k))}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  html += `<div class="card"><h2>Detalle de recaudo (${filas.length.toLocaleString('es-CO')} registros)</h2><table><tr><th>Fecha</th><th>Nit Cliente</th><th>Razón Social Cliente</th><th>KAM</th><th class="num">Crédito PCGA</th></tr>`;
+  filas.sort((a, b) => (b.fecha_recaudo || '').localeCompare(a.fecha_recaudo || '')).slice(0, 500).forEach(f => {
+    html += `<tr><td>${esc(f.fecha_recaudo || '')}</td><td>${esc(f.cliente_nit || '')}</td><td>${esc(f.razon_social_cliente || '')}</td><td>${esc(titleCase(f.vendedor || ''))}</td><td class="num money">${money(f.credito_pcga)}</td></tr>`;
+  });
+  html += '</table>';
+  if (filas.length > 500) html += `<div style="padding:8px;font-size:11px;color:var(--text-dim);">Mostrando 500 de ${filas.length.toLocaleString('es-CO')} registros. Usa los filtros para acotar.</div>`;
+  html += '</div>';
+
+  el.innerHTML = html;
+  autoFitKpis();
+  habilitarOrdenTablas(el);
+
+  el.querySelectorAll('.fila-kam-recaudo').forEach(fila => {
+    fila.addEventListener('click', () => {
+      const actuales = RECAUDO_KAM_SEL || [];
+      RECAUDO_KAM_SEL = actuales.includes(fila.dataset.kam) ? actuales.filter(v => v !== fila.dataset.kam) : [...actuales, fila.dataset.kam];
+      renderRecaudo();
+    });
+  });
+
+  activarBarraFiltros(el, {
+    kam: (v) => { RECAUDO_KAM_SEL = (RECAUDO_KAM_SEL || []).filter(x => x !== v); renderRecaudo(); },
+    razonsocial: () => { RECAUDO_RAZON_SOCIAL = ''; renderRecaudo(); }
+  }, () => { RECAUDO_KAM_SEL = []; RECAUDO_MES_SEL = null; RECAUDO_RAZON_SOCIAL = ''; renderRecaudo(); });
+
+  const selMes = document.getElementById('recaudoMesSel');
+  if (selMes) selMes.addEventListener('change', () => { RECAUDO_MES_SEL = selMes.value ? parseInt(selMes.value) : null; renderRecaudo(); });
+
+  const inputRazon = document.getElementById('recaudoRazonSocialInput');
+  if (inputRazon) {
+    inputRazon.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { RECAUDO_RAZON_SOCIAL = inputRazon.value; renderRecaudo(); }
+    });
+    inputRazon.addEventListener('blur', () => { RECAUDO_RAZON_SOCIAL = inputRazon.value; renderRecaudo(); });
+  }
 }
 
 async function mostrarFacturasCarteraMulti() {
@@ -2813,7 +2983,7 @@ async function loadMatrizPermisos() {
 
   const TABS_LABELS = {
     okr: 'OKR', okrkam: 'OKR KAM', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
-    remisiones: 'Remisiones', cartera: 'Cartera', facilitadores: 'Facilitadores',
+    remisiones: 'Remisiones', cartera: 'Cartera', recaudo: 'Recaudo', facilitadores: 'Facilitadores',
     nps: 'NPS', oportunidades: 'Oportunidades', tipoa: 'Aliados Tipo A', clientes: 'Clientes',
     segmentacion: 'Segmentación', perdidos: 'Recuperación', ticket: 'Ticket Promedio',
     portafolio: 'Portafolio', planes: 'Planes de acción'
@@ -3599,6 +3769,7 @@ function loadCargarVentas() {
         <button class="btn-fuente" data-fuente="facturacion" style="width:auto;padding:14px 24px;">📄 Facturación</button>
         <button class="btn-fuente" data-fuente="remisiones" style="width:auto;padding:14px 24px;">🚚 Remisiones</button>
         <button class="btn-fuente" data-fuente="cartera" style="width:auto;padding:14px 24px;">💰 Cartera</button>
+        <button class="btn-fuente" data-fuente="recaudo" style="width:auto;padding:14px 24px;">🏦 Recaudo</button>
         <button class="btn-fuente" data-fuente="facilitadores" style="width:auto;padding:14px 24px;">🏍️ Facilitadores</button>
         <button id="btnCambiarCarpeta" style="width:auto;padding:14px 24px;background:transparent;border:1px solid var(--dust);color:var(--text-dim);">📁 Cambiar carpeta</button>
       </div>
