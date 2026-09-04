@@ -2560,11 +2560,14 @@ function renderRecaudo() {
   if (RECAUDO_SEMANA_SEL) {
     filas = filas.filter(f => f.fecha_recaudo && inicioSemanaISO(f.fecha_recaudo) === RECAUDO_SEMANA_SEL);
   }
-  if (RECAUDO_KAM_SEL && RECAUDO_KAM_SEL.length) {
-    filas = filas.filter(f => RECAUDO_KAM_SEL.includes(f.vendedor));
-  }
   if (RECAUDO_RAZON_SOCIAL) {
     filas = filas.filter(f => f.razon_social_cliente === RECAUDO_RAZON_SOCIAL);
+  }
+  // Base para "Totales por KAM": respeta Mes/Semana/Razón Social, pero NO el propio filtro de KAM,
+  // para poder seguir viendo y sumando otros KAMs a la selección múltiple.
+  const filasParaTablaKam = filas;
+  if (RECAUDO_KAM_SEL && RECAUDO_KAM_SEL.length) {
+    filas = filas.filter(f => RECAUDO_KAM_SEL.includes(f.vendedor));
   }
 
   const mesesConDatos = [...new Set(detalle.filter(f => f.fecha_recaudo).map(f => new Date(f.fecha_recaudo + 'T00:00:00').getMonth() + 1))].sort((a, b) => a - b);
@@ -2615,11 +2618,15 @@ function renderRecaudo() {
   </div>`;
 
   const totalesPorKam = {};
-  detalle.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor] || 0) + (f.credito_pcga || 0); });
-  html += `<div class="card"><h2>Totales por KAM (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Recaudo</th></tr>`;
+  filasParaTablaKam.forEach(f => { totalesPorKam[f.vendedor] = (totalesPorKam[f.vendedor] || 0) + (f.credito_pcga || 0); });
+  const totalFiltrado = filasParaTablaKam.reduce((acc, f) => acc + (f.credito_pcga || 0), 0);
+  const kamsConDatosFiltrados = [...new Set(filasParaTablaKam.map(f => f.vendedor).filter(Boolean))];
+  html += `<div class="card"><h2>Totales por KAM (clic para filtrar, varios a la vez)</h2><table><tr><th>KAM</th><th class="num">Recaudo</th><th class="num">% Aporte</th></tr>`;
   kamsDisponibles.sort((a, b) => (totalesPorKam[b] || 0) - (totalesPorKam[a] || 0)).forEach(k => {
+    if (!kamsConDatosFiltrados.includes(k)) return; // no mostrar KAM sin recaudo dentro del filtro activo (mes/semana/razón social)
     const activo = (RECAUDO_KAM_SEL || []).includes(k);
-    html += `<tr class="fila-kam-recaudo" data-kam="${(k || '').replace(/"/g, '&quot;')}" style="cursor:pointer;${activo ? 'background:#2a2e24;border-left:3px solid var(--neon);' : ''}"><td>${esc(titleCase(k))}</td><td class="num money">${money(totalesPorKam[k])}</td></tr>`;
+    const pctAporte = totalFiltrado ? ((totalesPorKam[k] / totalFiltrado) * 100).toFixed(1) : '0.0';
+    html += `<tr class="fila-kam-recaudo" data-kam="${(k || '').replace(/"/g, '&quot;')}" style="cursor:pointer;${activo ? 'background:#2a2e24;border-left:3px solid var(--neon);' : ''}"><td>${esc(titleCase(k))}</td><td class="num money">${money(totalesPorKam[k])}</td><td class="num">${pctAporte}%</td></tr>`;
   });
   html += '</table></div>';
 
