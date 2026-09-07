@@ -302,6 +302,11 @@ async function loadOkrKam() {
   el.innerHTML = '<div class="loading">Cargando OKR KAM...</div>';
   const mesActual = new Date().getMonth() + 1;
   const opcionesMeses = MESES.slice(0, mesActual).map((m, i) => ({ value: String(i + 1), label: m }));
+  // Colaborador con un solo KAM asignado: fijar vista individual directamente (misma visual que Admin ve al entrar a un KAM específico).
+  // Colaborador con varios KAM asignados (ej. auxiliares): se queda en la vista resumen, pero acotada a los suyos (ver kams_disponibles más abajo).
+  if (ROL === 'colaborador' && KAM_ASIGNADOS.length === 1) {
+    OKRKAM_KAM = KAM_ASIGNADOS[0];
+  }
   await renderOkrKam(el, opcionesMeses, mesActual);
 }
 
