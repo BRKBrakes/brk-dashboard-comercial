@@ -1794,21 +1794,24 @@ let PF_KAM = [];
 let PF_CLIENTE = [];
 let PF_SUCURSAL = [];
 let PF_MES = [];
+let PF_MARCA = null; // null=todas, 'BRK', 'OTROS'
 
-async function loadPortafolio(kam, cliente, sucursal, mes) {
+async function loadPortafolio(kam, cliente, sucursal, mes, marca) {
   const el = document.getElementById('view-portafolio');
   if (!PORTAFOLIO_FILTROS_HTML_LISTO) el.innerHTML = '<div class="loading">Cargando portafolio...</div>';
   PF_KAM = kam !== undefined ? kam : PF_KAM;
   PF_CLIENTE = cliente !== undefined ? cliente : PF_CLIENTE;
   PF_SUCURSAL = sucursal !== undefined ? sucursal : PF_SUCURSAL;
   PF_MES = mes !== undefined ? mes : PF_MES;
+  PF_MARCA = marca !== undefined ? marca : PF_MARCA;
 
   const paramsBase = {
     p_token: TOKEN,
     p_kam: (PF_KAM && PF_KAM.length) ? PF_KAM : null,
     p_cliente: (PF_CLIENTE && PF_CLIENTE.length) ? PF_CLIENTE : null,
     p_sucursal: (PF_SUCURSAL && PF_SUCURSAL.length) ? PF_SUCURSAL : null,
-    p_mes: (PF_MES && PF_MES.length) ? PF_MES.map(m=>parseInt(m)) : null
+    p_mes: (PF_MES && PF_MES.length) ? PF_MES.map(m=>parseInt(m)) : null,
+    p_marca: PF_MARCA || null
   };
 
   const r = await rpc('dash_portafolio', paramsBase);
@@ -1829,6 +1832,11 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     <div id="ms-wrap-pfKam-holder">${renderMultiSelect('pfKam', opcionesKam, PF_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('pfCliente', opcionesCliente, PF_CLIENTE, 'Todos los clientes')}
     ${renderMultiSelect('pfSucursal', opcionesSucursal, PF_SUCURSAL, 'Todas las sucursales')}
+    <select id="pfMarca" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
+      <option value="">Marca: Todas</option>
+      <option value="BRK" ${PF_MARCA==='BRK'?'selected':''}>Marca: BRK</option>
+      <option value="OTROS" ${PF_MARCA==='OTROS'?'selected':''}>Marca: Otros</option>
+    </select>
   </div>`;
 
   html += renderBarraFiltros([
@@ -1836,6 +1844,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     { id: 'kam', label: 'KAM', valor: PF_KAM, etiquetaDe: v => titleCase(v) },
     { id: 'cliente', label: 'Cliente', valor: PF_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: PF_SUCURSAL },
+    { id: 'marca', label: 'Marca', valor: PF_MARCA ? [PF_MARCA] : [], etiquetaDe: v => v==='BRK'?'BRK':'Otros' },
     { id: 'familia', label: 'Familia', valor: PORTAFOLIO_FAMILIA_SEL }
   ]);
 
@@ -1858,17 +1867,19 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
 
   html += '<div class="card"><h2>Participación de portafolio por familia (top 12, clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
   html += `<svg width="200" height="200" viewBox="0 0 200 200">${paths}</svg>`;
-  html += '<div style="flex:1;min-width:220px;">';
+  html += '<div style="flex:1;min-width:420px;overflow-x:auto;"><table><tr><th></th><th>Familia</th><th class="num">%</th><th class="num">Unidades</th><th class="num">Valor</th></tr>';
   data.forEach((d, i) => {
     const color = COLORES_FAMILIA[i % COLORES_FAMILIA.length];
     const activo = PORTAFOLIO_FAMILIA_SEL === d.familia;
-    html += `<div class="fam-leyenda" data-familia="${d.familia}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;padding:3px 6px;border-radius:4px;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
-      <span style="width:12px;height:12px;background:${color};border-radius:2px;flex-shrink:0;"></span>
-      <span style="flex:1;">${esc(d.familia)}</span>
-      <span style="color:var(--text-dim);">${d.pct}%</span>
-    </div>`;
+    html += `<tr class="fam-leyenda" data-familia="${d.familia}" style="cursor:pointer;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
+      <td style="width:16px;"><span style="display:inline-block;width:12px;height:12px;background:${color};border-radius:2px;"></span></td>
+      <td>${esc(d.familia)}</td>
+      <td class="num">${d.pct}%</td>
+      <td class="num">${Math.round(d.unidades).toLocaleString('es-CO')}</td>
+      <td class="num money">${money(d.venta)}</td>
+    </tr>`;
   });
-  html += '</div></div></div>';
+  html += '</table></div></div></div>';
 
   if (!PORTAFOLIO_FAMILIA_SEL) {
     const porVentaFam = data.slice().sort((a,b) => b.venta - a.venta);
@@ -1907,6 +1918,11 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
   activarMultiSelect('pfCliente', (vals) => loadPortafolio(PF_KAM, vals, PF_SUCURSAL, PF_MES));
   activarMultiSelect('pfSucursal', (vals) => loadPortafolio(PF_KAM, PF_CLIENTE, vals, PF_MES));
 
+  const selMarcaPf = document.getElementById('pfMarca');
+  if (selMarcaPf) selMarcaPf.addEventListener('change', () => {
+    loadPortafolio(undefined, undefined, undefined, undefined, selMarcaPf.value || null);
+  });
+
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-pfKam');
     if (wrap) wrap.style.display = 'none';
@@ -1924,8 +1940,9 @@ async function loadPortafolio(kam, cliente, sucursal, mes) {
     kam: (v) => loadPortafolio((PF_KAM||[]).filter(x=>x!==v), PF_CLIENTE, PF_SUCURSAL, PF_MES),
     cliente: (v) => loadPortafolio(PF_KAM, (PF_CLIENTE||[]).filter(x=>x!==v), PF_SUCURSAL, PF_MES),
     sucursal: (v) => loadPortafolio(PF_KAM, PF_CLIENTE, (PF_SUCURSAL||[]).filter(x=>x!==v), PF_MES),
+    marca: () => loadPortafolio(PF_KAM, PF_CLIENTE, PF_SUCURSAL, PF_MES, null),
     familia: () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio(PF_KAM, PF_CLIENTE, PF_SUCURSAL, PF_MES); }
-  }, () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio([], [], [], []); });
+  }, () => { PORTAFOLIO_FAMILIA_SEL = null; loadPortafolio([], [], [], [], null); });
 }
 
 let RECUP_KAM_HTML_LISTO = false;
