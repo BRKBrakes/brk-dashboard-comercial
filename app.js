@@ -2452,6 +2452,12 @@ function renderCartera() {
     const activo = (CARTERA_KAM_SEL||[]).includes(k.vendedor);
     html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencida_total)}</td><td class="num" data-val="${pctVencidaKam}">${pctVencidaKam}%</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
+  if (r.general) {
+    const g = r.general;
+    const colorTotal = colorKpiCartera(g.kpi_pct);
+    const pctVencidaTotal = g.total ? Math.round((g.vencida_total/g.total)*1000)/10 : 0;
+    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td class="num money">${money(g.total)}</td><td class="num money">${money(g.vencida_total)}</td><td class="num" data-val="${pctVencidaTotal}">${pctVencidaTotal}%</td><td class="num money">${money(g.vencido_60)}</td><td class="num" style="color:${colorTotal};font-weight:700;">${g.kpi_pct}%</td></tr>`;
+  }
   html += '</table></div>';
 
   const detalleFiltrado = (CARTERA_KAM_SEL && CARTERA_KAM_SEL.length) ? (r.detalle||[]).filter(d => CARTERA_KAM_SEL.includes(d.vendedor)) : (r.detalle||[]);
