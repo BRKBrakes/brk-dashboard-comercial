@@ -3868,6 +3868,12 @@ async function mostrarUltimaCarga() {
     return `<b style="color:var(--neon);">${d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})} ${d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</b>`;
   };
 
+  const fmtOrigen = (origen) => {
+    if (!origen) return '<span style="color:var(--text-dim);">—</span>';
+    if (origen === 'SQL') return '<span style="color:#4ade80;font-weight:700;">⚡ SQL</span>';
+    return '<span style="color:var(--text-dim);font-weight:700;">📤 DATA</span>';
+  };
+
   const fuentes = [
     { key: 'facturacion',   label: '📄 Facturación' },
     { key: 'remisiones',    label: '🚚 Remisiones' },
@@ -3877,12 +3883,13 @@ async function mostrarUltimaCarga() {
   ];
 
   info.innerHTML = `<table style="width:100%;font-size:13px;border-collapse:collapse;">
-    <tr><th style="text-align:left;color:var(--text-dim);padding:6px 12px 6px 0;">Fuente</th><th style="text-align:left;color:var(--text-dim);padding:6px 12px;">Última actualización</th><th style="text-align:right;color:var(--text-dim);padding:6px 0;">Registros</th></tr>
+    <tr><th style="text-align:left;color:var(--text-dim);padding:6px 12px 6px 0;">Fuente</th><th style="text-align:left;color:var(--text-dim);padding:6px 12px;">Última actualización</th><th style="text-align:center;color:var(--text-dim);padding:6px 12px;">Origen</th><th style="text-align:right;color:var(--text-dim);padding:6px 0;">Registros</th></tr>
     ${fuentes.map(f => {
       const d = r[f.key] || {};
       return `<tr style="border-top:1px solid #333630;">
         <td style="padding:8px 12px 8px 0;">${f.label}</td>
         <td style="padding:8px 12px;">${fmt(d.ultima_carga)}</td>
+        <td style="padding:8px 12px;text-align:center;">${fmtOrigen(d.origen)}</td>
         <td style="padding:8px 0;text-align:right;color:var(--text-dim);">${(d.total_registros||0).toLocaleString('es-CO')}</td>
       </tr>`;
     }).join('')}
@@ -3941,7 +3948,7 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
     let subidos = 0;
     for (let i = 0; i < filasMapeadas.length; i += TAM_LOTE) {
       const lote = filasMapeadas.slice(i, i + TAM_LOTE);
-      const parametros = { p_token: TOKEN, p_lote: lote };
+      const parametros = { p_token: TOKEN, p_lote: lote, p_origen: 'DATA' };
       if (!fuente.sinPrimerLote) parametros.p_primer_lote = (i === 0);
       const r = await rpc(fuente.rpc, parametros);
       if (!r.ok) {
@@ -3957,7 +3964,7 @@ async function cargarDesdeCarpeta(claveFuente, forzarSeleccion) {
 
     // Si el archivo llegó vacío de filas válidas, igual truncamos para reflejar la realidad (remisiones/cartera fluctuantes)
     if (filasMapeadas.length === 0 && !fuente.sinPrimerLote) {
-      await rpc(fuente.rpc, { p_token: TOKEN, p_lote: [], p_primer_lote: true });
+      await rpc(fuente.rpc, { p_token: TOKEN, p_lote: [], p_primer_lote: true, p_origen: 'DATA' });
     }
 
     barra.style.width = '100%';
