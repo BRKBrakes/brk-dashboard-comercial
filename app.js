@@ -2728,22 +2728,23 @@ async function mostrarFacturasCarteraMulti() {
   const btnExportar = document.getElementById('btnExportarCarteraSel');
   if (btnExportar) {
     btnExportar.addEventListener('click', () => {
-      const facturasVencidas = facturas.filter(f => (f.dias_real_vencido||0) >= 1);
-      if (!facturasVencidas.length) { alert('No hay facturas vencidas en la selección actual.'); return; }
-      const filas = facturasVencidas.map(f => ({
+      if (!facturas.length) { alert('No hay facturas en la selección actual.'); return; }
+      const facturasOrdenadas = [...facturas].sort((a,b) => (b.dias_real_vencido||0) - (a.dias_real_vencido||0));
+      const filas = facturasOrdenadas.map(f => ({
         'Sucursal': f.sucursal || '',
         'Vendedor': titleCase(f.vendedor || ''),
         'Nro. documento': f.nro_documento_cruce || '',
         'Fecha factura': f.fecha_docto_cruce || '',
         'Fecha real vencimiento': f.fecha_real_vencimiento || '',
         'Valor': f.total_cop || 0,
-        'Días vencido': f.dias_real_vencido
+        'Días vencido': f.dias_real_vencido,
+        'Estado': (f.dias_real_vencido||0) >= 1 ? 'Vencida' : 'No vencida'
       }));
       const ws = XLSX.utils.json_to_sheet(filas);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Cartera Vencida');
+      XLSX.utils.book_append_sheet(wb, ws, 'Cartera');
       const fecha = new Date().toISOString().slice(0,10);
-      XLSX.writeFile(wb, `Cartera_Vencida_Seleccionada_${fecha}.xlsx`);
+      XLSX.writeFile(wb, `Cartera_Seleccionada_${fecha}.xlsx`);
     });
   }
 }
