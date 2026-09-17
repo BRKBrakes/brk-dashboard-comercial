@@ -3672,7 +3672,9 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   // Top Clientes — pivote por sucursal
   const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
   const mFin = mesesFinalizados(meses);
-  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2><div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
+  html += `<div class="card"><h2>Top Clientes (clic para filtrar)</h2>
+    <div style="margin-bottom:10px;"><button id="btnExportarTopClientes" style="width:auto;padding:8px 16px;">📥 Exportar a Excel</button></div>
+    <div style="max-height:420px;overflow-y:auto;"><table><tr><th>Desc. sucursal despacho</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}${mFin.length?'<th class="num" style="color:var(--neon);">Promedio</th>':''}<th class="num">Total</th></tr>`;
   topClientes.forEach(c => {
     const activo = (CLIENTES_SUCURSAL||[]).includes(c.sucursal_despacho);
     const promTC = promedioCeldas(c.meses, mFin, true);
@@ -3793,6 +3795,30 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   if (selMarca) selMarca.addEventListener('change', () => {
     loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, undefined, selMarca.value || null);
   });
+
+  const btnExportarTopClientes = document.getElementById('btnExportarTopClientes');
+  if (btnExportarTopClientes) {
+    btnExportarTopClientes.addEventListener('click', () => {
+      const promedioNumerico = (itemMeses, listaMeses) => {
+        const conVenta = listaMeses.filter(m => itemMeses[m] && itemMeses[m] > 0);
+        if (!conVenta.length) return 0;
+        return Math.round(conVenta.reduce((s,m) => s+itemMeses[m], 0) / conVenta.length);
+      };
+      const filas = topClientes.map(c => {
+        const fila = { 'Desc. sucursal despacho': c.sucursal_despacho };
+        meses.forEach(m => { fila[MESES[m-1]] = Math.round(c.meses[m] || 0); });
+        if (mFin.length) fila['Promedio'] = promedioNumerico(c.meses, mFin);
+        fila['Total'] = Math.round(c.total || 0);
+        return fila;
+      });
+      const ws = XLSX.utils.json_to_sheet(filas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Top Clientes');
+      const fecha = new Date().toISOString().slice(0,10);
+      const sufijoMarca = CLIENTES_MARCA ? `_${CLIENTES_MARCA}` : '';
+      XLSX.writeFile(wb, `Top_Clientes${sufijoMarca}_${fecha}.xlsx`);
+    });
+  }
 
   const btnExportarPU = document.getElementById('btnExportarProductosUnidades');
   if (btnExportarPU) {
