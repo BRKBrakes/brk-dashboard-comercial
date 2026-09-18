@@ -2450,13 +2450,13 @@ function renderCartera() {
     const color = colorKpiCartera(k.kpi_pct);
     const pctVencidaKam = k.total ? Math.round((k.vencida_total/k.total)*1000)/10 : 0;
     const activo = (CARTERA_KAM_SEL||[]).includes(k.vendedor);
-    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencida_total)}</td><td class="num" data-val="${pctVencidaKam}">${pctVencidaKam}%</td><td class="num money">${money(k.vencido_60)}</td><td class="num" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencida_total)}</td><td class="num" data-val="${pctVencidaKam}">${pctVencidaKam}%</td><td class="num money">${money(k.vencido_60)}</td><td class="num" data-val="${k.kpi_pct}" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
   if (r.general) {
     const g = r.general;
     const colorTotal = colorKpiCartera(g.kpi_pct);
     const pctVencidaTotal = g.total ? Math.round((g.vencida_total/g.total)*1000)/10 : 0;
-    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td class="num money">${money(g.total)}</td><td class="num money">${money(g.vencida_total)}</td><td class="num" data-val="${pctVencidaTotal}">${pctVencidaTotal}%</td><td class="num money">${money(g.vencido_60)}</td><td class="num" style="color:${colorTotal};font-weight:700;">${g.kpi_pct}%</td></tr>`;
+    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td class="num money">${money(g.total)}</td><td class="num money">${money(g.vencida_total)}</td><td class="num" data-val="${pctVencidaTotal}">${pctVencidaTotal}%</td><td class="num money">${money(g.vencido_60)}</td><td class="num" data-val="${g.kpi_pct}" style="color:${colorTotal};font-weight:700;">${g.kpi_pct}%</td></tr>`;
   }
   html += '</table></div>';
 
@@ -2467,7 +2467,7 @@ function renderCartera() {
     const colorKpi = colorKpiCartera(d.kpi_pct);
     const colorDias = colorDiasVencido(d.dias_max);
     const activo = CARTERA_SUCURSAL_SEL.some(x => x.vendedor === d.vendedor && x.sucursal === d.sucursal);
-    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" data-val="${d.kpi_pct}" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
   });
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
