@@ -3634,6 +3634,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   const opcionesKam = (f.kams||[]).slice().sort().map(k => ({ value: k, label: titleCase(k) }));
   const opcionesCliente = (f.clientes||[]).slice().sort().map(c => ({ value: c, label: titleCase(c) }));
   const opcionesSucursal = (f.sucursales||[]).slice().sort().map(s => ({ value: s, label: s }));
+  const opcionesFamilia = (f.familias||[]).slice().sort().map(fam => ({ value: fam, label: fam }));
 
   const mesActual = new Date().getMonth() + 1;
   const mesesFinalizados = meses => meses.filter(m => m < mesActual);
@@ -3653,6 +3654,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     <div id="ms-wrap-clKam-holder">${renderMultiSelect('clKam', opcionesKam, CLIENTES_KAM, 'Todos los KAM')}</div>
     ${renderMultiSelect('clCliente', opcionesCliente, CLIENTES_CLIENTE, 'Todos los aliados')}
     ${renderMultiSelect('clSucursal', opcionesSucursal, CLIENTES_SUCURSAL, 'Todas las sucursales')}
+    ${renderMultiSelect('clFamilia', opcionesFamilia, CLIENTES_FAMILIA, 'Todas las familias')}
     <select id="clMarca" style="width:auto;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 10px;font-family:inherit;font-size:12px;">
       <option value="">Marca: Todas</option>
       <option value="BRK" ${CLIENTES_MARCA==='BRK'?'selected':''}>Marca: BRK</option>
@@ -3665,6 +3667,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     { id: 'kam', label: 'KAM', valor: CLIENTES_KAM, etiquetaDe: v => titleCase(v) },
     { id: 'cliente', label: 'Aliado', valor: CLIENTES_CLIENTE, etiquetaDe: v => titleCase(v) },
     { id: 'sucursal', label: 'Sucursal', valor: CLIENTES_SUCURSAL },
+    { id: 'familia', label: 'Familia', valor: CLIENTES_FAMILIA },
     { id: 'referencia', label: 'Referencia', valor: CLIENTES_REFERENCIA },
     { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO },
     { id: 'marca', label: 'Marca', valor: CLIENTES_MARCA ? [CLIENTES_MARCA] : [], etiquetaDe: v => v==='BRK'?'BRK':'Otros' }
@@ -3739,6 +3742,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   activarMultiSelect('clKam', (vals) => loadClientes(undefined, vals, undefined, undefined, undefined, undefined));
   activarMultiSelect('clCliente', (vals) => loadClientes(undefined, undefined, vals, undefined, undefined, undefined));
   activarMultiSelect('clSucursal', (vals) => loadClientes(undefined, undefined, undefined, vals, undefined, undefined));
+  activarMultiSelect('clFamilia', (vals) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, vals));
 
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-clKam');
@@ -3844,6 +3848,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     kam: (v) => loadClientes(undefined, (CLIENTES_KAM||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined, undefined),
     cliente: (v) => loadClientes(undefined, undefined, (CLIENTES_CLIENTE||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined, undefined),
     sucursal: (v) => loadClientes(undefined, undefined, undefined, (CLIENTES_SUCURSAL||[]).filter(x=>x!==v), undefined, undefined, undefined, undefined),
+    familia: (v) => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, (CLIENTES_FAMILIA||[]).filter(x=>x!==v), undefined),
     referencia: () => loadClientes(undefined, undefined, undefined, undefined, null, undefined, undefined, undefined),
     nrodoc: () => loadClientes(undefined, undefined, undefined, undefined, undefined, null, undefined, undefined),
     marca: () => loadClientes(undefined, undefined, undefined, undefined, undefined, undefined, undefined, null)
