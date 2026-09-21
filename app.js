@@ -2421,10 +2421,16 @@ let CARTERA_DATA = null;
 let CARTERA_KAM_SEL = [];
 let CARTERA_SUCURSAL_SEL = []; // array de {vendedor, sucursal}
 
-async function loadCartera() {
+let CARTERA_RAZON_SOCIAL_SEL = [];
+
+async function loadCartera(razonSocial) {
   const el = document.getElementById('view-cartera');
   el.innerHTML = '<div class="loading">Cargando cartera...</div>';
-  const r = await rpc('dash_cartera_resumen', { p_token: TOKEN });
+  CARTERA_RAZON_SOCIAL_SEL = razonSocial !== undefined ? razonSocial : CARTERA_RAZON_SOCIAL_SEL;
+  const r = await rpc('dash_cartera_resumen', {
+    p_token: TOKEN,
+    p_sucursal: (CARTERA_RAZON_SOCIAL_SEL && CARTERA_RAZON_SOCIAL_SEL.length) ? CARTERA_RAZON_SOCIAL_SEL : null
+  });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   CARTERA_DATA = r;
   CARTERA_KAM_SEL = null;
@@ -2437,7 +2443,15 @@ function renderCartera() {
   const g = r.general || {};
   const colorGeneral = colorKpiCartera(g.kpi_pct);
 
-  let html = renderBarraFiltros([{ id: 'kam', label: 'KAM', valor: CARTERA_KAM_SEL, etiquetaDe: v => titleCase(v) }]) +
+  const opcionesRazonSocial = (r.sucursales_disponibles||[]).map(s => ({ value: s, label: s }));
+
+  let html = `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    ${renderMultiSelect('carteraRazonSocial', opcionesRazonSocial, CARTERA_RAZON_SOCIAL_SEL, 'Todas las razones sociales')}
+  </div>`;
+  html += renderBarraFiltros([
+    { id: 'razonsocial', label: 'Razón Social', valor: CARTERA_RAZON_SOCIAL_SEL },
+    { id: 'kam', label: 'KAM', valor: CARTERA_KAM_SEL, etiquetaDe: v => titleCase(v) }
+  ]) +
   `<div class="kpis">
     <div class="kpi"><div class="label">Cartera Total</div><div class="value">${money(g.total)}</div></div>
     <div class="kpi"><div class="label">Cartera Vencida</div><div class="value">${money(g.vencida_total)} - ${g.total ? Math.round((g.vencida_total/g.total)*1000)/10 : 0}%</div></div>
@@ -2484,8 +2498,11 @@ function renderCartera() {
   });
   activarBarraFiltros(el, {
     kam: (v) => { CARTERA_KAM_SEL = (CARTERA_KAM_SEL||[]).filter(x=>x!==v); renderCartera(); },
+    razonsocial: (v) => { loadCartera((CARTERA_RAZON_SOCIAL_SEL||[]).filter(x=>x!==v)); },
     sucursal: (v) => { const [ven,suc] = v.split('|||'); CARTERA_SUCURSAL_SEL = CARTERA_SUCURSAL_SEL.filter(x => !(x.vendedor===ven && x.sucursal===suc)); renderCartera(); }
-  }, () => { CARTERA_KAM_SEL = []; CARTERA_SUCURSAL_SEL = []; renderCartera(); });
+  }, () => { CARTERA_KAM_SEL = []; CARTERA_SUCURSAL_SEL = []; loadCartera([]); });
+
+  activarMultiSelect('carteraRazonSocial', (vals) => loadCartera(vals));
 
   el.querySelectorAll('.fila-cartera').forEach(fila => {
     fila.addEventListener('click', () => {
@@ -4076,13 +4093,16 @@ function renderMultiSelect(idBase, opciones, seleccionados, placeholder) {
   return `<div class="ms-wrap" id="ms-wrap-${idBase}">
     <button type="button" class="ms-btn" id="ms-btn-${idBase}">${esc(resumen)}</button>
     <div class="ms-panel hidden" id="ms-panel-${idBase}">
-      ${opciones.map(o => `<label><input type="checkbox" value="${esc(o.value)}" ${seleccionados.map(String).includes(String(o.value))?'checked':''}><span>${esc(o.label)}</span></label>`).join('')}
+      <input type="text" class="ms-buscar" id="ms-buscar-${idBase}" placeholder="Buscar..." autocomplete="off">
+      <div class="ms-opciones" id="ms-opciones-${idBase}">
+        ${opciones.map(o => `<label data-texto="${esc(String(o.label).toLowerCase())}"><input type="checkbox" value="${esc(o.value)}" ${seleccionados.map(String).includes(String(o.value))?'checked':''}><span>${esc(o.label)}</span></label>`).join('')}
+      </div>
       <div class="ms-actions"><span data-accion="todos">Todos</span><span data-accion="ninguno">Ninguno</span></div>
     </div>
   </div>`;
 }
 
-// Activa apertura/cierre + checkboxes. onChange(nuevoArrayDeValues) se llama en cada cambio.
+// Activa apertura/cierre + checkboxes + búsqueda por texto. onChange(nuevoArrayDeValues) se llama en cada cambio.
 function activarMultiSelect(idBase, onChange) {
   const btn = document.getElementById(`ms-btn-${idBase}`);
   const panel = document.getElementById(`ms-panel-${idBase}`);
@@ -4091,6 +4111,11 @@ function activarMultiSelect(idBase, onChange) {
     e.stopPropagation();
     document.querySelectorAll('.ms-panel').forEach(p => { if (p !== panel) p.classList.add('hidden'); });
     panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+      const buscar = document.getElementById(`ms-buscar-${idBase}`);
+      if (buscar) { buscar.value = ''; setTimeout(() => buscar.focus(), 0); }
+      panel.querySelectorAll('label').forEach(l => l.style.display = '');
+    }
   });
   panel.addEventListener('click', (e) => e.stopPropagation());
   const leerSeleccion = () => Array.from(panel.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
@@ -4099,11 +4124,27 @@ function activarMultiSelect(idBase, onChange) {
   });
   panel.querySelectorAll('.ms-actions span').forEach(span => {
     span.addEventListener('click', () => {
+      // "Todos"/"Ninguno" solo afecta las opciones visibles (respeta un filtro de búsqueda activo)
       const marcar = span.dataset.accion === 'todos';
-      panel.querySelectorAll('input[type="checkbox"]').forEach(chk => { chk.checked = marcar; });
+      panel.querySelectorAll('label').forEach(l => {
+        if (l.style.display !== 'none') {
+          const chk = l.querySelector('input[type="checkbox"]');
+          if (chk) chk.checked = marcar;
+        }
+      });
       onChange(leerSeleccion());
     });
   });
+  const buscar = document.getElementById(`ms-buscar-${idBase}`);
+  if (buscar) {
+    buscar.addEventListener('click', (e) => e.stopPropagation());
+    buscar.addEventListener('input', () => {
+      const q = buscar.value.trim().toLowerCase();
+      panel.querySelectorAll('label').forEach(l => {
+        l.style.display = !q || (l.dataset.texto || '').includes(q) ? '' : 'none';
+      });
+    });
+  }
 }
 // Cierra cualquier panel abierto al hacer clic fuera
 document.addEventListener('click', () => {
