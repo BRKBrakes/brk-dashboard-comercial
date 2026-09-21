@@ -2483,6 +2483,17 @@ function renderCartera() {
     const activo = CARTERA_SUCURSAL_SEL.some(x => x.vendedor === d.vendedor && x.sucursal === d.sucursal);
     html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" data-val="${d.kpi_pct}" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
   });
+  if (detalleFiltrado.length) {
+    const totTotal = detalleFiltrado.reduce((s,d) => s + (d.total||0), 0);
+    const totV1_30 = detalleFiltrado.reduce((s,d) => s + (d.vencido_1_30||0), 0);
+    const totV31_59 = detalleFiltrado.reduce((s,d) => s + (d.vencido_31_59||0), 0);
+    const totV60 = detalleFiltrado.reduce((s,d) => s + (d.vencido_60||0), 0);
+    const diasMaxTotal = Math.max(...detalleFiltrado.map(d => d.dias_max||0));
+    const kpiTotal = totTotal ? Math.round((totV60/totTotal)*10000)/100 : 0;
+    const colorKpiTotal = colorKpiCartera(kpiTotal);
+    const colorDiasTotal = colorDiasVencido(diasMaxTotal);
+    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td><td class="num" data-val="${kpiTotal}" style="color:${colorKpiTotal};font-weight:700;">${kpiTotal}%</td></tr>`;
+  }
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
   el.innerHTML = html;
