@@ -43,7 +43,7 @@
   header .right img{height:26px;}
   header button{width:auto;padding:8px 16px;background:transparent;color:var(--silver);border:1px solid var(--dust);}
 
-  main{padding:24px 32px;width:100%;box-sizing:border-box;}
+  main{padding:24px 32px;width:100%;box-sizing:border-box;overflow-x:hidden;}
   @media (max-width: 640px){
     main{padding:12px;}
     .card{padding:12px;}
@@ -103,7 +103,8 @@
   select.estado{background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:4px 6px;font-family:inherit;font-size:12px;}
 
   .ms-wrap{position:relative;display:inline-block;}
-  .ms-btn{background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:5px 10px;font-family:inherit;font-size:12px;cursor:pointer;min-width:140px;text-align:left;display:inline-flex;justify-content:space-between;align-items:center;gap:8px;}
+  .ms-btn{background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:5px 10px;font-family:inherit;font-size:12px;cursor:pointer;min-width:140px;max-width:220px;text-align:left;display:inline-flex;justify-content:space-between;align-items:center;gap:8px;overflow:hidden;}
+  .ms-btn span, .ms-btn{text-overflow:ellipsis;white-space:nowrap;overflow:hidden;}
   .ms-btn:after{content:"▾";color:var(--text-dim);}
   .ms-panel{position:absolute;top:100%;left:0;margin-top:4px;background:#22261e;border:1px solid var(--neon);border-radius:6px;padding:8px;z-index:200;max-height:300px;overflow:hidden;width:280px;max-width:calc(100vw - 24px);box-shadow:0 8px 20px rgba(0,0,0,0.5);display:flex;flex-direction:column;}
   .ms-buscar{width:100%;box-sizing:border-box;background:#2c3126;color:var(--text);border:1px solid var(--dust);border-radius:4px;padding:6px 8px;font-family:inherit;font-size:12px;margin-bottom:6px;flex:0 0 auto;}
@@ -112,7 +113,8 @@
   @media (max-width: 640px){
     .ms-panel{width:calc(100vw - 24px);}
   }
-  .card-filtros{overflow:visible !important;position:sticky;top:var(--header-fila1-bottom, 116px);z-index:89;}
+  .card-filtros{overflow:visible !important;position:sticky;top:var(--header-fila1-bottom, 116px);z-index:89;max-width:100%;box-sizing:border-box;}
+  .card-filtros > *{min-width:0;}
   .ms-panel label{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;font-size:12px;padding:4px;cursor:pointer;border-radius:3px;width:100%;box-sizing:border-box;text-align:left;}
   .ms-panel label input[type="checkbox"]{flex:0 0 auto;margin:0;width:14px;height:14px;}
   .ms-panel label span{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
