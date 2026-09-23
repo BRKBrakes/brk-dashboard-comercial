@@ -308,14 +308,14 @@ function colorCumplimientoBarra(pct) {
 function renderGraficaKamVentasMes(kam, datosMeses) {
   if (!datosMeses.length) return '<div style="padding:20px;color:var(--text-dim);font-size:12px;">Sin datos.</div>';
 
-  const anchoBarra = 22;
-  const gapBarra = 12;
-  const altoMax = 150;
-  const margenIzq = 40;
+  const anchoBarra = 46;
+  const gapBarra = 26;
+  const altoMax = 190;
+  const margenIzq = 10;
   const margenDer = 10;
-  const margenSup = 18;
-  const altoTotal = altoMax + margenSup + 40;
-  const anchoTotal = margenIzq + datosMeses.length * (anchoBarra + gapBarra) + margenDer;
+  const margenSup = 26;
+  const altoTotal = altoMax + margenSup + 44;
+  const anchoTotal = margenIzq + datosMeses.length * (anchoBarra + gapBarra) - gapBarra + margenDer;
   const colorLinea = '#1e3a8a';
 
   const maxFacturado = Math.max(...datosMeses.map(d => d.facturado || 0), 1);
@@ -332,9 +332,9 @@ function renderGraficaKamVentasMes(kam, datosMeses) {
     puntosLinea.push({ x: x + anchoBarra / 2, y: yLinea });
     barras += `
       <g>
-        <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="${color}" rx="2"></rect>
-        <text x="${x + anchoBarra / 2}" y="${y - 5}" text-anchor="middle" font-size="8" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(d.facturado)}</text>
-        <text x="${x + anchoBarra / 2}" y="${margenSup + altoMax + 14}" text-anchor="middle" font-size="9" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[d.mes - 1]}</text>
+        <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="${color}" rx="3"></rect>
+        <text x="${x + anchoBarra / 2}" y="${y - 7}" text-anchor="middle" font-size="13" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(d.facturado)}</text>
+        <text x="${x + anchoBarra / 2}" y="${margenSup + altoMax + 20}" text-anchor="middle" font-size="14" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[d.mes - 1]}</text>
       </g>`;
   });
 
@@ -342,15 +342,15 @@ function renderGraficaKamVentasMes(kam, datosMeses) {
   let etiquetasLinea = '';
   datosMeses.forEach((d, i) => {
     const p = puntosLinea[i];
-    etiquetasLinea += `<text x="${p.x}" y="${p.y - 7}" text-anchor="middle" font-size="8" fill="${colorLinea}" font-weight="700" font-family="Geist Mono, monospace">${d.pct}%</text>`;
+    etiquetasLinea += `<text x="${p.x}" y="${p.y - 10}" text-anchor="middle" font-size="12" fill="${colorLinea}" font-weight="700" font-family="Geist Mono, monospace">${d.pct}%</text>`;
   });
 
-  return `<div style="overflow-x:auto;">
-    <svg width="${anchoTotal}" height="${altoTotal}" viewBox="0 0 ${anchoTotal} ${altoTotal}">
+  return `<div style="width:100%;overflow-x:auto;">
+    <svg width="100%" height="${altoTotal}" viewBox="0 0 ${anchoTotal} ${altoTotal}" preserveAspectRatio="xMidYMid meet" style="min-width:${Math.min(anchoTotal, 420)}px;">
       <line x1="${margenIzq}" y1="${margenSup + altoMax}" x2="${anchoTotal - margenDer}" y2="${margenSup + altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
       ${barras}
-      <polyline points="${puntosPath}" fill="none" stroke="${colorLinea}" stroke-width="2"></polyline>
-      ${puntosLinea.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${colorLinea}"></circle>`).join('')}
+      <polyline points="${puntosPath}" fill="none" stroke="${colorLinea}" stroke-width="2.5"></polyline>
+      ${puntosLinea.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${colorLinea}"></circle>`).join('')}
       ${etiquetasLinea}
     </svg>
   </div>`;
@@ -424,7 +424,7 @@ async function loadKamVentas() {
 
     html += `<div class="card"><h2>${esc(titleCase(kam))} — Ventas mensuales vs. % Cumplimiento</h2>
       <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
-        <div style="flex:2 1 380px;min-width:280px;">
+        <div style="flex:3 1 500px;min-width:320px;">
           ${renderGraficaKamVentasMes(kam, datosMeses)}
           <div style="display:flex;gap:14px;justify-content:center;font-size:10px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;">
             <span><span style="display:inline-block;width:9px;height:9px;background:var(--neon);border-radius:2px;"></span> &gt;100%</span>
