@@ -168,6 +168,7 @@ const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov'
 async function loadTab(tab) {
   if (tab === 'okr') return loadOkr();
   if (tab === 'okrkam') return loadOkrKam();
+  if (tab === 'kam') return loadKamVentas();
   if (tab === 'ejecutivo') return loadEjecutivo();
   if (tab === 'oportunidades' || tab === 'gapdiscos') return loadGapDiscos();
   if (tab === 'gapliquidos') return loadGapLiquidos();
@@ -295,6 +296,136 @@ function okrkamGaugeSimple(val, max, label, invertido) {
       <text x="60" y="68" text-anchor="middle" fill="#888" font-size="7" font-family="monospace">${label.titulo}</text>
     </svg>
   </div>`;
+}
+
+function colorCumplimientoBarra(pct) {
+  if (pct === null || pct === undefined) return 'var(--text-dim)';
+  if (pct > 100) return 'var(--neon)';
+  if (pct >= 80) return '#ff9f43';
+  return '#ff6b6b';
+}
+
+function renderGraficaKamVentasMes(kam, datosMeses) {
+  // datosMeses: [{mes, facturado, presupuesto, pct}] ordenado por mes
+  if (!datosMeses.length) return '<div style="padding:20px;color:var(--text-dim);font-size:12px;">Sin datos.</div>';
+
+  const anchoBarra = 34;
+  const gapBarra = 22;
+  const altoMax = 200;
+  const margenIzq = 55;
+  const margenDer = 55;
+  const margenSup = 20;
+  const altoTotal = altoMax + margenSup + 50;
+  const anchoTotal = margenIzq + datosMeses.length * (anchoBarra + gapBarra) + margenDer;
+
+  const maxFacturado = Math.max(...datosMeses.map(d => d.facturado || 0), 1);
+  const maxPct = Math.max(...datosMeses.map(d => d.pct || 0), 100) * 1.15; // margen visual arriba de la línea
+
+  let barras = '';
+  let puntosLinea = [];
+  datosMeses.forEach((d, i) => {
+    const x = margenIzq + i * (anchoBarra + gapBarra);
+    const alto = Math.round(((d.facturado || 0) / maxFacturado) * altoMax);
+    const y = margenSup + altoMax - alto;
+    const color = colorCumplimientoBarra(d.pct);
+    const yLinea = margenSup + altoMax - Math.round(((d.pct || 0) / maxPct) * altoMax);
+    puntosLinea.push({ x: x + anchoBarra / 2, y: yLinea });
+
+    barras += `
+      <g>
+        <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="${color}" rx="2"></rect>
+        <text x="${x + anchoBarra / 2}" y="${y - 6}" text-anchor="middle" font-size="9" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(d.facturado)}</text>
+        <text x="${x + anchoBarra / 2}" y="${margenSup + altoMax + 16}" text-anchor="middle" font-size="10" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[d.mes - 1]}</text>
+      </g>`;
+  });
+
+  const puntosPath = puntosLinea.map(p => `${p.x},${p.y}`).join(' ');
+  let etiquetasLinea = '';
+  datosMeses.forEach((d, i) => {
+    const p = puntosLinea[i];
+    etiquetasLinea += `<text x="${p.x}" y="${p.y - 8}" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="700" font-family="Geist Mono, monospace">${d.pct}%</text>`;
+  });
+
+  return `<div style="overflow-x:auto;padding:10px 0;">
+    <svg width="${anchoTotal}" height="${altoTotal}" viewBox="0 0 ${anchoTotal} ${altoTotal}">
+      <line x1="${margenIzq}" y1="${margenSup + altoMax}" x2="${anchoTotal - margenDer + 10}" y2="${margenSup + altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
+      ${barras}
+      <polyline points="${puntosPath}" fill="none" stroke="#60a5fa" stroke-width="2"></polyline>
+      ${puntosLinea.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#60a5fa"></circle>`).join('')}
+      ${etiquetasLinea}
+    </svg>
+  </div>`;
+}
+
+let KAM_VENTAS_MES_DESDE = null;
+let KAM_VENTAS_MES_HASTA = null;
+
+function poblarSelectMesesKam() {
+  const mesActual = new Date().getMonth() + 1;
+  const dSel = document.getElementById('kamMesDesde');
+  const hSel = document.getElementById('kamMesHasta');
+  if (!dSel || !hSel) return;
+  if (dSel.dataset.pobladoHasta == mesActual) return;
+  dSel.innerHTML = '';
+  hSel.innerHTML = '';
+  MESES.slice(0, mesActual).forEach((m, i) => {
+    dSel.innerHTML += `<option value="${i+1}" ${i===0?'selected':''}>${m}</option>`;
+    hSel.innerHTML += `<option value="${i+1}" ${i===mesActual-1?'selected':''}>${m}</option>`;
+  });
+  dSel.dataset.pobladoHasta = mesActual;
+  hSel.dataset.pobladoHasta = mesActual;
+}
+
+async function loadKamVentas() {
+  const el = document.getElementById('view-kam');
+  el.innerHTML = '<div class="loading">Cargando ventas por KAM...</div>';
+
+  const mesActual = new Date().getMonth() + 1;
+  const mesDesde = KAM_VENTAS_MES_DESDE || 1;
+  const mesHasta = KAM_VENTAS_MES_HASTA || mesActual;
+
+  const r = await rpc('dash_kam_ventas_mensual', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026 });
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Error al cargar'}</div>`; return; }
+
+  const datos = r.ventas_por_mes || [];
+  const kamsOrdenados = [...new Set(datos.map(d => d.kam))].sort();
+
+  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
+    <select id="kamMesDesde" class="estado"></select>
+    <span style="color:var(--text-dim);font-size:12px;">a</span>
+    <select id="kamMesHasta" class="estado"></select>
+    <button id="kamBtnFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Aplicar</button>
+  </div>`;
+
+  kamsOrdenados.forEach(kam => {
+    const datosMeses = datos.filter(d => d.kam === kam)
+      .map(d => ({ mes: d.mes, facturado: d.facturado, presupuesto: d.presupuesto,
+        pct: d.presupuesto ? Math.round((d.facturado / d.presupuesto) * 1000) / 10 : 0 }))
+      .sort((a, b) => a.mes - b.mes);
+    html += `<div class="card"><h2>${esc(titleCase(kam))} — Ventas mensuales vs. % Cumplimiento</h2>
+      ${renderGraficaKamVentasMes(kam, datosMeses)}
+      <div style="display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--text-dim);margin-top:8px;flex-wrap:wrap;">
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--neon);border-radius:2px;"></span> Cumplimiento &gt; 100%</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#ff9f43;border-radius:2px;"></span> Entre 80% y 99.9%</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#ff6b6b;border-radius:2px;"></span> Menor a 80%</span>
+        <span><span style="display:inline-block;width:10px;height:2px;background:#60a5fa;"></span> % Cumplimiento (eje secundario)</span>
+      </div>
+    </div>`;
+  });
+
+  if (!kamsOrdenados.length) html += '<div class="card"><h2>Sin datos para el periodo seleccionado</h2></div>';
+
+  el.innerHTML = html;
+  poblarSelectMesesKam();
+  document.getElementById('kamMesDesde').value = mesDesde;
+  document.getElementById('kamMesHasta').value = mesHasta;
+
+  document.getElementById('kamBtnFiltrar').addEventListener('click', () => {
+    KAM_VENTAS_MES_DESDE = parseInt(document.getElementById('kamMesDesde').value);
+    KAM_VENTAS_MES_HASTA = parseInt(document.getElementById('kamMesHasta').value);
+    loadKamVentas();
+  });
 }
 
 async function loadOkrKam() {
@@ -3080,7 +3211,7 @@ async function loadMatrizPermisos() {
   if (!r.ok) { el.innerHTML = `<div style="color:#ff6b6b;">${r.error}</div>`; return; }
 
   const TABS_LABELS = {
-    okr: 'OKR', okrkam: 'OKR KAM', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
+    okr: 'OKR', okrkam: 'OKR KAM', kam: 'KAM', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
     remisiones: 'Remisiones', cartera: 'Cartera', recaudo: 'Recaudo', facilitadores: 'Facilitadores',
     nps: 'NPS', oportunidades: 'Oportunidades', tipoa: 'Aliados Tipo A', clientes: 'Clientes',
     segmentacion: 'Segmentación', perdidos: 'Recuperación', ticket: 'Ticket Promedio',
