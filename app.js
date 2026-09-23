@@ -306,20 +306,20 @@ function colorCumplimientoBarra(pct) {
 }
 
 function renderGraficaKamVentasMes(kam, datosMeses) {
-  // datosMeses: [{mes, facturado, presupuesto, pct}] ordenado por mes
   if (!datosMeses.length) return '<div style="padding:20px;color:var(--text-dim);font-size:12px;">Sin datos.</div>';
 
-  const anchoBarra = 34;
-  const gapBarra = 22;
-  const altoMax = 200;
-  const margenIzq = 55;
-  const margenDer = 55;
-  const margenSup = 20;
-  const altoTotal = altoMax + margenSup + 50;
+  const anchoBarra = 22;
+  const gapBarra = 12;
+  const altoMax = 150;
+  const margenIzq = 40;
+  const margenDer = 10;
+  const margenSup = 18;
+  const altoTotal = altoMax + margenSup + 40;
   const anchoTotal = margenIzq + datosMeses.length * (anchoBarra + gapBarra) + margenDer;
+  const colorLinea = '#1e3a8a';
 
   const maxFacturado = Math.max(...datosMeses.map(d => d.facturado || 0), 1);
-  const maxPct = Math.max(...datosMeses.map(d => d.pct || 0), 100) * 1.15; // margen visual arriba de la línea
+  const maxPct = Math.max(...datosMeses.map(d => d.pct || 0), 100) * 1.15;
 
   let barras = '';
   let puntosLinea = [];
@@ -330,12 +330,11 @@ function renderGraficaKamVentasMes(kam, datosMeses) {
     const color = colorCumplimientoBarra(d.pct);
     const yLinea = margenSup + altoMax - Math.round(((d.pct || 0) / maxPct) * altoMax);
     puntosLinea.push({ x: x + anchoBarra / 2, y: yLinea });
-
     barras += `
       <g>
         <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="${color}" rx="2"></rect>
-        <text x="${x + anchoBarra / 2}" y="${y - 6}" text-anchor="middle" font-size="9" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(d.facturado)}</text>
-        <text x="${x + anchoBarra / 2}" y="${margenSup + altoMax + 16}" text-anchor="middle" font-size="10" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[d.mes - 1]}</text>
+        <text x="${x + anchoBarra / 2}" y="${y - 5}" text-anchor="middle" font-size="8" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(d.facturado)}</text>
+        <text x="${x + anchoBarra / 2}" y="${margenSup + altoMax + 14}" text-anchor="middle" font-size="9" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[d.mes - 1]}</text>
       </g>`;
   });
 
@@ -343,15 +342,15 @@ function renderGraficaKamVentasMes(kam, datosMeses) {
   let etiquetasLinea = '';
   datosMeses.forEach((d, i) => {
     const p = puntosLinea[i];
-    etiquetasLinea += `<text x="${p.x}" y="${p.y - 8}" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="700" font-family="Geist Mono, monospace">${d.pct}%</text>`;
+    etiquetasLinea += `<text x="${p.x}" y="${p.y - 7}" text-anchor="middle" font-size="8" fill="${colorLinea}" font-weight="700" font-family="Geist Mono, monospace">${d.pct}%</text>`;
   });
 
-  return `<div style="overflow-x:auto;padding:10px 0;">
+  return `<div style="overflow-x:auto;">
     <svg width="${anchoTotal}" height="${altoTotal}" viewBox="0 0 ${anchoTotal} ${altoTotal}">
-      <line x1="${margenIzq}" y1="${margenSup + altoMax}" x2="${anchoTotal - margenDer + 10}" y2="${margenSup + altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
+      <line x1="${margenIzq}" y1="${margenSup + altoMax}" x2="${anchoTotal - margenDer}" y2="${margenSup + altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
       ${barras}
-      <polyline points="${puntosPath}" fill="none" stroke="#60a5fa" stroke-width="2"></polyline>
-      ${puntosLinea.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#60a5fa"></circle>`).join('')}
+      <polyline points="${puntosPath}" fill="none" stroke="${colorLinea}" stroke-width="2"></polyline>
+      ${puntosLinea.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${colorLinea}"></circle>`).join('')}
       ${etiquetasLinea}
     </svg>
   </div>`;
@@ -359,6 +358,14 @@ function renderGraficaKamVentasMes(kam, datosMeses) {
 
 let KAM_VENTAS_MES_DESDE = null;
 let KAM_VENTAS_MES_HASTA = null;
+const ORDEN_KAM_TAB = [
+  'PEREZ RAMIREZ JHONATAN ALEXANDER',
+  'FRANCO ARBOLEDA MARIA ISABEL',
+  'ARISMENDY CRUZ CRISTIAN YONARDO',
+  'BEDOYA VELASQUEZ JORGE ESTEBAN',
+  'LONDOÑO MEJIA JOSE GLEISON',
+  'GOMEZ RODRIGUEZ CARLOS ANDRES'
+];
 
 function poblarSelectMesesKam() {
   const mesActual = new Date().getMonth() + 1;
@@ -388,7 +395,10 @@ async function loadKamVentas() {
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Error al cargar'}</div>`; return; }
 
   const datos = r.ventas_por_mes || [];
-  const kamsOrdenados = [...new Set(datos.map(d => d.kam))].sort();
+  const resumenes = r.resumen_kam || [];
+  const kamsPresentes = new Set(datos.map(d => d.kam));
+  const kamsOrdenados = ORDEN_KAM_TAB.filter(k => kamsPresentes.has(k))
+    .concat([...kamsPresentes].filter(k => !ORDEN_KAM_TAB.includes(k)).sort());
 
   let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
@@ -403,13 +413,34 @@ async function loadKamVentas() {
       .map(d => ({ mes: d.mes, facturado: d.facturado, presupuesto: d.presupuesto,
         pct: d.presupuesto ? Math.round((d.facturado / d.presupuesto) * 1000) / 10 : 0 }))
       .sort((a, b) => a.mes - b.mes);
+
+    const res = resumenes.find(x => x.kam === kam) || {};
+    const pctPresup = res.presupuesto_total ? Math.round((res.venta_total / res.presupuesto_total) * 1000) / 10 : 0;
+    const pctCrecimiento = res.venta_2025 ? Math.round(((res.venta_total - res.venta_2025) / res.venta_2025) * 1000) / 10 : null;
+    const pctVencida = res.cartera_total ? Math.round((res.cartera_vencida / res.cartera_total) * 1000) / 10 : 0;
+    const colorPresup = colorCumplimientoBarra(pctPresup);
+    const colorCrec = pctCrecimiento === null ? 'var(--text-dim)' : (pctCrecimiento >= 0 ? 'var(--neon)' : '#ff6b6b');
+    const colorKpiCart = colorKpiCartera(res.kpi_cartera);
+
     html += `<div class="card"><h2>${esc(titleCase(kam))} — Ventas mensuales vs. % Cumplimiento</h2>
-      ${renderGraficaKamVentasMes(kam, datosMeses)}
-      <div style="display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--text-dim);margin-top:8px;flex-wrap:wrap;">
-        <span><span style="display:inline-block;width:10px;height:10px;background:var(--neon);border-radius:2px;"></span> Cumplimiento &gt; 100%</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#ff9f43;border-radius:2px;"></span> Entre 80% y 99.9%</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#ff6b6b;border-radius:2px;"></span> Menor a 80%</span>
-        <span><span style="display:inline-block;width:10px;height:2px;background:#60a5fa;"></span> % Cumplimiento (eje secundario)</span>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
+        <div style="flex:2 1 380px;min-width:280px;">
+          ${renderGraficaKamVentasMes(kam, datosMeses)}
+          <div style="display:flex;gap:14px;justify-content:center;font-size:10px;color:var(--text-dim);margin-top:6px;flex-wrap:wrap;">
+            <span><span style="display:inline-block;width:9px;height:9px;background:var(--neon);border-radius:2px;"></span> &gt;100%</span>
+            <span><span style="display:inline-block;width:9px;height:9px;background:#ff9f43;border-radius:2px;"></span> 80%-99.9%</span>
+            <span><span style="display:inline-block;width:9px;height:9px;background:#ff6b6b;border-radius:2px;"></span> &lt;80%</span>
+            <span><span style="display:inline-block;width:9px;height:2px;background:#1e3a8a;"></span> % Cumplimiento</span>
+          </div>
+        </div>
+        <div style="flex:1 1 240px;min-width:220px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="kpi" style="padding:10px;"><div class="label" style="font-size:9px;">Venta Total</div><div class="value" style="font-size:15px;">${money(res.venta_total)}</div></div>
+          <div class="kpi" style="padding:10px;"><div class="label" style="font-size:9px;">% Cumpl. Presupuesto</div><div class="value" style="font-size:15px;color:${colorPresup};">${pctPresup}%</div></div>
+          <div class="kpi" style="padding:10px;"><div class="label" style="font-size:9px;">% Crecim. vs 2025</div><div class="value" style="font-size:15px;color:${colorCrec};">${pctCrecimiento === null ? 'N/A' : pctCrecimiento + '%'}</div></div>
+          <div class="kpi" style="padding:10px;"><div class="label" style="font-size:9px;">Cartera Total</div><div class="value" style="font-size:15px;">${money(res.cartera_total)}</div></div>
+          <div class="kpi" style="padding:10px;"><div class="label" style="font-size:9px;">Cartera Vencida</div><div class="value" style="font-size:15px;">${money(res.cartera_vencida)} <span style="font-size:10px;color:var(--text-dim);">(${pctVencida}%)</span></div></div>
+          <div class="kpi" style="padding:10px;"><div class="label" style="font-size:9px;">KPI Cartera</div><div class="value" style="font-size:15px;color:${colorKpiCart};">${res.kpi_cartera}%</div></div>
+        </div>
       </div>
     </div>`;
   });
