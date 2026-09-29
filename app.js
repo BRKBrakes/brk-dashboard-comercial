@@ -611,10 +611,10 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
 
           return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
             <td>TOTAL</td>
-            <td class="num" style="color:${colorT};">${pctPresT!==null?pctPresT+'%':'—'}</td>
-            <td class="num" style="color:${colorTipoAT};">${crecTipoAT!==null?(crecTipoAT>=0?'+':'')+crecTipoAT+'%':'—'}</td>
+            <td class="num" data-val="${pctPresT??0}" style="color:${colorT};">${pctPresT!==null?pctPresT+'%':'—'}</td>
+            <td class="num" data-val="${crecTipoAT??0}" style="color:${colorTipoAT};">${crecTipoAT!==null?(crecTipoAT>=0?'+':'')+crecTipoAT+'%':'—'}</td>
             <td class="num money" data-val="${totCn}">${money(totCn)}</td>
-            <td class="num" style="color:${colorCarteraT};">${pctCarteraT!==null?pctCarteraT+'%':'—'}</td>
+            <td class="num" data-val="${pctCarteraT??0}" style="color:${colorCarteraT};">${pctCarteraT!==null?pctCarteraT+'%':'—'}</td>
             <td class="num" style="color:${colorDsoT};">${dsoT!==null?dsoT+'d':'—'}</td>
           </tr>`;
         })()}
@@ -641,10 +641,10 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
           const reg = filaKam.find(x => x.mes === m);
           const val = reg ? (reg[campoValor]||0) : null;
           if (val !== null) { total += val; conDato++; sumaMeses[m] += val; }
-          h += `<td class="num ${esMoneda?'money':''}">${val!==null?(esMoneda?money(val):esPorcentaje?val+'%':Math.round(val).toLocaleString('es-CO')):''}</td>`;
+          h += `<td class="num ${esMoneda?'money':''}" data-val="${val??0}">${val!==null?(esMoneda?money(val):esPorcentaje?val+'%':Math.round(val).toLocaleString('es-CO')):''}</td>`;
         });
         const prom = conDato ? total/conDato : 0;
-        h += `<td class="num" style="color:var(--neon);">${esMoneda?money(prom):esPorcentaje?prom.toFixed(1)+'%':Math.round(prom).toLocaleString('es-CO')}</td>`;
+        h += `<td class="num" data-val="${prom}" style="color:var(--neon);">${esMoneda?money(prom):esPorcentaje?prom.toFixed(1)+'%':Math.round(prom).toLocaleString('es-CO')}</td>`;
         h += `<td class="num ${esMoneda?'money':''}" data-val="${total}">${esMoneda?money(total):esPorcentaje?'—':Math.round(total).toLocaleString('es-CO')}</td>`;
         h += `</tr>`;
         sumaTotalGeneral += total;
@@ -673,11 +673,11 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
         const pct = reg && reg.presupuesto ? Math.round((reg.facturado/reg.presupuesto)*100) : null;
         const color = pct === null ? 'var(--text-dim)' : pct >= 100 ? '#4ade80' : pct >= 80 ? '#ff9f43' : '#ff6b6b';
         if (pct !== null) { sumaPct += pct; n++; }
-        html += `<td class="num" style="color:${color};font-weight:700;">${pct!==null?pct+'%':'—'}</td>`;
+        html += `<td class="num" data-val="${pct??0}" style="color:${color};font-weight:700;">${pct!==null?pct+'%':'—'}</td>`;
       });
       const prom = n ? Math.round(sumaPct/n) : null;
       const colorProm = prom === null ? 'var(--text-dim)' : prom >= 100 ? '#4ade80' : prom >= 80 ? '#ff9f43' : '#ff6b6b';
-      html += `<td class="num" style="color:${colorProm};font-weight:700;">${prom!==null?prom+'%':'—'}</td></tr>`;
+      html += `<td class="num" data-val="${prom??0}" style="color:${colorProm};font-weight:700;">${prom!==null?prom+'%':'—'}</td></tr>`;
     });
     html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
     let sumaPctTotalFilaT2 = 0, nTotalT2 = 0;
@@ -688,13 +688,13 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       const pctM = totPresM ? Math.round((totFactM/totPresM)*100) : null;
       const colorM = pctM === null ? 'var(--text-dim)' : pctM >= 100 ? '#4ade80' : pctM >= 80 ? '#ff9f43' : '#ff6b6b';
       if (pctM !== null) { sumaPctTotalFilaT2 += pctM; nTotalT2++; }
-      html += `<td class="num" style="color:${colorM};">${pctM!==null?pctM+'%':'—'}</td>`;
+      html += `<td class="num" data-val="${pctM??0}" style="color:${colorM};">${pctM!==null?pctM+'%':'—'}</td>`;
     });
     const totFactGen = ventasPorMes.reduce((s,r) => s + (r.facturado||0), 0);
     const totPresGen = ventasPorMes.reduce((s,r) => s + (r.presupuesto||0), 0);
     const promTotalT2 = totPresGen ? Math.round((totFactGen/totPresGen)*100) : null;
     const colorPromT2 = promTotalT2 === null ? 'var(--text-dim)' : promTotalT2 >= 100 ? '#4ade80' : promTotalT2 >= 80 ? '#ff9f43' : '#ff6b6b';
-    html += `<td class="num" style="color:${colorPromT2};">${promTotalT2!==null?promTotalT2+'%':'—'}</td></tr>`;
+    html += `<td class="num" data-val="${promTotalT2??0}" style="color:${colorPromT2};">${promTotalT2!==null?promTotalT2+'%':'—'}</td></tr>`;
     html += `</table></div></div>`;
 
     // 3. Crecimiento Tipo A por KAM por mes (Carlos Gómez no tiene clientes Tipo A asignados)
@@ -713,11 +713,11 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
         const color = pct === null ? 'var(--text-dim)' : pct >= 10 ? '#4ade80' : pct >= 0 ? '#ff9f43' : '#ff6b6b';
         if (pct !== null) { sumaPct += pct; n++; }
         if (reg) { totV26TipoA[m] += (reg.venta2026||0); totV25TipoA[m] += (reg.venta2025||0); }
-        html += `<td class="num" style="color:${color};font-weight:700;">${pct!==null?(pct>=0?'+':'')+pct+'%':'—'}</td>`;
+        html += `<td class="num" data-val="${pct??0}" style="color:${color};font-weight:700;">${pct!==null?(pct>=0?'+':'')+pct+'%':'—'}</td>`;
       });
       const prom = n ? Math.round(sumaPct/n) : null;
       const colorProm2 = prom === null ? 'var(--text-dim)' : prom >= 10 ? '#4ade80' : prom >= 0 ? '#ff9f43' : '#ff6b6b';
-      html += `<td class="num" style="color:${colorProm2};font-weight:700;">${prom!==null?(prom>=0?'+':'')+prom+'%':'—'}</td></tr>`;
+      html += `<td class="num" data-val="${prom??0}" style="color:${colorProm2};font-weight:700;">${prom!==null?(prom>=0?'+':'')+prom+'%':'—'}</td></tr>`;
     });
     html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
     let sumaPctTotalT3 = 0, nTotalT3 = 0;
@@ -725,11 +725,11 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       const pctT = totV25TipoA[m] ? Math.round(((totV26TipoA[m]-totV25TipoA[m])/totV25TipoA[m])*100) : null;
       const colorT = pctT === null ? 'var(--text-dim)' : pctT >= 10 ? '#4ade80' : pctT >= 0 ? '#ff9f43' : '#ff6b6b';
       if (pctT !== null) { sumaPctTotalT3 += pctT; nTotalT3++; }
-      html += `<td class="num" style="color:${colorT};">${pctT!==null?(pctT>=0?'+':'')+pctT+'%':'—'}</td>`;
+      html += `<td class="num" data-val="${pctT??0}" style="color:${colorT};">${pctT!==null?(pctT>=0?'+':'')+pctT+'%':'—'}</td>`;
     });
     const promTotalT3 = nTotalT3 ? Math.round(sumaPctTotalT3/nTotalT3) : null;
     const colorPromT3 = promTotalT3 === null ? 'var(--text-dim)' : promTotalT3 >= 10 ? '#4ade80' : promTotalT3 >= 0 ? '#ff9f43' : '#ff6b6b';
-    html += `<td class="num" style="color:${colorPromT3};">${promTotalT3!==null?(promTotalT3>=0?'+':'')+promTotalT3+'%':'—'}</td></tr>`;
+    html += `<td class="num" data-val="${promTotalT3??0}" style="color:${colorPromT3};">${promTotalT3!==null?(promTotalT3>=0?'+':'')+promTotalT3+'%':'—'}</td></tr>`;
     html += `</table></div></div>`;
 
     // 4. Ventas de clientes nuevos por KAM por mes (Carlos Gómez no tiene clientes nuevos registrados)
@@ -746,7 +746,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
         const reg = filaKam.find(x => x.mes === m);
         const val = reg ? reg.cartera_60_pct : null;
         const color = val === null ? 'var(--text-dim)' : val <= 2.5 ? '#4ade80' : val <= 5 ? '#ff9f43' : '#ff6b6b';
-        html += `<td class="num" style="color:${color};font-weight:700;">${val!==null?val+'%':'Sin cerrar'}</td>`;
+        html += `<td class="num" data-val="${val??0}" style="color:${color};font-weight:700;">${val!==null?val+'%':'Sin cerrar'}</td>`;
       });
       html += `</tr>`;
     });
@@ -757,7 +757,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       const total60M = cierresMes.reduce((s,c) => s + (c.cartera_60||0), 0);
       const pctM = cierresMes.length ? Math.round((total60M/totCarteraM)*100*100)/100 : null;
       const colorM = pctM === null ? 'var(--text-dim)' : pctM <= 2.5 ? '#4ade80' : pctM <= 5 ? '#ff9f43' : '#ff6b6b';
-      html += `<td class="num" style="color:${colorM};">${pctM!==null?pctM+'%':'Sin cerrar'}</td>`;
+      html += `<td class="num" data-val="${pctM??0}" style="color:${colorM};">${pctM!==null?pctM+'%':'Sin cerrar'}</td>`;
     });
     html += `</tr></table></div></div>`;
 
@@ -855,7 +855,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       ${cierresKam.map(c => {
         const cp = c.cartera_60_pct <= 2.5 ? '#4ade80' : c.cartera_60_pct <= 5 ? '#ff9f43' : '#ff6b6b';
         const dp = c.dso <= 60 ? '#4ade80' : c.dso <= 75 ? '#ff9f43' : '#ff6b6b';
-        return `<tr><td>${MESES[c.mes-1]}</td><td class="num money">${money(c.cartera_total)}</td><td class="num money">${money(c.cartera_60)}</td><td class="num" style="color:${cp};font-weight:700;">${c.cartera_60_pct}%</td><td class="num" style="color:${dp};font-weight:700;">${c.dso}d</td></tr>`;
+        return `<tr><td>${MESES[c.mes-1]}</td><td class="num money">${money(c.cartera_total)}</td><td class="num money">${money(c.cartera_60)}</td><td class="num" data-val="${c.cartera_60_pct}" style="color:${cp};font-weight:700;">${c.cartera_60_pct}%</td><td class="num" data-val="${c.dso}" style="color:${dp};font-weight:700;">${c.dso}d</td></tr>`;
       }).join('')}
     </table>` : `<p style="font-size:12px;color:var(--text-dim);">Aún no hay cierres guardados para este periodo.</p>`}
   </div>`;
@@ -1404,7 +1404,7 @@ async function loadEjecutivo() {
     if (pct >= 100) color = '#4ade80';
     else if (pct >= 80) color = '#ff9f43';
     const colorFalt = faltante >= 0 ? '#4ade80' : '#ff6b6b';
-    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
+    html += `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.venta_real)}</td><td class="num money">${money(k.presupuesto_periodo)}</td><td class="num money" data-val="${faltante}" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" data-val="${pct}" style="color:${color};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (cumplPeriodo.data||[]).reduce((s,k)=>s+(k.venta_real||0),0);
@@ -1413,7 +1413,7 @@ async function loadEjecutivo() {
     const totFalt = totReal - totPpto;
     const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
     let color = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${color};">${totPct}%</td></tr>`;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" data-val="${totFalt}" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" data-val="${totPct}" style="color:${color};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
@@ -1425,7 +1425,7 @@ async function loadEjecutivo() {
     let colorPct = '#ff6b6b';
     if (pct >= 100) colorPct = '#4ade80';
     else if (pct >= 80) colorPct = '#ff9f43';
-    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money">${money(m.venta_real)}</td><td class="num money">${money(m.presupuesto)}</td><td class="num money" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" style="color:${colorPct};font-weight:700;">${pct}%</td></tr>`;
+    html += `<tr><td>${MESES[m.mes-1]}</td><td class="num money">${money(m.venta_real)}</td><td class="num money">${money(m.presupuesto)}</td><td class="num money" data-val="${faltante}" style="color:${colorFalt};font-weight:700;">${faltante>=0?'+':''}${money(faltante)}</td><td class="num" data-val="${pct}" style="color:${colorPct};font-weight:700;">${pct}%</td></tr>`;
   });
   {
     const totReal = (kpi.por_mes||[]).reduce((s,m)=>s+(m.venta_real||0),0);
@@ -1434,7 +1434,7 @@ async function loadEjecutivo() {
     const totFalt = totReal - totPpto;
     const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
     let colorPct = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" style="color:${colorPct};">${totPct}%</td></tr>`;
+    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" data-val="${totFalt}" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" data-val="${totPct}" style="color:${colorPct};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
@@ -1457,7 +1457,7 @@ async function loadEjecutivo() {
       const totPesos = totV26 - totV25;
       const totPct = totV25 ? Math.round((totPesos/totV25)*100) : 0;
       const color = totPct>=0?'#4ade80':'#ff6b6b';
-      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totV25)}</td><td class="num money">${money(totV26)}</td><td class="num money" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
+      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totV25)}</td><td class="num money">${money(totV26)}</td><td class="num money" data-val="${totPesos}" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" data-val="${totPct}" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
     }
     html += '</table></div>';
 
@@ -1470,8 +1470,8 @@ async function loadEjecutivo() {
       const colorAnterior = vsAnterior === null ? 'var(--text-dim)' : (vsAnterior >= 0 ? '#4ade80' : '#ff6b6b');
       const colorVs2026 = vs2026 === null ? 'var(--text-dim)' : (vs2026 >= 0 ? '#4ade80' : '#ff6b6b');
       html += `<tr><td>${a.anio}</td><td class="num money">${money(a.venta)}</td>
-        <td class="num" style="color:${colorAnterior};font-weight:700;">${vsAnterior===null?'—':(vsAnterior>=0?'+':'')+vsAnterior+'%'}</td>
-        <td class="num" style="color:${colorVs2026};font-weight:700;">${vs2026===null?'—':(vs2026>=0?'+':'')+vs2026+'%'}</td></tr>`;
+        <td class="num" data-val="${vsAnterior??0}" style="color:${colorAnterior};font-weight:700;">${vsAnterior===null?'—':(vsAnterior>=0?'+':'')+vsAnterior+'%'}</td>
+        <td class="num" data-val="${vs2026??0}" style="color:${colorVs2026};font-weight:700;">${vs2026===null?'—':(vs2026>=0?'+':'')+vs2026+'%'}</td></tr>`;
     });
     html += '</table></div>';
 
@@ -1525,7 +1525,7 @@ async function loadGapDiscos() {
   let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num" data-val="${Math.round((c.ratio_discos_pastas||0)*100)}">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -1542,7 +1542,7 @@ async function loadGapLiquidos() {
   let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de líquido de frenos (últimos 90 días, por sucursal) — meta: 1 juego pastas : 0.5 unid. líquido</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Líquidos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.unidades_liquido)}</td><td class="num" data-val="${Math.round((c.ratio||0)*100)}">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -1559,7 +1559,7 @@ async function loadGapCilindros() {
   let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
   html += '<div class="card"><h2>Clientes con gap de cilindros (últimos 180 días, por sucursal) — meta: 1 juego zapatas : 0.3 unid. cilindros</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Zapatas (unid.)</th><th class="num">Cilindros (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.zapatas_unidades)}</td><td class="num">${Math.round(c.unidades_cilindros)}</td><td class="num" data-val="${Math.round((c.ratio||0)*100)}">${Math.round((c.ratio||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
   html += '</table></div>';
   el.innerHTML = html;
@@ -1616,7 +1616,7 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal) {
       const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
       const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
       const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
-      html += `<tr><td>${esc(c.sucursal_despacho)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      html += `<tr><td>${esc(c.sucursal_despacho)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num" data-val="${pctGrupo}">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" data-val="${c.crecimiento_pct??0}" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
     });
     html += '</table>';
     tablaCard.innerHTML = html;
@@ -1634,7 +1634,7 @@ async function cargarTipoAExtra(data, kam, cliente, sucursal) {
       const color = (c.crecimiento_pct===null) ? 'var(--text-dim)' : (c.crecimiento_pct>=0 ? '#4ade80' : '#ff6b6b');
       const pctTxt = c.crecimiento_pct===null ? 'Nuevo' : (c.crecimiento_pct>=0?'+':'') + c.crecimiento_pct + '%';
       const pctGrupo = totalGrupo2026 ? Math.round(((c.venta2026||0)/totalGrupo2026)*1000)/10 : 0;
-      html += `<tr><td>${esc(c.cliente)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
+      html += `<tr><td>${esc(c.cliente)}</td><td class="num money">${money(c.venta2025)}</td><td class="num money">${money(c.venta2026)}</td><td class="num" data-val="${pctGrupo}">${pctGrupo}%</td><td class="num money" style="color:${color};">${c.diferencia>=0?'+':''}${money(c.diferencia)}</td><td class="num" data-val="${c.crecimiento_pct??0}" style="color:${color};font-weight:700;">${pctTxt}</td></tr>`;
     });
     html += '</table>';
     tablaClienteCard.innerHTML = html;
@@ -1718,7 +1718,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   html += '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
   data.forEach(c => {
     const pctFila = total ? Math.round(((c.total||0)/total)*1000)/10 : 0;
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num">${pctFila}%</td></tr>`;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num" data-val="${pctFila}">${pctFila}%</td></tr>`;
   });
   html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num">100%</td></tr>`;
   html += '</table></div>';
@@ -2036,7 +2036,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes, marca) {
     html += `<tr class="fam-leyenda" data-familia="${d.familia}" style="cursor:pointer;${activo?'font-weight:700;background:#2a2e24;border-left:3px solid var(--neon);':''}">
       <td style="width:16px;"><span style="display:inline-block;width:12px;height:12px;background:${color};border-radius:2px;"></span></td>
       <td>${esc(d.familia)}</td>
-      <td class="num">${d.pct}%</td>
+      <td class="num" data-val="${d.pct}">${d.pct}%</td>
       <td class="num">${Math.round(d.unidades).toLocaleString('es-CO')}</td>
       <td class="num money">${money(d.venta)}</td>
     </tr>`;
@@ -2844,7 +2844,7 @@ function renderRecaudo() {
     if (!kamsConDatosFiltrados.includes(k)) return; // no mostrar KAM sin recaudo dentro del filtro activo (mes/semana/razón social)
     const activo = (RECAUDO_KAM_SEL || []).includes(k);
     const pctAporte = totalFiltrado ? ((totalesPorKam[k] / totalFiltrado) * 100).toFixed(1) : '0.0';
-    html += `<tr class="fila-kam-recaudo" data-kam="${(k || '').replace(/"/g, '&quot;')}" style="cursor:pointer;${activo ? 'background:#2a2e24;border-left:3px solid var(--neon);' : ''}"><td>${esc(titleCase(k))}</td><td class="num money">${money(totalesPorKam[k])}</td><td class="num">${pctAporte}%</td></tr>`;
+    html += `<tr class="fila-kam-recaudo" data-kam="${(k || '').replace(/"/g, '&quot;')}" style="cursor:pointer;${activo ? 'background:#2a2e24;border-left:3px solid var(--neon);' : ''}"><td>${esc(titleCase(k))}</td><td class="num money">${money(totalesPorKam[k])}</td><td class="num" data-val="${pctAporte}">${pctAporte}%</td></tr>`;
   });
   html += '</table></div>';
 
