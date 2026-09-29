@@ -3031,7 +3031,7 @@ async function loadTableroControl(mesParam) {
 
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:16px;">
     <div class="card"><h2>% Cumplimiento por KAM</h2><table><tr><th>KAM</th><th class="num">% Cumpl.</th></tr>
-      ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
+      ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" data-val="${k.pct_cumpl}" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
     </table></div>
     <div class="card"><h2>Faltante para 100% por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_100')}</div>
   </div>`;
