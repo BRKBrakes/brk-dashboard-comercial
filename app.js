@@ -147,7 +147,7 @@ function aplicarRestriccionesRol() {
       // Fallback hardcodeado si no hay permisos en BD
       if (ROL === 'gerencia') oculto = TABS_SIN_ACCESO_GERENCIA.includes(tab.dataset.tab);
       if (ROL === 'logistica') oculto = !TABS_LOGISTICA.includes(tab.dataset.tab);
-      if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr' || tab.dataset.tab === 'nps';
+      if (ROL === 'colaborador') oculto = tab.dataset.tab === 'okr' || tab.dataset.tab === 'nps' || tab.dataset.tab === 'margen' || tab.dataset.tab === 'dso';
       if (ROL === 'gerencia' && tab.dataset.tab === 'okrkam') oculto = true;
       if (ROL === 'logistica' && tab.dataset.tab === 'okrkam') oculto = true;
     }
@@ -169,6 +169,8 @@ async function loadTab(tab) {
   if (tab === 'okr') return loadOkr();
   if (tab === 'okrkam') return loadOkrKam();
   if (tab === 'kam') return loadKamVentas();
+  if (tab === 'margen') return loadMargen();
+  if (tab === 'dso') return loadDso();
   if (tab === 'ejecutivo') return loadEjecutivo();
   if (tab === 'oportunidades' || tab === 'gapdiscos') return loadGapDiscos();
   if (tab === 'gapliquidos') return loadGapLiquidos();
@@ -456,6 +458,139 @@ async function loadKamVentas() {
     KAM_VENTAS_MES_DESDE = parseInt(document.getElementById('kamMesDesde').value);
     KAM_VENTAS_MES_HASTA = parseInt(document.getElementById('kamMesHasta').value);
     loadKamVentas();
+  });
+}
+
+let MARGEN_MES_DESDE = null;
+let MARGEN_MES_HASTA = null;
+
+function poblarSelectMesesGenerico(idDesde, idHasta) {
+  const mesActual = new Date().getMonth() + 1;
+  const dSel = document.getElementById(idDesde);
+  const hSel = document.getElementById(idHasta);
+  if (!dSel || !hSel) return;
+  if (dSel.dataset.pobladoHasta == mesActual) return;
+  dSel.innerHTML = ''; hSel.innerHTML = '';
+  MESES.slice(0, mesActual).forEach((m, i) => {
+    dSel.innerHTML += `<option value="${i+1}" ${i===0?'selected':''}>${m}</option>`;
+    hSel.innerHTML += `<option value="${i+1}" ${i===mesActual-1?'selected':''}>${m}</option>`;
+  });
+  dSel.dataset.pobladoHasta = mesActual; hSel.dataset.pobladoHasta = mesActual;
+}
+
+function colorMargenPct(pct) {
+  if (pct === null || pct === undefined) return 'var(--text-dim)';
+  if (pct >= 55) return '#4ade80';
+  if (pct >= 40) return '#ff9f43';
+  return '#ff6b6b';
+}
+
+async function loadMargen() {
+  const el = document.getElementById('view-margen');
+  el.innerHTML = '<div class="loading">Cargando margen...</div>';
+  const mesActual = new Date().getMonth() + 1;
+  const mesDesde = MARGEN_MES_DESDE || 1;
+  const mesHasta = MARGEN_MES_HASTA || mesActual;
+
+  const r = await rpc('dash_margen', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026 });
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Error al cargar'}</div>`; return; }
+
+  const g = r.general || {};
+  const porKam = r.por_kam || [];
+  const porFamilia = r.por_familia || [];
+  const menoresMargen = r.top_clientes_menor_margen || [];
+
+  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
+    <select id="margenMesDesde" class="estado"></select>
+    <span style="color:var(--text-dim);font-size:12px;">a</span>
+    <select id="margenMesHasta" class="estado"></select>
+    <button id="margenBtnFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Aplicar</button>
+  </div>`;
+
+  html += `<div class="kpis">
+    <div class="kpi"><div class="label">Venta Total</div><div class="value">${money(g.venta_total)}</div></div>
+    <div class="kpi"><div class="label">Costo Total</div><div class="value">${money(g.costo_total)}</div></div>
+    <div class="kpi"><div class="label">Margen Total</div><div class="value" style="color:${colorMargenPct(g.margen_pct)};">${money(g.margen_total)}</div></div>
+    <div class="kpi"><div class="label">% Margen</div><div class="value" style="color:${colorMargenPct(g.margen_pct)};">${g.margen_pct}%</div></div>
+  </div>`;
+
+  html += `<div class="card"><h2>Margen por KAM</h2><table><tr><th>KAM</th><th class="num">Venta</th><th class="num">Costo</th><th class="num">Margen $</th><th class="num">Margen %</th></tr>
+    ${porKam.map(k => `<tr><td>${esc(titleCase(k.kam))}</td><td class="num money">${money(k.venta_total)}</td><td class="num money">${money(k.costo_total)}</td><td class="num money" data-val="${k.margen_total}">${money(k.margen_total)}</td><td class="num" data-val="${k.margen_pct}" style="color:${colorMargenPct(k.margen_pct)};font-weight:700;">${k.margen_pct}%</td></tr>`).join('')}
+  </table></div>`;
+
+  html += `<div class="card"><h2>Margen por Familia (top 15 por venta)</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Margen $</th><th class="num">Margen %</th></tr>
+    ${porFamilia.map(f => `<tr><td>${esc(f.familia)}</td><td class="num money">${money(f.venta_total)}</td><td class="num money" data-val="${f.margen_total}">${money(f.margen_total)}</td><td class="num" data-val="${f.margen_pct}" style="color:${colorMargenPct(f.margen_pct)};font-weight:700;">${f.margen_pct}%</td></tr>`).join('')}
+  </table></div>`;
+
+  html += `<div class="card"><h2>Clientes con menor % de margen (venta &gt; $500K, alerta de descuento agresivo)</h2><table><tr><th>KAM</th><th>Cliente</th><th class="num">Venta</th><th class="num">Margen %</th></tr>
+    ${menoresMargen.map(c => `<tr><td>${esc(titleCase(c.kam))}</td><td>${esc(c.cliente)}</td><td class="num money">${money(c.venta_total)}</td><td class="num" data-val="${c.margen_pct}" style="color:${colorMargenPct(c.margen_pct)};font-weight:700;">${c.margen_pct}%</td></tr>`).join('')}
+  </table></div>`;
+
+  el.innerHTML = html;
+  habilitarOrdenTablas(el);
+  poblarSelectMesesGenerico('margenMesDesde', 'margenMesHasta');
+  document.getElementById('margenMesDesde').value = mesDesde;
+  document.getElementById('margenMesHasta').value = mesHasta;
+  document.getElementById('margenBtnFiltrar').addEventListener('click', () => {
+    MARGEN_MES_DESDE = parseInt(document.getElementById('margenMesDesde').value);
+    MARGEN_MES_HASTA = parseInt(document.getElementById('margenMesHasta').value);
+    loadMargen();
+  });
+}
+
+let DSO_MES_DESDE = null;
+let DSO_MES_HASTA = null;
+
+function colorDsoValor(dso) {
+  if (dso === null || dso === undefined) return 'var(--text-dim)';
+  if (dso <= 45) return '#4ade80';
+  if (dso <= 60) return '#ff9f43';
+  return '#ff6b6b';
+}
+
+async function loadDso() {
+  const el = document.getElementById('view-dso');
+  el.innerHTML = '<div class="loading">Cargando DSO...</div>';
+  const mesActual = new Date().getMonth() + 1;
+  const mesDesde = DSO_MES_DESDE || mesActual;
+  const mesHasta = DSO_MES_HASTA || mesActual;
+
+  const r = await rpc('dash_dso', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026 });
+  if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Error al cargar'}</div>`; return; }
+
+  const g = r.general || {};
+  const porKam = r.por_kam || [];
+
+  let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-dim);">Periodo (para calcular venta diaria promedio):</span>
+    <select id="dsoMesDesde" class="estado"></select>
+    <span style="color:var(--text-dim);font-size:12px;">a</span>
+    <select id="dsoMesHasta" class="estado"></select>
+    <button id="dsoBtnFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Aplicar</button>
+  </div>`;
+
+  html += `<div class="kpis">
+    <div class="kpi"><div class="label">Cartera Total (hoy)</div><div class="value">${money(g.cartera_total)}</div></div>
+    <div class="kpi"><div class="label">Venta del Periodo</div><div class="value">${money(g.venta_periodo)}</div></div>
+    <div class="kpi"><div class="label">DSO (días)</div><div class="value" style="color:${colorDsoValor(g.dso)};">${g.dso ?? '—'}</div></div>
+  </div>`;
+
+  html += `<div class="card"><p style="font-size:11px;color:var(--text-dim);text-align:center;">DSO = (Cartera Total ÷ Venta del periodo) × días del periodo. Verde ≤45 días, naranja 46-60, rojo &gt;60.</p></div>`;
+
+  html += `<div class="card"><h2>DSO por KAM</h2><table><tr><th>KAM</th><th class="num">Cartera</th><th class="num">Venta Periodo</th><th class="num">DSO (días)</th></tr>
+    ${porKam.map(k => `<tr><td>${esc(titleCase(k.kam))}</td><td class="num money">${money(k.cartera_total)}</td><td class="num money">${money(k.venta_periodo)}</td><td class="num" data-val="${k.dso??0}" style="color:${colorDsoValor(k.dso)};font-weight:700;">${k.dso ?? '—'}</td></tr>`).join('')}
+  </table></div>`;
+
+  el.innerHTML = html;
+  habilitarOrdenTablas(el);
+  poblarSelectMesesGenerico('dsoMesDesde', 'dsoMesHasta');
+  document.getElementById('dsoMesDesde').value = mesDesde;
+  document.getElementById('dsoMesHasta').value = mesHasta;
+  document.getElementById('dsoBtnFiltrar').addEventListener('click', () => {
+    DSO_MES_DESDE = parseInt(document.getElementById('dsoMesDesde').value);
+    DSO_MES_HASTA = parseInt(document.getElementById('dsoMesHasta').value);
+    loadDso();
   });
 }
 
@@ -3242,7 +3377,7 @@ async function loadMatrizPermisos() {
   if (!r.ok) { el.innerHTML = `<div style="color:#ff6b6b;">${r.error}</div>`; return; }
 
   const TABS_LABELS = {
-    okr: 'OKR', okrkam: 'OKR KAM', kam: 'KAM', ejecutivo: 'Directivo', tablerocontrol: 'Tablero de Control',
+    okr: 'OKR', okrkam: 'OKR KAM', kam: 'KAM', ejecutivo: 'Directivo', margen: 'Margen', dso: 'DSO', tablerocontrol: 'Tablero de Control',
     remisiones: 'Remisiones', cartera: 'Cartera', recaudo: 'Recaudo', facilitadores: 'Facilitadores',
     nps: 'NPS', oportunidades: 'Oportunidades', tipoa: 'Aliados Tipo A', clientes: 'Clientes',
     segmentacion: 'Segmentación', perdidos: 'Recuperación', ticket: 'Ticket Promedio',
