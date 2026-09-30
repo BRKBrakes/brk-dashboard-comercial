@@ -3051,7 +3051,8 @@ async function loadTableroControl(mesParam) {
     <div style="max-height:340px;overflow-y:auto;">
     <table><tr><th style="width:40px;"></th><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num"># Remisiones</th><th class="num">Valor total</th></tr>
     ${gruposRemArr.map((g, i) => {
-      const marcado = g.docs.every(d => !excluidas.includes(d));
+      const clave = (g.cliente||'') + '|||' + (g.sucursal_factura||'');
+      const marcado = !excluidas.includes(clave);
       return `<tr><td><input type="checkbox" class="chk-remision-grupo" data-idx="${i}" ${marcado?'checked':''} ${ROL!=='admin'?'disabled':''}></td><td>${esc(g.cliente)}</td><td>${esc(g.sucursal_factura||'')}</td><td>${esc(titleCase(g.vendedor||''))}</td><td class="num">${g.docs.length}</td><td class="num money">${money(g.total)}</td></tr>`;
     }).join('')}
     </table></div>
@@ -3072,12 +3073,11 @@ async function loadTableroControl(mesParam) {
   el.querySelectorAll('.chk-remision-grupo').forEach(chk => {
     chk.addEventListener('change', async () => {
       const grupo = gruposRemArr[parseInt(chk.dataset.idx)];
+      const clave = (grupo.cliente||'') + '|||' + (grupo.sucursal_factura||'');
       const excluidasActuales = excluidas.slice();
-      grupo.docs.forEach(doc => {
-        const idx = excluidasActuales.indexOf(doc);
-        if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
-        if (!chk.checked && idx < 0) excluidasActuales.push(doc);
-      });
+      const idx = excluidasActuales.indexOf(clave);
+      if (chk.checked && idx >= 0) excluidasActuales.splice(idx, 1);
+      if (!chk.checked && idx < 0) excluidasActuales.push(clave);
       await guardarExcluidas(excluidasActuales);
       loadTableroControl(mes);
     });
@@ -3085,7 +3085,7 @@ async function loadTableroControl(mesParam) {
   const btnMarcar = document.getElementById('tcMarcarTodas');
   if (btnMarcar) btnMarcar.addEventListener('click', async () => { await guardarExcluidas([]); loadTableroControl(mes); });
   const btnDesmarcar = document.getElementById('tcDesmarcarTodas');
-  if (btnDesmarcar) btnDesmarcar.addEventListener('click', async () => { await guardarExcluidas(remisiones.map(rm=>rm.nro_documento)); loadTableroControl(mes); });
+  if (btnDesmarcar) btnDesmarcar.addEventListener('click', async () => { await guardarExcluidas(gruposRemArr.map(g => (g.cliente||'')+'|||'+(g.sucursal_factura||''))); loadTableroControl(mes); });
 }
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
