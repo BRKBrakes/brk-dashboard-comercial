@@ -485,6 +485,10 @@ function colorMargenPct(pct) {
   return '#ff6b6b';
 }
 
+let MARGEN_KAM_SEL = [];
+let MARGEN_CLIENTE_SEL = [];
+let MARGEN_SUCURSAL_SEL = [];
+
 async function loadMargen() {
   const el = document.getElementById('view-margen');
   el.innerHTML = '<div class="loading">Cargando margen...</div>';
@@ -492,13 +496,23 @@ async function loadMargen() {
   const mesDesde = MARGEN_MES_DESDE || 1;
   const mesHasta = MARGEN_MES_HASTA || mesActual;
 
-  const r = await rpc('dash_margen', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026 });
+  const r = await rpc('dash_margen', {
+    p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta, p_anio: 2026,
+    p_kam: MARGEN_KAM_SEL.length ? MARGEN_KAM_SEL : null,
+    p_cliente: MARGEN_CLIENTE_SEL.length ? MARGEN_CLIENTE_SEL : null,
+    p_sucursal: MARGEN_SUCURSAL_SEL.length ? MARGEN_SUCURSAL_SEL : null
+  });
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Error al cargar'}</div>`; return; }
 
   const g = r.general || {};
   const porKam = r.por_kam || [];
   const porFamilia = r.por_familia || [];
   const menoresMargen = r.top_clientes_menor_margen || [];
+  const f = r.filtros || {};
+
+  const opcionesKam = (f.kams||[]).map(k => ({ value: k, label: titleCase(k) }));
+  const opcionesCliente = (f.clientes||[]).map(c => ({ value: c, label: c }));
+  const opcionesSucursal = (f.sucursales||[]).map(s => ({ value: s, label: s }));
 
   let html = `<div class="card" style="padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <span style="font-size:12px;color:var(--text-dim);">Periodo:</span>
@@ -508,19 +522,31 @@ async function loadMargen() {
     <button id="margenBtnFiltrar" style="width:auto;padding:6px 14px;font-size:12px;">Aplicar</button>
   </div>`;
 
+  html += `<div class="card card-filtros" style="padding:12px 20px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    ${renderMultiSelect('margenKam', opcionesKam, MARGEN_KAM_SEL, 'Todos los KAM')}
+    ${renderMultiSelect('margenCliente', opcionesCliente, MARGEN_CLIENTE_SEL, 'Todas las razones sociales')}
+    ${renderMultiSelect('margenSucursal', opcionesSucursal, MARGEN_SUCURSAL_SEL, 'Todas las sucursales')}
+  </div>`;
+
+  html += renderBarraFiltros([
+    { id: 'kam', label: 'KAM', valor: MARGEN_KAM_SEL, etiquetaDe: v => titleCase(v) },
+    { id: 'cliente', label: 'Razón Social', valor: MARGEN_CLIENTE_SEL },
+    { id: 'sucursal', label: 'Sucursal', valor: MARGEN_SUCURSAL_SEL }
+  ]);
+
   html += `<div class="kpis">
     <div class="kpi"><div class="label">Venta Total</div><div class="value">${money(g.venta_total)}</div></div>
     <div class="kpi"><div class="label">Costo Total</div><div class="value">${money(g.costo_total)}</div></div>
-    <div class="kpi"><div class="label">Margen Total</div><div class="value" style="color:${colorMargenPct(g.margen_pct)};">${money(g.margen_total)}</div></div>
+    <div class="kpi"><div class="label">Utilidad</div><div class="value" style="color:${colorMargenPct(g.margen_pct)};">${money(g.margen_total)}</div></div>
     <div class="kpi"><div class="label">% Margen</div><div class="value" style="color:${colorMargenPct(g.margen_pct)};">${g.margen_pct}%</div></div>
   </div>`;
 
-  html += `<div class="card"><h2>Margen por KAM</h2><table><tr><th>KAM</th><th class="num">Venta</th><th class="num">Costo</th><th class="num">Margen $</th><th class="num">Margen %</th></tr>
+  html += `<div class="card"><h2>Margen por KAM</h2><table><tr><th>KAM</th><th class="num">Venta</th><th class="num">Costo</th><th class="num">Utilidad $</th><th class="num">Margen %</th></tr>
     ${porKam.map(k => `<tr><td>${esc(titleCase(k.kam))}</td><td class="num money">${money(k.venta_total)}</td><td class="num money">${money(k.costo_total)}</td><td class="num money" data-val="${k.margen_total}">${money(k.margen_total)}</td><td class="num" data-val="${k.margen_pct}" style="color:${colorMargenPct(k.margen_pct)};font-weight:700;">${k.margen_pct}%</td></tr>`).join('')}
   </table></div>`;
 
-  html += `<div class="card"><h2>Margen por Familia (top 15 por venta)</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Margen $</th><th class="num">Margen %</th></tr>
-    ${porFamilia.map(f => `<tr><td>${esc(f.familia)}</td><td class="num money">${money(f.venta_total)}</td><td class="num money" data-val="${f.margen_total}">${money(f.margen_total)}</td><td class="num" data-val="${f.margen_pct}" style="color:${colorMargenPct(f.margen_pct)};font-weight:700;">${f.margen_pct}%</td></tr>`).join('')}
+  html += `<div class="card"><h2>Margen por Familia (top 15 por venta)</h2><table><tr><th>Familia</th><th class="num">Venta</th><th class="num">Utilidad $</th><th class="num">Margen %</th></tr>
+    ${porFamilia.map(fam => `<tr><td>${esc(fam.familia)}</td><td class="num money">${money(fam.venta_total)}</td><td class="num money" data-val="${fam.margen_total}">${money(fam.margen_total)}</td><td class="num" data-val="${fam.margen_pct}" style="color:${colorMargenPct(fam.margen_pct)};font-weight:700;">${fam.margen_pct}%</td></tr>`).join('')}
   </table></div>`;
 
   html += `<div class="card"><h2>Clientes con menor % de margen (venta &gt; $500K, alerta de descuento agresivo)</h2><table><tr><th>KAM</th><th>Cliente</th><th class="num">Venta</th><th class="num">Margen %</th></tr>
@@ -537,6 +563,15 @@ async function loadMargen() {
     MARGEN_MES_HASTA = parseInt(document.getElementById('margenMesHasta').value);
     loadMargen();
   });
+
+  activarMultiSelect('margenKam', (vals) => { MARGEN_KAM_SEL = vals; loadMargen(); });
+  activarMultiSelect('margenCliente', (vals) => { MARGEN_CLIENTE_SEL = vals; loadMargen(); });
+  activarMultiSelect('margenSucursal', (vals) => { MARGEN_SUCURSAL_SEL = vals; loadMargen(); });
+  activarBarraFiltros(el, {
+    kam: (v) => { MARGEN_KAM_SEL = MARGEN_KAM_SEL.filter(x=>x!==v); loadMargen(); },
+    cliente: (v) => { MARGEN_CLIENTE_SEL = MARGEN_CLIENTE_SEL.filter(x=>x!==v); loadMargen(); },
+    sucursal: (v) => { MARGEN_SUCURSAL_SEL = MARGEN_SUCURSAL_SEL.filter(x=>x!==v); loadMargen(); }
+  }, () => { MARGEN_KAM_SEL = []; MARGEN_CLIENTE_SEL = []; MARGEN_SUCURSAL_SEL = []; loadMargen(); });
 }
 
 let DSO_MES_DESDE = null;
