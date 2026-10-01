@@ -1885,6 +1885,24 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
     { id: 'sucursal', label: 'Sucursal', valor: TA_SUCURSAL }
   ]);
 
+  const tot = r.totales || {};
+  const pctTotal = tot.facturacion_total ? Math.round((tot.facturacion_tipo_a/tot.facturacion_total)*1000)/10 : 0;
+  html += `<div class="kpis">
+    <div class="kpi"><div class="label">Facturación Total</div><div class="value">${money(tot.facturacion_total)}</div></div>
+    <div class="kpi"><div class="label">Facturación Aliados Tipo A</div><div class="value">${money(tot.facturacion_tipo_a)}</div></div>
+    <div class="kpi"><div class="label">% del Total</div><div class="value" style="color:var(--neon);">${pctTotal}%</div></div>
+  </div>`;
+
+  const porCliente = r.por_cliente || [];
+  const totalPc = porCliente.reduce((s,c) => s + (c.total||0), 0);
+  html += '<div class="card"><h2>Aliados Tipo A por Razón Social</h2><table><tr><th>Razón Social</th><th class="num">Facturado</th><th class="num">% del Total</th></tr>';
+  porCliente.forEach(c => {
+    const pctC = totalPc ? Math.round(((c.total||0)/totalPc)*1000)/10 : 0;
+    html += `<tr><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num" data-val="${pctC}">${pctC}%</td></tr>`;
+  });
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(totalPc)}</td><td class="num">100%</td></tr>`;
+  html += '</table></div>';
+
   html += '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
   data.forEach(c => {
     const pctFila = total ? Math.round(((c.total||0)/total)*1000)/10 : 0;
