@@ -779,7 +779,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
           const dsoT = ultimosCierresPorKam.length ? Math.round((ultimosCierresPorKam.reduce((s,v) => s+v, 0)/ultimosCierresPorKam.length)*10)/10 : null;
           const colorDsoT = dsoT === null ? 'var(--text-dim)' : dsoT <= 60 ? '#4ade80' : dsoT <= 75 ? '#ff9f43' : '#ff6b6b';
 
-          return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
+          return `<tr class="fila-total">
             <td>TOTAL</td>
             <td class="num" data-val="${pctPresT??0}" style="color:${colorT};">${pctPresT!==null?pctPresT+'%':'—'}</td>
             <td class="num" data-val="${crecTipoAT??0}" style="color:${colorTipoAT};">${crecTipoAT!==null?(crecTipoAT>=0?'+':'')+crecTipoAT+'%':'—'}</td>
@@ -819,7 +819,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
         h += `</tr>`;
         sumaTotalGeneral += total;
       });
-      h += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+      h += `<tr class="fila-total"><td>TOTAL</td>`;
       mesesAct.forEach(m => h += `<td class="num ${esMoneda?'money':''}">${esMoneda?money(sumaMeses[m]):esPorcentaje?'—':Math.round(sumaMeses[m]).toLocaleString('es-CO')}</td>`);
       const promTotalGeneral = mesesAct.length ? sumaTotalGeneral/mesesAct.length : 0;
       h += `<td class="num" style="color:var(--neon);">${esMoneda?money(promTotalGeneral):esPorcentaje?'—':Math.round(promTotalGeneral).toLocaleString('es-CO')}</td><td class="num ${esMoneda?'money':''}" data-val="${sumaTotalGeneral}">${esMoneda?money(sumaTotalGeneral):esPorcentaje?'—':Math.round(sumaTotalGeneral).toLocaleString('es-CO')}</td></tr>`;
@@ -849,7 +849,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       const colorProm = prom === null ? 'var(--text-dim)' : prom >= 100 ? '#4ade80' : prom >= 80 ? '#ff9f43' : '#ff6b6b';
       html += `<td class="num" data-val="${prom??0}" style="color:${colorProm};font-weight:700;">${prom!==null?prom+'%':'—'}</td></tr>`;
     });
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    html += `<tr class="fila-total"><td>TOTAL</td>`;
     let sumaPctTotalFilaT2 = 0, nTotalT2 = 0;
     mesesAct.forEach(m => {
       const regsMes = ventasPorMes.filter(x => x.mes === m);
@@ -889,7 +889,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       const colorProm2 = prom === null ? 'var(--text-dim)' : prom >= 10 ? '#4ade80' : prom >= 0 ? '#ff9f43' : '#ff6b6b';
       html += `<td class="num" data-val="${prom??0}" style="color:${colorProm2};font-weight:700;">${prom!==null?(prom>=0?'+':'')+prom+'%':'—'}</td></tr>`;
     });
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    html += `<tr class="fila-total"><td>TOTAL</td>`;
     let sumaPctTotalT3 = 0, nTotalT3 = 0;
     mesesAct.forEach(m => {
       const pctT = totV25TipoA[m] ? Math.round(((totV26TipoA[m]-totV25TipoA[m])/totV25TipoA[m])*100) : null;
@@ -920,7 +920,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       });
       html += `</tr>`;
     });
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    html += `<tr class="fila-total"><td>TOTAL</td>`;
     mesesAct.forEach(m => {
       const cierresMes = cierres.filter(x => x.mes === m);
       const totCarteraM = cierresMes.reduce((s,c) => s + (c.cartera_total||0), 0);
@@ -946,7 +946,7 @@ async function renderOkrKam(el, opcionesMeses, mesActual) {
       });
       html += `</tr>`;
     });
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>`;
+    html += `<tr class="fila-total"><td>TOTAL</td>`;
     mesesAct.forEach(m => {
       const cierresMes = cierres.filter(x => x.mes === m);
       const promDso = cierresMes.length ? Math.round((cierresMes.reduce((s,c) => s+(c.dso||0),0)/cierresMes.length)*10)/10 : null;
@@ -1586,7 +1586,7 @@ async function loadEjecutivo() {
     const totFalt = totReal - totPpto;
     const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
     let color = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" data-val="${totFalt}" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" data-val="${totPct}" style="color:${color};">${totPct}%</td></tr>`;
+    html += `<tr class="fila-total"><td>TOTAL</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" data-val="${totFalt}" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" data-val="${totPct}" style="color:${color};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
@@ -1607,7 +1607,7 @@ async function loadEjecutivo() {
     const totFalt = totReal - totPpto;
     const colorF = totFalt>=0?'#4ade80':'#ff6b6b';
     let colorPct = totPct>=100?'#4ade80':(totPct>=80?'#ff9f43':'#ff6b6b');
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" data-val="${totFalt}" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" data-val="${totPct}" style="color:${colorPct};">${totPct}%</td></tr>`;
+    html += `<tr class="fila-total"><td>TOTAL</td><td class="num money">${money(totReal)}</td><td class="num money">${money(totPpto)}</td><td class="num money" data-val="${totFalt}" style="color:${colorF};">${totFalt>=0?'+':''}${money(totFalt)}</td><td class="num" data-val="${totPct}" style="color:${colorPct};">${totPct}%</td></tr>`;
   }
   html += '</table></div>';
 
@@ -1630,7 +1630,7 @@ async function loadEjecutivo() {
       const totPesos = totV26 - totV25;
       const totPct = totV25 ? Math.round((totPesos/totV25)*100) : 0;
       const color = totPct>=0?'#4ade80':'#ff6b6b';
-      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>EQUIPO BRK</td><td class="num money">${money(totV25)}</td><td class="num money">${money(totV26)}</td><td class="num money" data-val="${totPesos}" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" data-val="${totPct}" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
+      html += `<tr class="fila-total"><td>TOTAL</td><td class="num money">${money(totV25)}</td><td class="num money">${money(totV26)}</td><td class="num money" data-val="${totPesos}" style="color:${color};">${totPesos>=0?'+':''}${money(totPesos)}</td><td class="num" data-val="${totPct}" style="color:${color};">${totPct>=0?'+':''}${totPct}%</td></tr>`;
     }
     html += '</table></div>';
 
@@ -1658,7 +1658,7 @@ async function loadEjecutivo() {
         tot23+=m.v2023||0; tot24+=m.v2024||0; tot25+=m.v2025||0; tot26+=m.v2026||0;
         html += `<tr><td>${MESES_TODOS[(m.mes_num||m.mes)-1]}</td><td class="num money">${m.v2023?money(m.v2023):'—'}</td><td class="num money">${m.v2024?money(m.v2024):'—'}</td><td class="num money">${m.v2025?money(m.v2025):'—'}</td><td class="num money">${m.v2026?money(m.v2026):'—'}</td></tr>`;
       });
-      html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(tot23)}</td><td class="num money">${money(tot24)}</td><td class="num money">${money(tot25)}</td><td class="num money">${money(tot26)}</td></tr>`;
+      html += `<tr class="fila-total"><td>TOTAL</td><td class="num money">${money(tot23)}</td><td class="num money">${money(tot24)}</td><td class="num money">${money(tot25)}</td><td class="num money">${money(tot26)}</td></tr>`;
       html += '</table></div>';
     }
   }
@@ -1915,7 +1915,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
     html += `<tr class="fila-tipoa-cliente" data-cliente="${(c.cliente||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num money">${money(promedioClienteMap[c.cliente])}</td><td class="num money">${money(c.cartera_vencida)}</td><td class="num" data-val="${pctC}">${pctC}%</td></tr>`;
   });
   const promTotalCliente = Object.values(promedioClienteMap).length ? Object.values(promedioClienteMap).reduce((a,b)=>a+b,0) : 0;
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.total||0),0))}</td><td class="num money">${money(promTotalCliente)}</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.cartera_vencida||0),0))}</td><td class="num" data-val="${pctTotal}">${pctTotal}%</td></tr>`;
+  html += `<tr class="fila-total"><td>TOTAL</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.total||0),0))}</td><td class="num money">${money(promTotalCliente)}</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.cartera_vencida||0),0))}</td><td class="num" data-val="${pctTotal}">${pctTotal}%</td></tr>`;
   html += '</table></div>';
 
   const sucMes = r.sucursales_por_mes || [];
@@ -1934,7 +1934,7 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
     const clave = c.cliente+'|||'+c.sucursal_despacho+'|||'+c.vendedor;
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num money">${money(promedioSucMap[clave])}</td><td class="num" data-val="${pctFila}">${pctFila}%</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num money">${money(Object.values(promedioSucMap).reduce((a,b)=>a+b,0))}</td><td class="num">100%</td></tr>`;
+  html += `<tr class="fila-total"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num money">${money(Object.values(promedioSucMap).reduce((a,b)=>a+b,0))}</td><td class="num">100%</td></tr>`;
   html += '</table></div>';
   html += '<div id="tipoa-graficas"></div>';
   el.innerHTML = html;
@@ -2507,7 +2507,7 @@ function ordenarTabla(table, colIdx, dir) {
   const filas = Array.from(table.querySelectorAll('tbody tr, tr')).filter(r => r.parentElement.tagName !== 'THEAD');
   const headerRow = filas[0];
   const dataRows = filas.slice(1);
-  const totales = dataRows.filter(r => /TOTAL|EQUIPO BRK/i.test(r.textContent));
+  const totales = dataRows.filter(r => r.classList.contains('fila-total') || /TOTAL|EQUIPO BRK/i.test(r.textContent));
   const normales = dataRows.filter(r => !totales.includes(r));
   normales.sort((a, b) => {
     const cA = a.children[colIdx];
@@ -2763,7 +2763,7 @@ function renderRemisiones() {
     const activo = (REMISIONES_KAM_SEL||[]).includes(k);
     html += `<tr class="fila-kam-rem" data-kam="${k.replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${titleCase(k)}</td><td class="num money">${money(totalesPorKam[k])}</td><td class="num">${(conteosPorKam[k]||0).toLocaleString('es-CO')}</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td><td class="num">${(r.num_remisiones||0).toLocaleString('es-CO')}</td></tr>`;
+  html += `<tr class="fila-total"><td>TOTAL</td><td class="num money">${money(r.valor_total)}</td><td class="num">${(r.num_remisiones||0).toLocaleString('es-CO')}</td></tr>`;
   html += '</table></div>';
 
   html += `<div class="card"><h2>Remisiones por vendedor y sucursal</h2><table><tr><th>Vendedor</th><th>Sucursal</th>${meses.map(m=>`<th class="num">${MESES[m-1]}</th>`).join('')}<th class="num">Total</th></tr>`;
@@ -2855,7 +2855,7 @@ function renderCartera() {
     const g = r.general;
     const colorTotal = colorKpiCartera(g.kpi_pct);
     const pctVencidaTotal = g.total ? Math.round((g.vencida_total/g.total)*1000)/10 : 0;
-    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td class="num money">${money(g.total)}</td><td class="num money">${money(g.vencida_total)}</td><td class="num" data-val="${pctVencidaTotal}">${pctVencidaTotal}%</td><td class="num money">${money(g.vencido_60)}</td><td class="num" data-val="${g.kpi_pct}" style="color:${colorTotal};font-weight:700;">${g.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-total"><td>TOTAL</td><td class="num money">${money(g.total)}</td><td class="num money">${money(g.vencida_total)}</td><td class="num" data-val="${pctVencidaTotal}">${pctVencidaTotal}%</td><td class="num money">${money(g.vencido_60)}</td><td class="num" data-val="${g.kpi_pct}" style="color:${colorTotal};font-weight:700;">${g.kpi_pct}%</td></tr>`;
   }
   html += '</table></div>';
 
@@ -2876,7 +2876,7 @@ function renderCartera() {
     const totVencidaTotal = totV1_30 + totV31_59 + totV60;
     const diasMaxTotal = Math.max(...detalleFiltrado.map(d => d.dias_max||0));
     const colorDiasTotal = colorDiasVencido(diasMaxTotal);
-    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money" data-val="${totVencidaTotal}">${money(totVencidaTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td></tr>`;
+    html += `<tr class="fila-total"><td>TOTAL</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money" data-val="${totVencidaTotal}">${money(totVencidaTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td></tr>`;
   }
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
@@ -3751,7 +3751,7 @@ async function loadNps() {
         const npsT = totR ? ((porKam.reduce((s,k)=>s+(parseFloat(k.nps)||0)*(k.total||0),0))/totR).toFixed(1) : '—';
         const nc = v => parseFloat(v) >= OBJ_SCORE ? '#4ade80' : '#ff6b6b';
         const npsC = parseFloat(npsT) >= OBJ_NPS ? '#4ade80' : '#ff6b6b';
-        return `<tr style="font-weight:700;border-top:2px solid var(--neon);">
+        return `<tr class="fila-total">
           <td>TOTAL</td>
           <td class="num" data-val="${totR}">${totR}</td>
           <td class="num" data-val="${wavg('atencion')}" style="color:${nc(wavg('atencion'))};">${wavg('atencion')}</td>
@@ -4143,7 +4143,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const totMesTC = {}; meses.forEach(m => { totMesTC[m] = topClientes.reduce((s,c)=>s+(c.meses[m]||0),0); });
     const totGenTC = topClientes.reduce((s,c)=>s+c.total,0);
     const promTotTC = promedioCeldas(totMesTC, mFin, true);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMesTC[m]}">${totMesTC[m]?money(totMesTC[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTotTC}</td>`:''}<td class="num money" data-val="${totGenTC}">${money(totGenTC)}</td></tr>`;
+    html += `<tr class="fila-total"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMesTC[m]}">${totMesTC[m]?money(totMesTC[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTotTC}</td>`:''}<td class="num money" data-val="${totGenTC}">${money(totGenTC)}</td></tr>`;
   }
   html += '</table></div></div>';
 
@@ -4162,7 +4162,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const totMesPV = {}; meses.forEach(m => { totMesPV[m] = prodValor.reduce((s,p)=>s+(p.meses[m]||0),0); });
     const totGenPV = prodValor.reduce((s,p)=>s+p.total,0);
     const promTotPV = promedioCeldas(totMesPV, mFin, true);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMesPV[m]}">${totMesPV[m]?money(totMesPV[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTotPV}</td>`:''}<td class="num money" data-val="${totGenPV}">${money(totGenPV)}</td></tr>`;
+    html += `<tr class="fila-total"><td>TOTAL</td>${meses.map(m=>`<td class="num money" data-val="${totMesPV[m]}">${totMesPV[m]?money(totMesPV[m]):''}</td>`).join('')}${mFin.length?`<td class="num money" style="color:var(--neon);">${promTotPV}</td>`:''}<td class="num money" data-val="${totGenPV}">${money(totGenPV)}</td></tr>`;
   }
   html += '</table></div></div>';
 
@@ -4178,7 +4178,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     const totMesPU = {}; meses.forEach(m => { totMesPU[m] = prodUnidades.reduce((s,p)=>s+(p.meses[m]||0),0); });
     const totGenPU = prodUnidades.reduce((s,p)=>s+p.total,0);
     const promTotPU = promedioCeldas(totMesPU, mFin, false);
-    html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td>${meses.map(m=>`<td class="num" data-val="${totMesPU[m]}">${totMesPU[m]?Math.round(totMesPU[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mFin.length?`<td class="num" style="color:var(--neon);">${promTotPU}</td>`:''}<td class="num" data-val="${totGenPU}">${Math.round(totGenPU).toLocaleString('es-CO')}</td></tr>`;
+    html += `<tr class="fila-total"><td>TOTAL</td>${meses.map(m=>`<td class="num" data-val="${totMesPU[m]}">${totMesPU[m]?Math.round(totMesPU[m]).toLocaleString('es-CO'):''}</td>`).join('')}${mFin.length?`<td class="num" style="color:var(--neon);">${promTotPU}</td>`:''}<td class="num" data-val="${totGenPU}">${Math.round(totGenPU).toLocaleString('es-CO')}</td></tr>`;
   }
   html += '</table></div></div></div>';
 
