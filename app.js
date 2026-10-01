@@ -1895,12 +1895,13 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
 
   const porCliente = r.por_cliente || [];
   const totalPc = porCliente.reduce((s,c) => s + (c.total||0), 0);
-  html += '<div class="card"><h2>Aliados Tipo A por Razón Social</h2><table><tr><th>Razón Social</th><th class="num">Facturado</th><th class="num">% del Total</th></tr>';
+  html += '<div class="card"><h2>Aliados Tipo A por Razón Social (clic para filtrar)</h2><table><tr><th>Razón Social</th><th class="num">Facturado</th><th class="num">% del Total</th><th class="num">Cartera Vencida Total</th></tr>';
   porCliente.forEach(c => {
     const pctC = totalPc ? Math.round(((c.total||0)/totalPc)*1000)/10 : 0;
-    html += `<tr><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num" data-val="${pctC}">${pctC}%</td></tr>`;
+    const activo = (TA_CLIENTE||[]).includes(c.cliente);
+    html += `<tr class="fila-tipoa-cliente" data-cliente="${(c.cliente||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num" data-val="${pctC}">${pctC}%</td><td class="num money">${money(c.cartera_vencida)}</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(totalPc)}</td><td class="num">100%</td></tr>`;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(totalPc)}</td><td class="num">100%</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.cartera_vencida||0),0))}</td></tr>`;
   html += '</table></div>';
 
   html += '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
@@ -1919,6 +1920,15 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   activarMultiSelect('taKam', (vals) => loadTipoA(vals, TA_CLIENTE, TA_SUCURSAL, TA_MES));
   activarMultiSelect('taCliente', (vals) => loadTipoA(TA_KAM, vals, TA_SUCURSAL, TA_MES));
   activarMultiSelect('taSucursal', (vals) => loadTipoA(TA_KAM, TA_CLIENTE, vals, TA_MES));
+
+  el.querySelectorAll('.fila-tipoa-cliente').forEach(fila => {
+    fila.addEventListener('click', () => {
+      const cli = fila.dataset.cliente;
+      const yaSel = (TA_CLIENTE||[]).includes(cli);
+      const nuevo = yaSel ? TA_CLIENTE.filter(x=>x!==cli) : [...(TA_CLIENTE||[]), cli];
+      loadTipoA(TA_KAM, nuevo, TA_SUCURSAL, TA_MES);
+    });
+  });
 
   if (ROL === 'colaborador') {
     const wrap = document.getElementById('ms-wrap-taKam');
