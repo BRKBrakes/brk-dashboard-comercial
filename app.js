@@ -1894,22 +1894,44 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
   </div>`;
 
   const porCliente = r.por_cliente || [];
-  const totalPc = porCliente.reduce((s,c) => s + (c.total||0), 0);
-  html += '<div class="card"><h2>Aliados Tipo A por Razón Social (clic para filtrar)</h2><table><tr><th>Razón Social</th><th class="num">Facturado</th><th class="num">% del Total</th><th class="num">Cartera Vencida Total</th></tr>';
+  const porClienteMes = r.por_cliente_mes || [];
+  const mesesTxList = [...new Set(porClienteMes.map(x => x.mes))];
+  const promedioClienteMap = {};
   porCliente.forEach(c => {
-    const pctC = totalPc ? Math.round(((c.total||0)/totalPc)*1000)/10 : 0;
-    const activo = (TA_CLIENTE||[]).includes(c.cliente);
-    html += `<tr class="fila-tipoa-cliente" data-cliente="${(c.cliente||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num" data-val="${pctC}">${pctC}%</td><td class="num money">${money(c.cartera_vencida)}</td></tr>`;
+    const mesesCliente = {};
+    porClienteMes.filter(x => x.cliente === c.cliente).forEach(x => { mesesCliente[x.mes] = x.valor; });
+    const conVenta = mesesTxList.filter(m => mesesCliente[m] && mesesCliente[m] > 0);
+    promedioClienteMap[c.cliente] = conVenta.length ? conVenta.reduce((s,m)=>s+mesesCliente[m],0)/conVenta.length : 0;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(totalPc)}</td><td class="num">100%</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.cartera_vencida||0),0))}</td></tr>`;
+  html += '<div class="card"><h2>Aliados Tipo A por Razón Social (clic para filtrar)</h2><table><tr><th>Razón Social</th><th class="num">Facturado</th><th class="num">Promedio</th><th class="num">% del Total</th><th class="num">Cartera Vencida Total</th></tr>';
+  porCliente.forEach(c => {
+    // % sobre la facturación TOTAL de la empresa (no sobre el total Tipo A) — así
+    // la suma de esta columna da ~57.7%, no 100%.
+    const pctC = tot.facturacion_total ? Math.round(((c.total||0)/tot.facturacion_total)*1000)/10 : 0;
+    const activo = (TA_CLIENTE||[]).includes(c.cliente);
+    html += `<tr class="fila-tipoa-cliente" data-cliente="${(c.cliente||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num money">${money(promedioClienteMap[c.cliente])}</td><td class="num" data-val="${pctC}">${pctC}%</td><td class="num money">${money(c.cartera_vencida)}</td></tr>`;
+  });
+  const promTotalCliente = Object.values(promedioClienteMap).length ? Object.values(promedioClienteMap).reduce((a,b)=>a+b,0) : 0;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.total||0),0))}</td><td class="num money">${money(promTotalCliente)}</td><td class="num" data-val="${pctTotal}">${pctTotal}%</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.cartera_vencida||0),0))}</td></tr>`;
   html += '</table></div>';
 
-  html += '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">% del total</th></tr>';
+  const sucMes = r.sucursales_por_mes || [];
+  const mesesSucList = [...new Set(sucMes.map(x => x.mes))];
+  const promedioSucMap = {};
+  data.forEach(d => {
+    const mesesSuc = {};
+    sucMes.filter(x => x.cliente===d.cliente && x.sucursal_despacho===d.sucursal_despacho && x.vendedor===d.vendedor).forEach(x => { mesesSuc[x.mes] = x.valor; });
+    const conVenta = mesesSucList.filter(m => mesesSuc[m] && mesesSuc[m] > 0);
+    const clave = d.cliente+'|||'+d.sucursal_despacho+'|||'+d.vendedor;
+    promedioSucMap[clave] = conVenta.length ? conVenta.reduce((s,m)=>s+mesesSuc[m],0)/conVenta.length : 0;
+  });
+  html += '<div class="card"><h2>Aliados Tipo A (lista fija de 9 clientes) — ' + data.length + ' sucursales</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th class="num">Total 2026</th><th class="num">Promedio</th><th class="num">% del total</th></tr>';
   data.forEach(c => {
     const pctFila = total ? Math.round(((c.total||0)/total)*1000)/10 : 0;
-    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num" data-val="${pctFila}">${pctFila}%</td></tr>`;
+    const clave = c.cliente+'|||'+c.sucursal_despacho+'|||'+c.vendedor;
+    html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td class="num money">${money(c.total)}</td><td class="num money">${money(promedioSucMap[clave])}</td><td class="num" data-val="${pctFila}">${pctFila}%</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num">100%</td></tr>`;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td colspan="3">TOTAL</td><td class="num money">${money(total)}</td><td class="num money">${money(Object.values(promedioSucMap).reduce((a,b)=>a+b,0))}</td><td class="num">100%</td></tr>`;
   html += '</table></div>';
   html += '<div id="tipoa-graficas"></div>';
   el.innerHTML = html;
