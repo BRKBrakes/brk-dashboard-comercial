@@ -1545,13 +1545,16 @@ async function loadEjecutivo() {
 
   const [kpi, resumen, cumplPeriodo] = await Promise.all([
     rpc('dash_kpi_ejecutivo', { p_token: TOKEN }),
-    rpc('dash_resumen_cartera', { p_token: TOKEN }),
+    rpc('dash_resumen_cartera', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta }),
     rpc('dash_cumplimiento_periodo', { p_token: TOKEN, p_mes_desde: mesDesde, p_mes_hasta: mesHasta })
   ]);
   if (!kpi.ok) { el.innerHTML = '<div class="loading">Sesión expirada, vuelve a entrar.</div>'; return; }
 
-  const totalReal = kpi.total_real_ytd || 0;
-  const totalPpto = kpi.total_anual_presupuesto || 0;
+  // Totales de las tarjetas se recalculan sobre el periodo filtrado (mesDesde-mesHasta),
+  // no sobre el año completo — usando el desglose mensual que ya trae dash_kpi_ejecutivo.
+  const porMesKpi = kpi.por_mes || [];
+  const totalReal = porMesKpi.filter(m => m.mes >= mesDesde && m.mes <= mesHasta).reduce((s,m) => s + (m.venta_real||0), 0);
+  const totalPpto = porMesKpi.filter(m => m.mes >= mesDesde && m.mes <= mesHasta).reduce((s,m) => s + (m.presupuesto||0), 0);
   const cumplPct = totalPpto ? Math.round((totalReal/totalPpto)*100) : 0;
 
   let html = `<div class="kpis">
@@ -2858,20 +2861,22 @@ function renderCartera() {
 
   const detalleFiltrado = (CARTERA_KAM_SEL && CARTERA_KAM_SEL.length) ? (r.detalle||[]).filter(d => CARTERA_KAM_SEL.includes(d.vendedor)) : (r.detalle||[]);
   html += renderBarraFiltros([{ id: 'sucursal', label: 'Sucursal', valor: CARTERA_SUCURSAL_SEL.map(x => `${x.vendedor}|||${x.sucursal}`), etiquetaDe: v => v.split('|||')[1] }]);
-  html += '<div class="card"><h2>Detalle por sucursal (clic en una o varias filas para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th></tr>';
+  html += '<div class="card"><h2>Detalle por sucursal (clic en una o varias filas para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Cartera Vencida Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th></tr>';
   detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorDias = colorDiasVencido(d.dias_max);
+    const vencidaTotal = (d.vencido_1_30||0) + (d.vencido_31_59||0) + (d.vencido_60||0);
     const activo = CARTERA_SUCURSAL_SEL.some(x => x.vendedor === d.vendedor && x.sucursal === d.sucursal);
-    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td></tr>`;
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money" data-val="${vencidaTotal}">${money(vencidaTotal)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td></tr>`;
   });
   if (detalleFiltrado.length) {
     const totTotal = detalleFiltrado.reduce((s,d) => s + (d.total||0), 0);
     const totV1_30 = detalleFiltrado.reduce((s,d) => s + (d.vencido_1_30||0), 0);
     const totV31_59 = detalleFiltrado.reduce((s,d) => s + (d.vencido_31_59||0), 0);
     const totV60 = detalleFiltrado.reduce((s,d) => s + (d.vencido_60||0), 0);
+    const totVencidaTotal = totV1_30 + totV31_59 + totV60;
     const diasMaxTotal = Math.max(...detalleFiltrado.map(d => d.dias_max||0));
     const colorDiasTotal = colorDiasVencido(diasMaxTotal);
-    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td></tr>`;
+    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money" data-val="${totVencidaTotal}">${money(totVencidaTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td></tr>`;
   }
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
@@ -3066,6 +3071,9 @@ function renderRecaudo() {
   html += `<div class="card">
     <h2>Recaudo semanal (lunes a domingo) — clic en una barra para filtrar</h2>
     ${renderGraficaRecaudoSemanal(semanas)}
+    <div style="display:flex;gap:14px;justify-content:center;font-size:11px;color:var(--text-dim);margin-top:6px;">
+      <span><span style="display:inline-block;width:9px;height:9px;background:var(--neon);border-radius:2px;"></span> Recaudo de la semana</span>
+    </div>
   </div>`;
 
   html += `<div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
