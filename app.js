@@ -1555,12 +1555,12 @@ async function loadEjecutivo() {
   const cumplPct = totalPpto ? Math.round((totalReal/totalPpto)*100) : 0;
 
   let html = `<div class="kpis">
-    <div class="kpi"><div class="label">Venta acumulada 2026</div><div class="value">${money(totalReal)}</div></div>
     <div class="kpi"><div class="label">Presupuesto anual AFL</div><div class="value">${money(totalPpto)}</div></div>
+    <div class="kpi"><div class="label">Venta acumulada 2026</div><div class="value">${money(totalReal)}</div></div>
     <div class="kpi"><div class="label">Cumplimiento</div><div class="value">${cumplPct}%</div></div>
-    <div class="kpi"><div class="label">Ratio discos/pastas (juegos)</div><div class="value">${Math.round((resumen.ratio_discos_pastas_global||0)*100)}%</div></div>
+    <div class="kpi"><div class="label">% Crecimiento vs 2025</div><div class="value" style="color:${(resumen.pct_crecimiento_2025||0)>=0?'#4ade80':'#ff6b6b'};">${resumen.pct_crecimiento_2025>=0?'+':''}${resumen.pct_crecimiento_2025||0}%</div></div>
 
-    <div class="kpi"><div class="label">Concentración top 10</div><div class="value">${resumen.concentracion_top10_pct||0}%</div></div>
+    <div class="kpi"><div class="label">% Aliados Tipo A</div><div class="value">${resumen.pct_aliados_tipo_a||0}%</div></div>
     <div class="kpi"><div class="label">Clientes activos 90d</div><div class="value">${resumen.clientes_activos_90d||0} / ${resumen.clientes_totales_2026||0}</div></div>
   </div>`;
 
@@ -1903,16 +1903,16 @@ async function loadTipoA(kam, cliente, sucursal, mes) {
     const conVenta = mesesTxList.filter(m => mesesCliente[m] && mesesCliente[m] > 0);
     promedioClienteMap[c.cliente] = conVenta.length ? conVenta.reduce((s,m)=>s+mesesCliente[m],0)/conVenta.length : 0;
   });
-  html += '<div class="card"><h2>Aliados Tipo A por Razón Social (clic para filtrar)</h2><table><tr><th>Razón Social</th><th class="num">Facturado</th><th class="num">Promedio</th><th class="num">% del Total</th><th class="num">Cartera Vencida Total</th></tr>';
+  html += '<div class="card"><h2>Aliados Tipo A por Razón Social (clic para filtrar)</h2><table><tr><th>Razón Social</th><th class="num">Facturado</th><th class="num">Promedio</th><th class="num">Cartera Vencida Total</th><th class="num">% del Total</th></tr>';
   porCliente.forEach(c => {
     // % sobre la facturación TOTAL de la empresa (no sobre el total Tipo A) — así
     // la suma de esta columna da ~57.7%, no 100%.
     const pctC = tot.facturacion_total ? Math.round(((c.total||0)/tot.facturacion_total)*1000)/10 : 0;
     const activo = (TA_CLIENTE||[]).includes(c.cliente);
-    html += `<tr class="fila-tipoa-cliente" data-cliente="${(c.cliente||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num money">${money(promedioClienteMap[c.cliente])}</td><td class="num" data-val="${pctC}">${pctC}%</td><td class="num money">${money(c.cartera_vencida)}</td></tr>`;
+    html += `<tr class="fila-tipoa-cliente" data-cliente="${(c.cliente||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(c.cliente)}</td><td class="num money">${money(c.total)}</td><td class="num money">${money(promedioClienteMap[c.cliente])}</td><td class="num money">${money(c.cartera_vencida)}</td><td class="num" data-val="${pctC}">${pctC}%</td></tr>`;
   });
   const promTotalCliente = Object.values(promedioClienteMap).length ? Object.values(promedioClienteMap).reduce((a,b)=>a+b,0) : 0;
-  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.total||0),0))}</td><td class="num money">${money(promTotalCliente)}</td><td class="num" data-val="${pctTotal}">${pctTotal}%</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.cartera_vencida||0),0))}</td></tr>`;
+  html += `<tr style="font-weight:700;border-top:2px solid var(--neon);"><td>TOTAL</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.total||0),0))}</td><td class="num money">${money(promTotalCliente)}</td><td class="num money">${money(porCliente.reduce((s,c)=>s+(c.cartera_vencida||0),0))}</td><td class="num" data-val="${pctTotal}">${pctTotal}%</td></tr>`;
   html += '</table></div>';
 
   const sucMes = r.sucursales_por_mes || [];
@@ -2858,12 +2858,11 @@ function renderCartera() {
 
   const detalleFiltrado = (CARTERA_KAM_SEL && CARTERA_KAM_SEL.length) ? (r.detalle||[]).filter(d => CARTERA_KAM_SEL.includes(d.vendedor)) : (r.detalle||[]);
   html += renderBarraFiltros([{ id: 'sucursal', label: 'Sucursal', valor: CARTERA_SUCURSAL_SEL.map(x => `${x.vendedor}|||${x.sucursal}`), etiquetaDe: v => v.split('|||')[1] }]);
-  html += '<div class="card"><h2>Detalle por sucursal (clic en una o varias filas para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th><th class="num">KPI %</th></tr>';
+  html += '<div class="card"><h2>Detalle por sucursal (clic en una o varias filas para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th></tr>';
   detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
-    const colorKpi = colorKpiCartera(d.kpi_pct);
     const colorDias = colorDiasVencido(d.dias_max);
     const activo = CARTERA_SUCURSAL_SEL.some(x => x.vendedor === d.vendedor && x.sucursal === d.sucursal);
-    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td><td class="num" data-val="${d.kpi_pct}" style="color:${colorKpi};font-weight:700;">${d.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td></tr>`;
   });
   if (detalleFiltrado.length) {
     const totTotal = detalleFiltrado.reduce((s,d) => s + (d.total||0), 0);
@@ -2871,10 +2870,8 @@ function renderCartera() {
     const totV31_59 = detalleFiltrado.reduce((s,d) => s + (d.vencido_31_59||0), 0);
     const totV60 = detalleFiltrado.reduce((s,d) => s + (d.vencido_60||0), 0);
     const diasMaxTotal = Math.max(...detalleFiltrado.map(d => d.dias_max||0));
-    const kpiTotal = totTotal ? Math.round((totV60/totTotal)*10000)/100 : 0;
-    const colorKpiTotal = colorKpiCartera(kpiTotal);
     const colorDiasTotal = colorDiasVencido(diasMaxTotal);
-    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td><td class="num" data-val="${kpiTotal}" style="color:${colorKpiTotal};font-weight:700;">${kpiTotal}%</td></tr>`;
+    html += `<tr style="border-top:2px solid var(--neon);font-weight:700;background:#1e2118;"><td>EQUIPO BRK</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td></tr>`;
   }
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
@@ -2948,6 +2945,38 @@ function formatearSemanaLabel(fechaSemanaLunesISO) {
   const dia = String(d.getDate()).padStart(2, '0');
   const mes = MESES[d.getMonth()];
   return `${dia} ${mes}`;
+}
+
+function renderGraficaRecaudoMensual(mensual) {
+  if (!mensual || !mensual.length) return '<div style="padding:20px;color:var(--text-dim);font-size:12px;">Sin datos suficientes para graficar.</div>';
+
+  const maxVal = Math.max(...mensual.map(m => m.total || 0), 1);
+  const anchoBarra = 40;
+  const gapBarra = 24;
+  const altoMax = 180;
+  const margenIzq = 10;
+  const altoTotal = altoMax + 50;
+  const anchoTotal = margenIzq + mensual.length * (anchoBarra + gapBarra) + 20;
+
+  let barras = '';
+  mensual.forEach((m, i) => {
+    const alto = Math.round(((m.total || 0) / maxVal) * altoMax);
+    const x = margenIzq + i * (anchoBarra + gapBarra);
+    const y = altoMax - alto;
+    barras += `
+      <g>
+        <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="var(--neon)" rx="3"></rect>
+        <text x="${x + anchoBarra/2}" y="${y - 7}" text-anchor="middle" font-size="11" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(m.total)}</text>
+        <text x="${x + anchoBarra/2}" y="${altoMax + 18}" text-anchor="middle" font-size="12" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[m.mes-1]}</text>
+      </g>`;
+  });
+
+  return `<div style="width:100%;overflow-x:auto;">
+    <svg width="100%" height="${altoTotal}" viewBox="0 0 ${anchoTotal} ${altoTotal}" preserveAspectRatio="xMidYMid meet" style="min-width:${Math.min(anchoTotal, 500)}px;">
+      <line x1="${margenIzq}" y1="${altoMax}" x2="${anchoTotal-20}" y2="${altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
+      ${barras}
+    </svg>
+  </div>`;
 }
 
 function renderGraficaRecaudoSemanal(semanal) {
@@ -3024,6 +3053,14 @@ function renderRecaudo() {
     <div class="kpi"><div class="label">Recaudo Total Mes</div><div class="value">${money(r.total_mes)}</div></div>
     <div class="kpi"><div class="label">Recaudo Última Semana</div><div class="value">${money(r.total_semana)}</div></div>
     <div class="kpi"><div class="label">Promedio Recaudo Semanal</div><div class="value">${money(r.promedio_semanal)}</div></div>
+  </div>`;
+
+  html += `<div class="card">
+    <h2>Recaudo por mes</h2>
+    ${renderGraficaRecaudoMensual(r.mensual || [])}
+    <div style="display:flex;gap:14px;justify-content:center;font-size:11px;color:var(--text-dim);margin-top:6px;">
+      <span><span style="display:inline-block;width:9px;height:9px;background:var(--neon);border-radius:2px;"></span> Recaudo del mes</span>
+    </div>
   </div>`;
 
   html += `<div class="card">
@@ -3246,13 +3283,13 @@ async function loadTableroControl(mesParam) {
 
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;">
     <div class="card"><h2>Fact + Remas - NC por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'fact_remas')}</div>
-    <div class="card"><h2>Faltante a hoy por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_hoy')}</div>
-  </div>`;
-
-  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:16px;">
     <div class="card"><h2>% Cumplimiento por KAM</h2><table><tr><th>KAM</th><th class="num">% Cumpl.</th></tr>
       ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" data-val="${k.pct_cumpl}" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
     </table></div>
+  </div>`;
+
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:16px;">
+    <div class="card"><h2>Faltante a hoy por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_hoy')}</div>
     <div class="card"><h2>Faltante para 100% por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'faltante_100')}</div>
   </div>`;
 
