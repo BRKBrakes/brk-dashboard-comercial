@@ -2960,25 +2960,26 @@ function renderGraficaRecaudoMensual(mensual) {
   const gapBarra = 24;
   const altoMax = 180;
   const margenIzq = 10;
-  const altoTotal = altoMax + 50;
+  const margenSup = 26; // espacio superior para que la etiqueta de la barra más alta siempre se vea
+  const altoTotal = margenSup + altoMax + 50;
   const anchoTotal = margenIzq + mensual.length * (anchoBarra + gapBarra) + 20;
 
   let barras = '';
   mensual.forEach((m, i) => {
     const alto = Math.round(((m.total || 0) / maxVal) * altoMax);
     const x = margenIzq + i * (anchoBarra + gapBarra);
-    const y = altoMax - alto;
+    const y = margenSup + altoMax - alto;
     barras += `
       <g>
         <rect x="${x}" y="${y}" width="${anchoBarra}" height="${alto}" fill="var(--neon)" rx="3"></rect>
         <text x="${x + anchoBarra/2}" y="${y - 7}" text-anchor="middle" font-size="11" fill="var(--text)" font-family="Geist Mono, monospace">${moneyShort(m.total)}</text>
-        <text x="${x + anchoBarra/2}" y="${altoMax + 18}" text-anchor="middle" font-size="12" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[m.mes-1]}</text>
+        <text x="${x + anchoBarra/2}" y="${margenSup + altoMax + 18}" text-anchor="middle" font-size="12" fill="var(--text)" font-weight="700" font-family="Geist Mono, monospace">${MESES[m.mes-1]}</text>
       </g>`;
   });
 
   return `<div style="width:100%;overflow-x:auto;">
     <svg width="100%" height="${altoTotal}" viewBox="0 0 ${anchoTotal} ${altoTotal}" preserveAspectRatio="xMidYMid meet" style="min-width:${Math.min(anchoTotal, 500)}px;">
-      <line x1="${margenIzq}" y1="${altoMax}" x2="${anchoTotal-20}" y2="${altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
+      <line x1="${margenIzq}" y1="${margenSup + altoMax}" x2="${anchoTotal-20}" y2="${margenSup + altoMax}" stroke="var(--text-dim)" stroke-width="1"></line>
       ${barras}
     </svg>
   </div>`;
@@ -3047,6 +3048,9 @@ function renderRecaudo() {
   const razonesSociales = [...new Set(detalle.map(f => f.razon_social_cliente).filter(Boolean))].sort();
   const semanas = r.semanal || [];
 
+  const mesesRec = (r.mensual || []).filter(m => (m.total || 0) > 0);
+  const promedioRecaudoMes = mesesRec.length ? Math.round(mesesRec.reduce((a, m) => a + m.total, 0) / mesesRec.length) : 0;
+
   let html = renderBarraFiltros([
     { id: 'kam', label: 'KAM', valor: RECAUDO_KAM_SEL, etiquetaDe: v => titleCase(v) },
     { id: 'razonsocial', label: 'Razón social', valor: RECAUDO_RAZON_SOCIAL || null },
@@ -3057,6 +3061,7 @@ function renderRecaudo() {
     <div class="kpi"><div class="label">Recaudo Total Año</div><div class="value">${money(r.total_anio)}</div></div>
     <div class="kpi"><div class="label">Recaudo Total Mes</div><div class="value">${money(r.total_mes)}</div></div>
     <div class="kpi"><div class="label">Recaudo Última Semana</div><div class="value">${money(r.total_semana)}</div></div>
+    <div class="kpi"><div class="label">Promedio Recaudo Mes</div><div class="value">${money(promedioRecaudoMes)}</div></div>
     <div class="kpi"><div class="label">Promedio Recaudo Semanal</div><div class="value">${money(r.promedio_semanal)}</div></div>
   </div>`;
 
