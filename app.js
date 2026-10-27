@@ -2795,6 +2795,27 @@ function colorKpiCartera(pct) {
   if (pct <= 3.0) return '#ff9f43';
   return '#ff6b6b';
 }
+// % Cartera Vencida: objetivo < 20% (verde), 20%-25% naranja, > 25% rojo
+function colorPctCarteraVencida(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return 'var(--text)';
+  if (pct < 20) return '#4ade80';
+  if (pct <= 25) return '#ff9f43';
+  return '#ff6b6b';
+}
+// Montos vencidos por rango: >0 = color de alerta, 0 = verde, negativo = sin color
+function colorMontoVencido(valor, colorAlerta) {
+  const v = Number(valor) || 0;
+  if (v > 0) return colorAlerta;
+  if (v === 0) return '#4ade80';
+  return 'var(--text)';
+}
+// % Cumplimiento por KAM (Tablero de Control): <80 rojo, 80-99.9 naranja, >=100 verde
+function colorCumplimientoKam(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return 'var(--text)';
+  if (pct >= 100) return '#4ade80';
+  if (pct >= 80) return '#ff9f43';
+  return '#ff6b6b';
+}
 function colorDiasVencido(dias) {
   if (dias === null || dias === undefined) return 'var(--text)';
   if (dias > 60) return '#ff6b6b';
@@ -2849,7 +2870,7 @@ function renderCartera() {
     const color = colorKpiCartera(k.kpi_pct);
     const pctVencidaKam = k.total ? Math.round((k.vencida_total/k.total)*1000)/10 : 0;
     const activo = (CARTERA_KAM_SEL||[]).includes(k.vendedor);
-    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencida_total)}</td><td class="num" data-val="${pctVencidaKam}">${pctVencidaKam}%</td><td class="num money">${money(k.vencido_60)}</td><td class="num" data-val="${k.kpi_pct}" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
+    html += `<tr class="fila-kam-cartera" data-kam="${(k.vendedor||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(k.vendedor))}</td><td class="num money">${money(k.total)}</td><td class="num money">${money(k.vencida_total)}</td><td class="num" data-val="${pctVencidaKam}" style="color:${colorPctCarteraVencida(pctVencidaKam)};font-weight:700;">${pctVencidaKam}%</td><td class="num money">${money(k.vencido_60)}</td><td class="num" data-val="${k.kpi_pct}" style="color:${color};font-weight:700;">${k.kpi_pct}%</td></tr>`;
   });
   if (r.general) {
     const g = r.general;
@@ -2861,12 +2882,13 @@ function renderCartera() {
 
   const detalleFiltrado = (CARTERA_KAM_SEL && CARTERA_KAM_SEL.length) ? (r.detalle||[]).filter(d => CARTERA_KAM_SEL.includes(d.vendedor)) : (r.detalle||[]);
   html += renderBarraFiltros([{ id: 'sucursal', label: 'Sucursal', valor: CARTERA_SUCURSAL_SEL.map(x => `${x.vendedor}|||${x.sucursal}`), etiquetaDe: v => v.split('|||')[1] }]);
-  html += '<div class="card"><h2>Detalle por sucursal (clic en una o varias filas para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Cartera Vencida Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">Máx. días vencido</th></tr>';
+  html += '<div class="card"><h2>Detalle por sucursal (clic en una o varias filas para ver sus facturas)</h2><table><tr><th>KAM</th><th>Sucursal</th><th class="num">Total</th><th class="num">Cartera Vencida Total</th><th class="num">Vencido 1-30 días</th><th class="num">Vencido 31-60 días</th><th class="num">Vencido &gt;60 días</th><th class="num">% Cartera Vencida</th><th class="num">Máx. días vencido</th></tr>';
   detalleFiltrado.sort((a,b) => (b.total||0)-(a.total||0)).forEach(d => {
     const colorDias = colorDiasVencido(d.dias_max);
     const vencidaTotal = (d.vencido_1_30||0) + (d.vencido_31_59||0) + (d.vencido_60||0);
+    const pctVencidaSuc = d.total > 0 ? Math.round((vencidaTotal/d.total)*1000)/10 : 0;
     const activo = CARTERA_SUCURSAL_SEL.some(x => x.vendedor === d.vendedor && x.sucursal === d.sucursal);
-    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money" data-val="${vencidaTotal}">${money(vencidaTotal)}</td><td class="num money">${money(d.vencido_1_30)}</td><td class="num money">${money(d.vencido_31_59)}</td><td class="num money">${money(d.vencido_60)}</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td></tr>`;
+    html += `<tr class="fila-cartera" data-vendedor="${(d.vendedor||'').replace(/"/g,'&quot;')}" data-sucursal="${(d.sucursal||'').replace(/"/g,'&quot;')}" style="cursor:pointer;${activo?'background:#2a2e24;border-left:3px solid var(--neon);':''}"><td>${esc(titleCase(d.vendedor||''))}</td><td>${esc(d.sucursal||'')}</td><td class="num money">${money(d.total)}</td><td class="num money" data-val="${vencidaTotal}">${money(vencidaTotal)}</td><td class="num money" style="color:${colorMontoVencido(d.vencido_1_30, '#ff9f43')};">${money(d.vencido_1_30)}</td><td class="num money" style="color:${colorMontoVencido(d.vencido_31_59, '#ff6b6b')};">${money(d.vencido_31_59)}</td><td class="num money" style="color:${colorMontoVencido(d.vencido_60, '#ff6b6b')};">${money(d.vencido_60)}</td><td class="num" data-val="${pctVencidaSuc}" style="color:${colorPctCarteraVencida(pctVencidaSuc)};font-weight:700;">${pctVencidaSuc}%</td><td class="num" style="color:${colorDias};font-weight:700;">${d.dias_max}</td></tr>`;
   });
   if (detalleFiltrado.length) {
     const totTotal = detalleFiltrado.reduce((s,d) => s + (d.total||0), 0);
@@ -2876,7 +2898,8 @@ function renderCartera() {
     const totVencidaTotal = totV1_30 + totV31_59 + totV60;
     const diasMaxTotal = Math.max(...detalleFiltrado.map(d => d.dias_max||0));
     const colorDiasTotal = colorDiasVencido(diasMaxTotal);
-    html += `<tr class="fila-total"><td>TOTAL</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money" data-val="${totVencidaTotal}">${money(totVencidaTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td></tr>`;
+    const pctVencidaTot = totTotal > 0 ? Math.round((totVencidaTotal/totTotal)*1000)/10 : 0;
+    html += `<tr class="fila-total"><td>TOTAL</td><td></td><td class="num money">${money(totTotal)}</td><td class="num money" data-val="${totVencidaTotal}">${money(totVencidaTotal)}</td><td class="num money">${money(totV1_30)}</td><td class="num money">${money(totV31_59)}</td><td class="num money">${money(totV60)}</td><td class="num" data-val="${pctVencidaTot}">${pctVencidaTot}%</td><td class="num" style="color:${colorDiasTotal};font-weight:700;">${diasMaxTotal}</td></tr>`;
   }
   html += '</table></div>';
   html += '<div id="cartera-facturas"></div>';
@@ -3297,7 +3320,7 @@ async function loadTableroControl(mesParam) {
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;">
     <div class="card"><h2>Fact + Remas - NC por KAM</h2>${barraSigno(porKamOrdenFijo, 'vendedor', 'fact_remas')}</div>
     <div class="card"><h2>% Cumplimiento por KAM</h2><table><tr><th>KAM</th><th class="num">% Cumpl.</th></tr>
-      ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" data-val="${k.pct_cumpl}" style="color:${colorFaltante(k.pct_cumpl-100)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
+      ${porKamOrdenFijo.map(k => `<tr><td>${esc(titleCase(k.vendedor))}</td><td class="num" data-val="${k.pct_cumpl}" style="color:${colorCumplimientoKam(k.pct_cumpl)};font-weight:700;">${k.pct_cumpl}%</td></tr>`).join('')}
     </table></div>
   </div>`;
 
