@@ -363,7 +363,7 @@ let KAM_VENTAS_MES_HASTA = null;
 const ORDEN_KAM_TAB = [
   'PEREZ RAMIREZ JHONATAN ALEXANDER',
   'FRANCO ARBOLEDA MARIA ISABEL',
-  'ARISMENDY CRUZ CRISTIAN YONARDO',
+  'PEREZ SUATERNA DAYAN ESTEFANY',
   'BEDOYA VELASQUEZ JORGE ESTEBAN',
   'LONDOÑO MEJIA JOSE GLEISON',
   'GOMEZ RODRIGUEZ CARLOS ANDRES'
@@ -1107,7 +1107,7 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const obj = rOkr.ok ? (rOkr.objetivos || {}) : {};
   const kpisFiltro = kpis.filter(k => mesesAct.includes(k.mes));
   const porKam = rCrec.ok ? (rCrec.por_kam || []) : [];
-  const cristian = porKam.find(k => k.kam_norm && k.kam_norm.toUpperCase().includes('ARISMENDY')) || {};
+  const cristian = porKam.find(k => k.kam_norm && k.kam_norm.toUpperCase().includes('PEREZ SUATERNA')) || {};
   const porKamPres = rPres.ok ? (rPres.por_kam || []) : [];
   const porMesPres = rPres.ok ? (rPres.por_mes || []) : [];
   const totalFacturado = rPres.ok ? (rPres.total_facturado || 0) : 0;
@@ -1128,7 +1128,7 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const deltaC = v2026c - v2025c;
   const pctC = v2025c ? Math.round((deltaC / v2025c) * 100) : 0;
   const colorC = deltaC >= 0 ? '#4ade80' : '#ff6b6b';
-  const presC = porKamPres.find(k => k.vendedor && k.vendedor.includes('ARISMENDY'));
+  const presC = porKamPres.find(k => k.vendedor && k.vendedor.includes('PEREZ SUATERNA'));
   const presupC = presC ? (presC.presupuesto || 0) : 0;
   const cumplPctC = presupC ? Math.round((v2026c / presupC) * 100) : null;
   const colorCumplC = cumplPctC === null ? 'var(--neon)' : cumplPctC >= 100 ? '#4ade80' : cumplPctC >= 80 ? '#ff9f43' : '#ff6b6b';
@@ -1148,14 +1148,14 @@ async function renderOkr(el, opcionesMeses, mesActual) {
   const colorCumplEq = cumplEq === null ? 'var(--neon)' : cumplEq >= 100 ? '#4ade80' : cumplEq >= 80 ? '#ff9f43' : '#ff6b6b';
 
   html += `<div class="card" style="margin-bottom:16px;">
-    <h2 style="color:var(--neon);">Game Changer · Cristian Arismendy (${label})</h2>
+    <h2 style="color:var(--neon);">Game Changer · Estefany Perez — zona Cristian Arismendy (${label})</h2>
     <div class="kpis" style="margin-bottom:16px;">
       <div class="kpi"><div class="label">Ventas ${label} 2026</div><div class="value">${money(v2026c)}</div></div>
       <div class="kpi"><div class="label">% Cumplimiento 2026</div><div class="value" style="color:${colorCumplC};">${cumplPctC !== null ? cumplPctC+'%' : '—'}</div></div>
       <div class="kpi"><div class="label">Crecimiento vs 2025 $</div><div class="value" style="color:${colorC};">${deltaC>=0?'+':''}${money(deltaC)}</div></div>
       <div class="kpi"><div class="label">Crecimiento vs 2025 %</div><div class="value" style="color:${colorC};">${pctC>=0?'+':''}${pctC}%</div></div>
     </div>
-    ${okrGraficaBarrasCristian('Ventas Cristian Arismendy 2025 vs 2026', porMesCristian, mesesAct)}
+    ${okrGraficaBarrasCristian('Ventas Estefany Perez (zona) 2025 vs 2026', porMesCristian, mesesAct)}
   </div>`;
 
   // ── FACTURADO POR AÑO ─────────────────────────────────────
@@ -3383,7 +3383,7 @@ async function loadTableroControl(mesParam) {
 
 const NOMBRES_ROL = { admin: 'Administrador', colaborador: 'Colaborador', gerencia: 'Gerencia General' };
 
-const KAMS_CONOCIDOS = ['PEREZ RAMIREZ JHONATAN ALEXANDER','FRANCO ARBOLEDA MARIA ISABEL','LONDOÑO MEJIA JOSE GLEISON','ARISMENDY CRUZ CRISTIAN YONARDO','BEDOYA VELASQUEZ JORGE ESTEBAN','GOMEZ RODRIGUEZ CARLOS ANDRES'];
+const KAMS_CONOCIDOS = ['PEREZ RAMIREZ JHONATAN ALEXANDER','FRANCO ARBOLEDA MARIA ISABEL','LONDOÑO MEJIA JOSE GLEISON','PEREZ SUATERNA DAYAN ESTEFANY','BEDOYA VELASQUEZ JORGE ESTEBAN','GOMEZ RODRIGUEZ CARLOS ANDRES'];
 
 function checksKam(idPrefijo, seleccionados) {
   seleccionados = seleccionados || [];
