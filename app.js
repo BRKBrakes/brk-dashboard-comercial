@@ -1696,7 +1696,7 @@ async function loadGapDiscos() {
   const r = await rpc('dash_gap_discos', { p_token: TOKEN, p_kam: (OP_KAM&&OP_KAM.length)?OP_KAM:null });
   if (!r.ok) { el.innerHTML = '<div class="loading">Sesión expirada.</div>'; return; }
   let html = renderBarraFiltros([{ id: 'opkam', label: 'KAM', valor: OP_KAM, etiquetaDe: v => titleCase(v) }]);
-  html += '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 2 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
+  html += '<div class="card"><h2>Clientes con gap de discos (últimos 90 días, por sucursal) — meta: 3 juegos pastas : 1 juego discos</h2><table><tr><th>Cliente</th><th>Sucursal</th><th>Vendedor</th><th>Ciudad</th><th class="num">Pastas (unid.)</th><th class="num">Discos (unid.)</th><th class="num">Ratio</th><th class="num">Potencial/mes</th></tr>';
   (r.data || []).forEach(c => {
     html += `<tr><td>${esc(c.cliente)}</td><td>${esc(c.sucursal_despacho||'')}</td><td>${esc(titleCase(c.vendedor))}</td><td>${esc(c.ciudad||'')}</td><td class="num">${Math.round(c.pastas_unidades)}</td><td class="num">${Math.round(c.discos_unidades)}</td><td class="num" data-val="${Math.round((c.ratio_discos_pastas||0)*100)}">${Math.round((c.ratio_discos_pastas||0)*100)}%</td><td class="num money">${money(c.potencial_mes)}</td></tr>`;
   });
