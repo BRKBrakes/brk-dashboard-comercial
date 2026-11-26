@@ -85,6 +85,8 @@ document.getElementById('cargarVentasBtn').addEventListener('click', () => {
 });
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
+  // Cierra la sesión también en el servidor (si falla, igual se limpia el navegador)
+  if (TOKEN) { rpc('dash_logout', { p_token: TOKEN }).catch(() => {}); }
   sessionStorage.removeItem('brk_token');
   sessionStorage.removeItem('brk_rol');
   sessionStorage.removeItem('brk_kam_asignados');
