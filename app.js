@@ -2200,6 +2200,8 @@ async function loadPortafolio(kam, cliente, sucursal, mes, marca) {
   };
 
   const r = await rpc('dash_portafolio', paramsBase);
+  // Totales para las tarjetas: respetan todos los filtros activos (incluida la familia seleccionada)
+  const rTot = await rpc('dash_portafolio_totales', Object.assign({ p_familia: PORTAFOLIO_FAMILIA_SEL || null }, paramsBase));
   const prod = PORTAFOLIO_FAMILIA_SEL
     ? await rpc('dash_portafolio_productos', Object.assign({ p_familia: PORTAFOLIO_FAMILIA_SEL }, paramsBase))
     : null;
@@ -2250,6 +2252,17 @@ async function loadPortafolio(kam, cliente, sucursal, mes, marca) {
     paths += `<path d="M ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${grosor}" class="fam-slice" data-familia="${esc(d.familia)}" style="cursor:pointer;"/>`;
   });
 
+  if (rTot && rTot.ok) {
+    const tTot = rTot.total || 0, tBrk = rTot.brk || 0, tOtros = rTot.otros || 0;
+    const pctB = tTot ? Math.round((tBrk / tTot) * 1000) / 10 : 0;
+    const pctO = tTot ? Math.round((tOtros / tTot) * 1000) / 10 : 0;
+    html += `<div class="kpis">
+      <div class="kpi"><div class="label">Ventas Totales</div><div class="value">${money(tTot)}</div></div>
+      <div class="kpi"><div class="label">Ventas Totales BRK</div><div class="value">${money(tBrk)} - ${pctB}%</div></div>
+      <div class="kpi"><div class="label">Ventas Totales Otras Marcas</div><div class="value">${money(tOtros)} - ${pctO}%</div></div>
+    </div>`;
+  }
+
   html += '<div class="card"><h2>Participación de portafolio por familia (top 12, clic para ver sus referencias)</h2><div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;">';
   html += `<svg width="200" height="200" viewBox="0 0 200 200">${paths}</svg>`;
   html += '<div style="flex:1;min-width:420px;overflow-x:auto;"><table><tr><th></th><th>Familia</th><th class="num">%</th><th class="num">Unidades</th><th class="num">Valor</th></tr>';
@@ -2296,6 +2309,7 @@ async function loadPortafolio(kam, cliente, sucursal, mes, marca) {
   }
 
   el.innerHTML = html;
+  autoFitKpis();
   habilitarOrdenTablas(el);
 
   activarMultiSelect('pfMes', (vals) => loadPortafolio(PF_KAM, PF_CLIENTE, PF_SUCURSAL, vals));
