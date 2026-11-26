@@ -4117,7 +4117,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   CLIENTES_FAMILIA = familia !== undefined ? familia : CLIENTES_FAMILIA;
   CLIENTES_MARCA = marca !== undefined ? marca : CLIENTES_MARCA;
 
-  const r = await rpc('dash_clientes_resumen', {
+  const paramsClientes = {
     p_token: TOKEN,
     p_mes: (CLIENTES_MES && CLIENTES_MES.length) ? CLIENTES_MES.map(m=>parseInt(m)) : null,
     p_kam: (CLIENTES_KAM && CLIENTES_KAM.length) ? CLIENTES_KAM : null,
@@ -4127,7 +4127,10 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     p_nro_documento: CLIENTES_NRO_DOCUMENTO || null,
     p_familia: (CLIENTES_FAMILIA && CLIENTES_FAMILIA.length) ? CLIENTES_FAMILIA : null,
     p_marca: CLIENTES_MARCA || null
-  });
+  };
+  const r = await rpc('dash_clientes_resumen', paramsClientes);
+  // Tarjetas de ventas totales / BRK / otras marcas: mismos filtros que el resto de la vista
+  const rTot = await rpc('dash_clientes_totales', paramsClientes);
   if (!r.ok) { el.innerHTML = `<div class="loading">${r.error || 'Sesión expirada.'}</div>`; return; }
 
   const f = r.filtros || {};
@@ -4173,6 +4176,17 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
     { id: 'nrodoc', label: 'Factura', valor: CLIENTES_NRO_DOCUMENTO },
     { id: 'marca', label: 'Marca', valor: CLIENTES_MARCA ? [CLIENTES_MARCA] : [], etiquetaDe: v => v==='BRK'?'BRK':'Otros' }
   ]);
+
+  if (rTot && rTot.ok) {
+    const tTot = rTot.total || 0, tBrk = rTot.brk || 0, tOtros = rTot.otros || 0;
+    const pctB = tTot ? Math.round((tBrk / tTot) * 1000) / 10 : 0;
+    const pctO = tTot ? Math.round((tOtros / tTot) * 1000) / 10 : 0;
+    html += `<div class="kpis">
+      <div class="kpi"><div class="label">Ventas Totales</div><div class="value">${money(tTot)}</div></div>
+      <div class="kpi"><div class="label">Ventas Totales BRK</div><div class="value">${money(tBrk)} - ${pctB}%</div></div>
+      <div class="kpi"><div class="label">Ventas Totales Otras Marcas</div><div class="value">${money(tOtros)} - ${pctO}%</div></div>
+    </div>`;
+  }
 
   // Top Clientes — pivote por sucursal
   const topClientes = pivotarPorMes(r.top_clientes, f => ({ id: f.sucursal_despacho, sucursal_despacho: f.sucursal_despacho, cliente: f.cliente, vendedor: f.vendedor }), 'valor');
@@ -4237,6 +4251,7 @@ async function loadClientes(mes, kam, cliente, sucursal, referencia, nroDocument
   </div>`;
 
   el.innerHTML = html;
+  autoFitKpis();
   habilitarOrdenTablas(el);
 
   activarMultiSelect('clMes', (vals) => loadClientes(vals, undefined, undefined, undefined, undefined, undefined));
