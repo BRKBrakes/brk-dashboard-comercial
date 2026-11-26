@@ -2918,7 +2918,11 @@ function renderCartera() {
     kam: (v) => { CARTERA_KAM_SEL = (CARTERA_KAM_SEL||[]).filter(x=>x!==v); renderCartera(); },
     razonsocial: (v) => { loadCartera((CARTERA_RAZON_SOCIAL_SEL||[]).filter(x=>x!==v)); },
     sucursal: (v) => { const [ven,suc] = v.split('|||'); CARTERA_SUCURSAL_SEL = CARTERA_SUCURSAL_SEL.filter(x => !(x.vendedor===ven && x.sucursal===suc)); renderCartera(); }
-  }, () => { CARTERA_KAM_SEL = []; CARTERA_SUCURSAL_SEL = []; loadCartera([]); });
+  }, (ids) => {
+    // "Quitar todos" de la barra de Sucursal limpia solo las sucursales; el de la barra superior limpia todo.
+    if (ids && ids.length && ids.every(i => i === 'sucursal')) { CARTERA_SUCURSAL_SEL = []; renderCartera(); return; }
+    CARTERA_KAM_SEL = []; CARTERA_SUCURSAL_SEL = []; loadCartera([]);
+  });
 
   activarMultiSelect('carteraRazonSocial', (vals) => loadCartera(vals));
 
@@ -4545,8 +4549,17 @@ function activarBarraFiltros(el, handlers, limpiarTodoFn) {
       if (handlers && handlers[id]) handlers[id](sub);
     });
   });
-  const btnTodo = el.querySelector('.chip-filtro-limpiar-todo');
-  if (btnTodo && limpiarTodoFn) btnTodo.addEventListener('click', (e) => { e.stopPropagation(); limpiarTodoFn(); });
+  // Una vista puede tener varias barras de filtros activos (ej. Cartera): se enlaza el "Quitar todos" de CADA barra.
+  // limpiarTodoFn recibe los ids de filtro de la barra pulsada, por si la vista quiere limpiar solo esa barra.
+  el.querySelectorAll('.chip-filtro-limpiar-todo').forEach(btnTodo => {
+    if (!limpiarTodoFn) return;
+    btnTodo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const barra = btnTodo.closest('.barra-filtros-activos');
+      const ids = barra ? [...new Set([...barra.querySelectorAll('.btn-quitar-chip')].map(b => b.dataset.clearId))] : [];
+      limpiarTodoFn(ids);
+    });
+  });
 }
 
 // ---- Selector de selección múltiple reutilizable (checkboxes con resumen) ----
