@@ -5,8 +5,11 @@ let TOKEN = sessionStorage.getItem('brk_token') || null;
 let ROL = sessionStorage.getItem('brk_rol') || null;
 let KAM_ASIGNADOS = JSON.parse(sessionStorage.getItem('brk_kam_asignados') || '[]');
 
+// Solo se reintentan consultas de lectura (nunca cargas, guardados ni cambios)
+const RPC_NO_REINTENTAR = /cargar|guardar|insert|crear|actualiz|elimin|borr|reset|login|logout|recategor|cambiar|upsert|set_/i;
+
 async function rpc(fn, params = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+  const llamar = () => fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -15,6 +18,12 @@ async function rpc(fn, params = {}) {
     },
     body: JSON.stringify(params)
   });
+  let res = await llamar();
+  // Primera consulta en frío puede exceder el límite de tiempo (500): se reintenta una vez
+  if (res.status >= 500 && !RPC_NO_REINTENTAR.test(fn)) {
+    await new Promise(r => setTimeout(r, 400));
+    res = await llamar();
+  }
   const data = await res.json();
   if (data && data.ok === false && data.error === 'Sesión inválida') {
     sessionStorage.removeItem('brk_token');
